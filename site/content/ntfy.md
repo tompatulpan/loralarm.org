@@ -4,22 +4,21 @@ title: "ntfy"
 
 ## Pushnotifieringar till mobilen med ntfy
 
-### Installation och inställningar
-
 ### Övervakning från mobiltelefon
 
-För att kunna använda denna information fullt ut, behöver du veta vilken [serveradress] samt [Topic] du ska använda.
+För att kunna använda denna information fullt ut behöver du veta vilken [serveradress] samt [Topic] du ska använda.
 
 **Installera ntfy**
 
 - iPhone App Store - [här](https://apps.apple.com/us/app/ntfy/id1625396347)
-- Android F-Droid - [här](https://f-droid.org/packages/io.heckel.ntfy/) Google Play - [här](https://play.google.com/store/apps/details)
+- Android F-Droid - [här](https://f-droid.org/packages/io.heckel.ntfy/)
+- Android Google Play - [här](https://play.google.com/store/apps/details?id=io.heckel.ntfy)
 
 ---
 
 **Inställningar iPhone**
 
-> Notera att [Pushover](/pushover) är ett stabilare alternativ för iPhone för tillfället!
+> Notera att ntfy på iOS förlitar sig på ntfy.sh:s uppströmsserver för push (se `upstream-base-url` på [installationssidan](/installation)) och därför kan vara mindre pålitlig. [Pushover](/pushover) är ett stabilare alternativ för iPhone för tillfället.
 
 - Öppna appen ntfy
 - Ställ in default server: Välj Settings längst ner i appen -> Default server -> [serveradress]
@@ -39,13 +38,13 @@ För att kunna använda denna information fullt ut, behöver du veta vilken [ser
 
 **Inställningar Webbläsare**
 
-alt.1
+Alt. 1
 
 - Gå till adressen [serveradress]
 - Prenumerera på larm: Tryck på + Subscribe to topic -> Fyll i [Topic] -> Tryck på SUBSCRIBE
 - Prenumerera på information: Tryck på + Subscribe to topic -> Fyll i [Topic] -> Tryck på SUBSCRIBE
 
-alt.2
+Alt. 2
 
 - Skriv https://[serveradress]/[Topic] direkt i adressfältet, ex. https://exempel-server.se/topic1
 
@@ -62,7 +61,7 @@ alt.2
 Rensa meddelanden (webbläsare)
 
 1. Gå till adressen [serveradress]
-2. Välj menyn (tre vertikala punkter) efter den prenumeration du vill rensa.
+2. Välj menyn (tre vertikala punkter) för den prenumeration du vill rensa.
 3. Välj Clear all notifications
 
 ---

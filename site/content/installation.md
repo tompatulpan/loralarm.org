@@ -2,118 +2,128 @@
 title: "Installation"
 ---
 
-> **[Documentation work in progress]**
+> **[Dokumentation under arbete]** – uppdaterad 2026-10-30. Vi följer upp den gamla beskrivningen (Ubuntu 20.04, ChirpStack v3-tid) mot dagens läge.
 
-#### Mjukvarustacken för backend/server består idag av:
+## Mjukvarustacken för backend/server
 
 - [ChirpStack](https://www.chirpstack.io/), "LoRaWAN Network Server"
-- [Node-RED](https://nodered.org/), för att analysera och visa data via ett webbinterface.
-- [ntfy](https://ntfy.sh/), för att ta emot pushnotiser på android och dator.
-- [Pushover](https://pushover.net/), för att ta emot pushnotiser på framför allt Apples produkter (ntfy är lite instabilt på iOS för tillfället). Notera att denna app är en proprietär programvara!
+- [Mosquitto](https://mosquitto.org/), MQTT-broker som ChirpStack och Node-RED kommunicerar via
+- [Node-RED](https://nodered.org/), för att analysera och visa data via ett webbinterface
+- [ntfy](https://ntfy.sh/), för att ta emot pushnotiser på Android och dator
+- [Pushover](https://pushover.net/), för att ta emot pushnotiser på framför allt Apples produkter (ntfy på iOS kräver uppströmsserver mot ntfy.sh och kan vara mindre pålitlig). Notera att Pushover är proprietär programvara!
 
-### Server installation
+## Alternativ att överväga idag (2026)
 
-- Installation och konfiguration kommer att ske på en och samma maskin med Ubuntu 20.04 i denna beskrivning.
-- Testat på en VM, men ska inte vara något problem på ex. en Raspberry Pi.
-- Sätt upp en användare utöver root för all installationer.
+- **Docker Compose i stället för paketinstallation:** ChirpStack erbjuder en färdig [docker-compose-miljö](https://www.chirpstack.io/docs/getstarted/install.html) med ChirpStack, Mosquitto, PostgreSQL och Redis i ett uppsätt. Enklast att komma igång med, och uppgraderingar sker med `docker compose pull` i stället för manuella steg.
+- **Node-RED kan vara valfritt:** ChirpStack v4 har inbyggda integrationer (MQTT, HTTP, med mera), så enklare vidarebefordran till t.ex. ntfy kan skrivas direkt mot MQTT eller HTTP utan Node-RED. Node-RED är fortfarande smidigt när man vill bygga flöden och dashboards utan kod.
+- **The Things Stack (TTN) som nätverksserver:** Om man inte vill drifta egen server kan [The Things Network](https://www.thethingsnetwork.org/) användas gratis; se menyn "Fler möjligheter" på startsidan.
+
+## Serverinstallation
+
+- Installation och konfiguration sker på en och samma maskin – i denna beskrivning **Ubuntu Server 24.04 LTS**. (Den tidigare beskrivningen använde 20.04, som nådde slutet av standardstödet i maj 2025.)
+- Testat i VM, men ska inte vara något problem på ex. en Raspberry Pi.
+- Sätt upp en användare utöver root för alla installationer.
 
 ```
 # logga in som root
 
 # Uppdatera systemet
-$ apt update && apt upgrade -y
+# apt update && apt upgrade -y
 
 # Lägg till användare som "super user"
-$ adduser <användarnamn>
-$ usermod -aG sudo <användarnamn igen>
+# adduser <användarnamn>
+# usermod -aG sudo <användarnamn>
 
-$ reboot
+# reboot
 ```
 
-### ChirpStack
+## ChirpStack
 
-#### Installation
+### Installation
 
-- Vi följer [denna](https://www.chirpstack.io/docs/getting-started/debian-ubuntu.html) instruktion.
+- Vi följer [denna](https://www.chirpstack.io/docs/getting-started/debian-ubuntu.html) instruktion (ChirpStack v4). Glöm inte Mosquitto som broker – den ingår i guiden.
 
-#### Konfiguration
+### Konfiguration
+
+I ChirpStack v4 ligger integrationerna under `[integrations]` (plural), till skillnad från v3 som använde `[integration]`:
 
 ```
 $ sudo nano /etc/chirpstack/chirpstack.toml
 
-[integration]
+[integrations]
   enabled = ["mqtt"]
 
-  [integration.mqtt]
+  [integrations.mqtt]
     server = "tcp://localhost:1883/"
     json = true
 ```
 
 ```
 # starta chirpstack automatiskt vid upstart
-sudo systemctl enable chirpstack
+$ sudo systemctl enable chirpstack
 
 # starta chirpstack
-sudo systemctl start chirpstack
+$ sudo systemctl start chirpstack
 ```
 
----
+## Node-RED
 
-### Node-RED
+### Installation
 
-#### Installation
-
-- I detta exempel installerar vi med npm, [se här](https://nodered.org/docs/getting-started/local).
+- Idag rekommenderas [installationsskriptet](https://nodered.org/docs/getting-started/local) framför manuell npm-installation. Skriptet installerar även en passerande Node.js-version och sätter upp Node-RED som systemd-tjänst:
 
 ```
-$ sudo apt install nodejs
-$ sudo npm install -g --unsafe-perm node-red
+$ bash <(curl -sL https://raw.githubusercontent.com/node-red/linux-installers/master/deb/update-nodejs-and-nodered)
 ```
 
-#### Konfiguration
+- (Den äldre vägen, `sudo apt install nodejs && sudo npm install -g --unsafe-perm node-red`, ger ofta en för gammal Node.js – Ubuntu 24.04 levererar Node 18 och Node-RED 4.x vill ha Node 18.5+ eller 20/22 – och Node-RED startas då i förgrunden i stället som tjänst.)
+
+### Konfiguration
 
 ```
 # Sätt upp en admin om sidan ska visas publikt!
-$ sudo nano .node-red/settings.js
+$ sudo nano ~/.node-red/settings.js
 
-  /** To password protect the Node-RED editor and admin API, the following
-     * property can be used. See https://nodered.org/docs/security.html for details.
-     */
-    adminAuth: {
-        type: "credentials",
-        users: [{
-            username: "admin",
-            password: " hashat lösenord här ",
-            permissions: "*"
-        }]
-    },
+adminAuth: {
+    type: "credentials",
+    users: [{
+        username: "admin",
+        password: "<hashat lösenord här>",
+        permissions: "*"
+    }]
+},
 
-      /** By default, the Node-RED UI is available at http://localhost:1880/
-     * The following property can be used to specify a different root path.
-     * If set to false, this is disabled.
-     */
-    httpAdminRoot: '/admin',
+httpAdminRoot: '/admin',
+```
+
+Hasha lösenordet med:
+
+```
+$ node-red admin hash-pw
 ```
 
 All info [här](https://nodered.org/docs/user-guide/runtime/securing-node-red#editor--admin-api-security) och en video [här](https://www.youtube.com/watch?v=o-iAHZ4jvps) (från ~6 min).
 
 ```
-# starta
+# starta (som systemd-tjänst efter installationsskriptet)
+$ sudo node-red-start
+
+# eller manuellt i förgrunden
 $ node-red
 ```
 
-Nedan ett exempel på hur "koden" i node-red kan se ut, ett så kallad "flow", se mer [här](https://codeberg.org/loralarm/node-red-applications).
+Nedan ett exempel på hur "koden" i Node-RED kan se ut, ett så kallat "flow", se mer [här](https://codeberg.org/loralarm/node-red-applications).
 
 <!-- Lägg node-red.png i static/images/ och ta bort kommentaren nedan.
 ![Node-RED flow](/images/node-red.png) -->
 
-#### Upgradering
+### Uppgradering
 
-- Bra info på denna [sida](https://tronics.life/updating-node-red-npm-and-node-js/)
+- Kör installationsskriptet igen – det uppdaterar både Node.js och Node-RED. Mer info finns också på denna [sida](https://tronics.life/updating-node-red-npm-and-node-js/).
 
-### ntfy
+## ntfy
 
-#### Installation
+### Installation
 
 - För mer info, [se här](https://docs.ntfy.sh/install/).
 
@@ -129,7 +139,7 @@ $ sudo systemctl enable ntfy
 $ sudo systemctl start ntfy
 ```
 
-#### Konfiguration
+### Konfiguration
 
 - https://docs.ntfy.sh/config/
 
@@ -143,10 +153,10 @@ base-url: "https://exemple.domän.se"
 upstream-base-url: "https://ntfy.sh"
 ```
 
-### Reverse Proxy
+## Reverse Proxy
 
-#### Alternativ
+<!-- TODO: beskriv t.ex. nginx eller Caddy med certifikat via Let's Encrypt. Caddy är idag det enklaste alternativet (automatiska certifikat). -->
 
-### Gateway
+## Gateway
 
-#### Konfiguration
+<!-- TODO: konfiguration av gateway/basenhet. -->

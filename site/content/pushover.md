@@ -4,32 +4,22 @@ title: "Pushover"
 
 ## Pushnotifieringar till mobilen med Pushover
 
-> **[Documentation work in progress]**
-
-### Installation och inställningar
+> **[Dokumentation under arbete]**
 
 ### Övervakning från mobiltelefon
 
-För att kunna använda denna information fullt ut, behöver du ha ett Pushover-konto.
+För att kunna använda denna information fullt ut behöver du ha ett Pushover-konto.
 
-(Pushover kostar ca 50 kr som en engångskostnad)
+(Pushover kostar en engångsavgift på ca 50 kr per plattform, efter en 30-dagars provperiod.)
 
 **Installera Pushover**
 
-- iPhone App Store - [här](https://apps.apple.com/us/app/pushover-notifications/id506088175?ls=1)
-- Android Google Play - [här](https://play.google.com/store/apps/details)
+- iPhone App Store - [här](https://apps.apple.com/us/app/pushover-notifications/id506088175)
+- Android Google Play - [här](https://pushover.net/clients/android)
 
 ---
 
-**Inställningar iPhone**
-
-- Öppna appen och logga in.
-- Dela din "User Key" med ansvarig för systemet för att kunna få notiser.
-- Nu kommer du få varningar och information som pushnotiser.
-
----
-
-**Inställningar Android**
+**Inställningar i appen (iOS och Android)**
 
 - Öppna appen och logga in.
 - Dela din "User Key" med ansvarig för systemet för att kunna få notiser.

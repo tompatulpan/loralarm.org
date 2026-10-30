@@ -1,13 +1,19 @@
 ---
-title: "LoRaLarm – ett öppet och fritt larmsystem, en IoT-lösning"
+title: "LoRaLarm – ett öppet och fritt larmsystem för IoT"
 date: 2026-10-30
 ---
 
 *(Senaste uppdatering 2026-10-30)*
 
-LoRaLarm byggs av personer på deras fritid på öppen och fri mjukvara (och hårdvara) utan vinstsyfte, dvs vem som helst kan sätta upp systemet och testa, granska koden och hjälpa till med förbättringar. Några fördelar med detta är låg kostnad, designflexibilitet, transparens och samarbete.
+LoRaLarm är ett öppet och fritt larmsystem – en IoT-lösning byggd på LoRaWAN. Det utvecklas av människor på fritiden, med öppen och fri mjukvara (och hårdvara) och utan vinstsyfte: vem som helst kan sätta upp systemet, granska koden och hjälpa till med förbättringar. Fördelarna är låg kostnad, designflexibilitet, transparens och samarbete.
+
+All kod finns öppet på [GitHub](https://github.com/tompatulpan/loralarm.org).
 
 Mer om [öppen källkod](https://sv.wikipedia.org/wiki/%C3%96ppen_k%C3%A4llkod) och [IoT](https://sv.wikipedia.org/wiki/Sakernas_internet) här.
+
+## Vad försöker LoRaLarm att lösa?
+
+En komplett uppsättning av hårdvara och mjukvara för att enkelt kunna sätta upp ett IoT-nätverk med LoRaWAN som kan användas till olika typer av övervakning och styrning, utan beroende av kommersiella lösningar.
 
 ## Lite fakta om projektet
 
@@ -16,19 +22,13 @@ Mer om [öppen källkod](https://sv.wikipedia.org/wiki/%C3%96ppen_k%C3%A4llkod) 
 - Under 2024 genomfördes framgångsrika fälttester av ett nytt proaktivt stöldskyddssystem i en båtklubb. Systemet har nu gått in i produktionsfasen.
 - Systemet bygger på LoRa-enheter samt en eller flera gemensamma basenheter.
 - Överföringen mellan LoRa-enheter och basenheten sker med radio.
-- Räckvidden är från några hundra meter till flera kilometer beroende på förhållanden.
+- Räckvidden är från några hundra meter till flera kilometer beroende på förhållanden – med en eller flera basenheter upp till ca 15 km i gynnsamma förhållanden.
 - LoRa-enheter kan gå på batteridrift under långa perioder utan batteribyte eller laddning (typiskt flera år).
-- Ett git-repo finns nu här - [code](https://github.com/tompatulpan/loralarm.org)
-
 
 {{< gallery >}}
 ![Gateway (basenhet) och några olika LoRa-enheter](/images/sensorgateway.jpg)
 ![Sensormontering på utombordare](/images/montagemotor.jpg)
 {{< /gallery >}}
-
-## Vad försöker LoRaLarm att lösa?
-
-En komplett uppsättning av hårdvara och mjukvara för att enkelt kunna sätta upp ett IoT-nätverk med LoRaWAN som kan användas till olika typer av övervakning och styrning, utan beroende av kommersiella lösningar.
 
 ## Vad är LoRaWAN?
 
@@ -40,7 +40,7 @@ LoRaWAN är ett långdistans, lågenergi kommunikationsnätverk som används fö
 
 LoRaWAN-sensorer, även kallade noder eller slutenheter, samlar in data från omgivningen. Dessa kan mäta allt från temperatur och luftfuktighet till rörelse och vattennivåer. Kostnaden för en LoRa-enhet är från ca 300 kr.
 
-#### LoRa-enheten (sensorn) kan bestå av följande:
+**LoRa-enheten (sensorn) kan bestå av följande:**
 
 - LoRa-modul (på 868 MHz)
 - Någon form av sensor, t.ex. temperatur eller rörelse
@@ -64,13 +64,13 @@ Slutanvändarna får tillgång till den bearbetade datan via applikationsservern
 
 ### Steg 1: Aktivera och installera
 
-Börja med att aktivera LoRa-enheten hos basenheten. Detta är startpunkten för ditt smarta övervakningssystem. Montera sedan LoRa-enheten strategiskt för optimal täckning.
+Börja med att registrera LoRa-enheten hos basenheten. Detta är startpunkten för ditt smarta övervakningssystem. Montera sedan LoRa-enheten strategiskt för optimal täckning.
 
 ### Steg 2: Realtidsövervakning
 
 Få direkt tillgång till viktig information genom:
 
-- **Pushnotiser:** Motta larm och data direkt på din mobil eller dator. Detta möjliggör snabba reaktioner på kritiska händelser.
+- **Larm och data i realtid:** Få larm och data direkt på din mobil eller dator. Detta möjliggör snabba reaktioner på kritiska händelser.
 - **Statuspanel:** Övervaka systemet i realtid via en intuitiv "dashboard". Visualisera data från olika sensorer för att få en helhetsbild av situationen.
 
 {{< gallery >}}
@@ -81,8 +81,6 @@ Få direkt tillgång till viktig information genom:
 ![Pushnotiser på telefon](/images/screenshot20260612171005.png)
 -->
 {{< /gallery >}}
-
-Pushnotiser på telefon ovan.
 
 ### Fler möjligheter…
 
@@ -96,4 +94,4 @@ LoRa-teknologin är tillgänglig för allt från hobbyentusiaster till små för
 - Övervaka bil, båt, cykel, utombordare, dörrar och fönster, vattenläckage, trädgård (bevattning), strömavbrott, brand, batteristatus, temperatur, källarföråd, elmätare m.m.
 - Styr extern utrustning, såsom belysning, kylskåp, fläktar, värme m.m.
 
-Vill du veta mer eller hjälpa till? Kontakt via e-post. <!-- TODO: lägg till e-postadress/länk -->
+Vill du veta mer eller hjälpa till? Kontakt via [GitHub](https://github.com/tompatulpan/loralarm.org) tills e-postlänken finns på plats. <!-- TODO: lägg till e-postadress/länk -->
