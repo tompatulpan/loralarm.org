@@ -37,15 +37,16 @@ figcaption {
   margin-top: 0.45rem;
 }
 
-/* Flera bilder i samma stycke visas som ett galleri med två kolumner */
-article p:has(> figure + figure) {
+/* Bildgalleri via {{< gallery >}}-shortcoden: två kolumner, en på mobil */
+.gallery {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 1rem 1.25rem;
+  margin: 1.5rem 0;
 }
-article p:has(> figure + figure) figure { margin: 0; max-width: 100%; }
+.gallery figure { margin: 0; max-width: 100%; }
 @media (max-width: 640px) {
-  article p:has(> figure + figure) { grid-template-columns: 1fr; }
+  .gallery { grid-template-columns: 1fr; }
 }
 
 /* --- Kod --- */

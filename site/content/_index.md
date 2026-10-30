@@ -21,8 +21,10 @@ Mer om [öppen källkod](https://sv.wikipedia.org/wiki/%C3%96ppen_k%C3%A4llkod) 
 - Ett git-repo finns nu här. <!-- TODO: länka till projektets git-repo -->
 - Ny adress till hemsidan – [loralarm.org](https://loralarm.org)
 
+{{< gallery >}}
 ![Gateway (basenhet) och några olika LoRa-enheter](/images/sensorgateway.jpg)
 ![Sensormontering på utombordare](/images/montagemotor.jpg)
+{{< /gallery >}}
 
 ## Vad försöker LoRaLarm att lösa?
 
@@ -71,11 +73,12 @@ Få direkt tillgång till viktig information genom:
 - **Pushnotiser:** Motta larm och data direkt på din mobil eller dator. Detta möjliggör snabba reaktioner på kritiska händelser.
 - **Statuspanel:** Övervaka systemet i realtid via en intuitiv "dashboard". Visualisera data från olika sensorer för att få en helhetsbild av situationen.
 
+{{< gallery >}}
 ![Statuspanel](/images/statuspanel01.png)
-
 ![Pushnotiser på telefon](/images/pushnotiser2.jpg)
 ![Pushnotiser på telefon](/images/pushnotiser.png)
 ![Pushnotiser på telefon](/images/screenshot20260612171005.png)
+{{< /gallery >}}
 
 Pushnotiser på telefon ovan.
 
