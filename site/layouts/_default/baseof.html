@@ -5,7 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ if .IsHome }}{{ .Title }}{{ else }}{{ .Title }} | {{ .Site.Title }}{{ end }}</title>
   <meta name="description" content="{{ .Site.Params.description }}">
-  <link rel="stylesheet" href="{{ "css/style.css" | relURL }}">
+  {{ range slice "css/variables.css" "css/base.css" "css/layout.css" "css/components.css" }}
+  <link rel="stylesheet" href="{{ . | relURL }}">
+  {{ end }}
 </head>
 <body>
   {{ partial "header.html" . }}

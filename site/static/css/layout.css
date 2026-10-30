@@ -1,0 +1,32 @@
+/* Layout: sidstruktur */
+.wrap { max-width: var(--max); margin: 0 auto; padding: 0 1.25rem; }
+
+header {
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+header .wrap {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.8rem 1.25rem;
+}
+
+main { padding: 1.5rem 0 3rem; }
+
+footer {
+  background: var(--card);
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+footer .wrap { padding: 1rem 1.25rem; }
+
+@media (max-width: 640px) {
+  header .wrap { justify-content: center; }
+}

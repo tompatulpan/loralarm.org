@@ -1,0 +1,83 @@
+/* Komponenter: meny, bilder, kodblock, citat, tabeller */
+
+/* --- Meny --- */
+.brand {
+  font-weight: 700;
+  font-size: 1.15rem;
+  color: var(--accent);
+  text-decoration: none;
+}
+nav { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+nav a {
+  margin-left: 1rem;
+  color: var(--fg);
+  text-decoration: none;
+  padding: 0.25rem 0.5rem;
+  border-radius: 999px;
+}
+nav a:first-child { margin-left: 0; }
+nav a:hover { color: var(--accent); background: var(--accent-soft); }
+nav a.active { color: var(--accent); background: var(--accent-soft); font-weight: 600; }
+
+/* --- Bilder --- */
+img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+/* Flera bilder efter varandra läggs upp sida vid sida */
+article p:has(> img + img) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+article p:has(> img + img) img { flex: 1 1 30%; margin: 0.5rem 0; }
+article img { margin: 1rem 0; }
+
+/* --- Kod --- */
+code {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.9em;
+  background: var(--code-inline-bg);
+  padding: 0.15em 0.4em;
+  border-radius: 4px;
+}
+pre {
+  background: var(--code-bg);
+  color: var(--code-fg);
+  padding: 1rem 1.1rem;
+  border-radius: var(--radius);
+  overflow-x: auto;
+  line-height: 1.5;
+  font-size: 0.9rem;
+}
+pre code { background: none; padding: 0; font-size: 1em; }
+
+/* --- Citat/notiser --- */
+blockquote {
+  margin: 1rem 0;
+  padding: 0.5rem 1rem;
+  border-left: 3px solid var(--accent);
+  background: var(--card);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  color: var(--muted);
+}
+
+/* --- Tabeller --- */
+table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.95rem; }
+th, td { border: 1px solid var(--border); padding: 0.45rem 0.6rem; text-align: left; }
+th { background: var(--card); }
+tbody tr:nth-child(even) { background: var(--card); }
+
+/* --- Nyhetslistan (list.html) --- */
+.list { list-style: none; padding: 0; }
+.list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--border);
+}

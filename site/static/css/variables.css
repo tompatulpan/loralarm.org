@@ -1,0 +1,17 @@
+/* Design-tokens – ändra färg/typografi här, allt annat följer */
+:root {
+  --fg: #1f2933;
+  --bg: #f8fafc;
+  --card: #ffffff;
+  --accent: #0f766e;
+  --accent-dark: #115e59;
+  --accent-soft: #ccfbf1;
+  --muted: #64748b;
+  --border: #e2e8f0;
+  --code-bg: #0f172a;
+  --code-fg: #e2e8f0;
+  --code-inline-bg: #edf2f7;
+  --max: 46rem;
+  --radius: 8px;
+  --shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}

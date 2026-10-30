@@ -3,7 +3,7 @@
     <a class="brand" href="{{ "" | relURL }}">LoRaLarm</a>
     <nav>
       {{ range .Site.Menus.main }}
-      <a href="{{ .URL }}">{{ .Name }}</a>
+      <a href="{{ .URL }}"{{ if $.IsMenuCurrent "main" . }} class="active"{{ end }}>{{ .Name }}</a>
       {{ end }}
     </nav>
   </div>
