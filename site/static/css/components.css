@@ -37,22 +37,15 @@ figcaption {
   margin-top: 0.45rem;
 }
 
-/* Flera bilder i samma stycke visas som ett ordnat galleri */
+/* Flera bilder i samma stycke visas som ett galleri med två kolumner */
 article p:has(> figure + figure) {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
   gap: 1rem 1.25rem;
-  justify-content: center;
-  align-items: flex-start;
 }
-article p:has(> figure + figure) figure {
-  flex: 1 1 0;
-  min-width: 160px;
-  max-width: 30%;
-  margin: 0.5rem 0;
-}
+article p:has(> figure + figure) figure { margin: 0; max-width: 100%; }
 @media (max-width: 640px) {
-  article p:has(> figure + figure) figure { max-width: 45%; }
+  article p:has(> figure + figure) { grid-template-columns: 1fr; }
 }
 
 /* --- Kod --- */
