@@ -1,9 +1,9 @@
 ---
 title: "LoRaLarm – ett öppet och fritt larmsystem, en IoT-lösning"
-date: 2026-06-12
+date: 2026-10-30
 ---
 
-*(Senaste uppdatering 2026-06-12)*
+*(Senaste uppdatering 2026-10-30)*
 
 LoRaLarm byggs av personer på deras fritid på öppen och fri mjukvara (och hårdvara) utan vinstsyfte, dvs vem som helst kan sätta upp systemet och testa, granska koden och hjälpa till med förbättringar. Några fördelar med detta är låg kostnad, designflexibilitet, transparens och samarbete.
 
@@ -18,8 +18,8 @@ Mer om [öppen källkod](https://sv.wikipedia.org/wiki/%C3%96ppen_k%C3%A4llkod) 
 - Överföringen mellan LoRa-enheter och basenheten sker med radio.
 - Räckvidden är från några hundra meter till flera kilometer beroende på förhållanden.
 - LoRa-enheter kan gå på batteridrift under långa perioder utan batteribyte eller laddning (typiskt flera år).
-- Ett git-repo finns nu här. <!-- TODO: länka till projektets git-repo -->
-- Ny adress till hemsidan – [loralarm.org](https://loralarm.org)
+- Ett git-repo finns nu här - [code](https://github.com/tompatulpan/loralarm.org)
+
 
 {{< gallery >}}
 ![Gateway (basenhet) och några olika LoRa-enheter](/images/sensorgateway.jpg)
@@ -76,8 +76,10 @@ Få direkt tillgång till viktig information genom:
 {{< gallery >}}
 ![Statuspanel](/images/statuspanel01.png)
 ![Pushnotiser på telefon](/images/pushnotiser2.jpg)
+<!-- Commented out for now:
 ![Pushnotiser på telefon](/images/pushnotiser.png)
 ![Pushnotiser på telefon](/images/screenshot20260612171005.png)
+-->
 {{< /gallery >}}
 
 Pushnotiser på telefon ovan.
