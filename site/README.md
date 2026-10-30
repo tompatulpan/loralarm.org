@@ -28,9 +28,11 @@ Lägg bildfiler i `static/images/` och referera dem i Markdown som `/images/filn
 | Framework preset | Hugo |
 | Build command | `hugo --minify` |
 | Build output directory | `public` |
-| Miljövariabel | `HUGO_VERSION = 0.168.0` |
 
-Sätt `HUGO_VERSION` under Settings → Environment variables, i både Production- och Preview-miljön.
+Hugo-versionen styrs av `.tool-versions` i repots rot (`hugo 0.168.0`) – ingen
+miljövariabel behövs. Sätt i så fall miljövariabeln **exakt** som
+`HUGO_VERSION` = `0.168.0` (namn utan komma/blanksteg, värde utan citattecken),
+i både Production- och Preview-miljön.
 
 ## Kommande steg (innehållsplan)
 
