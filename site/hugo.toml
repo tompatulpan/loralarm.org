@@ -1,0 +1,7 @@
+baseURL = "https://loralarm.org/"
+languageCode = "sv-SE"
+defaultContentLanguage = "sv"
+title = "LoRaLarm"
+
+[params]
+  description = "Ett öppet och fritt larmsystem – en IoT-lösning byggt på LoRaWAN."
