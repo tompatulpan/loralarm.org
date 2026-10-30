@@ -8,6 +8,7 @@
   {{ range slice "css/variables.css" "css/base.css" "css/layout.css" "css/components.css" }}
   <link rel="stylesheet" href="{{ . | relURL }}">
   {{ end }}
+  <script src="{{ "js/lightbox.js" | relURL }}" defer></script>
 </head>
 <body>
   {{ partial "header.html" . }}
