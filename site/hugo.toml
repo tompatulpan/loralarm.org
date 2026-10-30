@@ -5,3 +5,32 @@ title = "LoRaLarm"
 
 [params]
   description = "Ett öppet och fritt larmsystem – en IoT-lösning byggt på LoRaWAN."
+
+[[menus.main]]
+  name = "Hem"
+  pageRef = "/"
+  weight = 1
+
+[[menus.main]]
+  name = "Installation"
+  pageRef = "/installation"
+  weight = 2
+
+[[menus.main]]
+  name = "ntfy"
+  pageRef = "/ntfy"
+  weight = 3
+
+[[menus.main]]
+  name = "Pushover"
+  pageRef = "/pushover"
+  weight = 4
+
+[[menus.main]]
+  name = "Testade enheter"
+  pageRef = "/testadeenheter"
+  weight = 5
+
+# --minify kollapsar i övrigt radbrytningar inuti <pre>-kodblock
+[minify.tdewolff.html]
+  keepWhitespace = true

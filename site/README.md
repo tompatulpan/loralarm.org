@@ -34,7 +34,9 @@ Sätt `HUGO_VERSION` under Settings → Environment variables, i både Productio
 
 ## Kommande steg (innehållsplan)
 
-- [ ] Fyll i TODO-markörerna i `content/_index.md` (git-repo-länk, e-post, bilder)
+- [ ] Lägg in bilderna i `static/images/` (se `static/images/README.md`) – referenserna i Markdown är klara
+- [ ] Fyll i TODO-markörerna i `content/_index.md` (git-repo-länk, e-post)
+- [ ] Återställ `content/testadeenheter.md` från en lokal kopia av Grav-exporten (sidan arkiverades aldrig av Wayback Machine)
 - [ ] Nyhetssektion (`content/news/` – listmallen finns redan)
 - [ ] Engelsk version (multi-language: lägg `[languages.en]` i `hugo.toml` och `_index.en.md`)
 - [ ] Docs/guider (`content/docs/`)

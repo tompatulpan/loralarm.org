@@ -21,9 +21,7 @@ Mer om [öppen källkod](https://sv.wikipedia.org/wiki/%C3%96ppen_k%C3%A4llkod) 
 - Ett git-repo finns nu här. <!-- TODO: länka till projektets git-repo -->
 - Ny adress till hemsidan – [loralarm.org](https://loralarm.org)
 
-![Gateway (basenhet) och några olika LoRa-enheter: mönsterkort för sensor samt sensormontering på utombordare](/images/gateway-och-lora-enheter.jpg)
-
-<!-- TODO: kopiera bildfilerna från den gamla exporten (~/migration/loralarm.org på blue) till site/static/images/ och justera filnamnen -->
+![Gateway (basenhet) och några olika LoRa-enheter](/images/sensorgateway.jpg)
 
 ## Vad försöker LoRaLarm att lösa?
 
@@ -32,6 +30,8 @@ En komplett uppsättning av hårdvara och mjukvara för att enkelt kunna sätta 
 ## Vad är LoRaWAN?
 
 LoRaWAN är ett långdistans, lågenergi kommunikationsnätverk som används för Internet of Things (IoT). Här är en kort beskrivning av de viktigaste komponenterna:
+
+![Arkitektur](/images/arkitektur.png)
 
 ### Sensorer
 
@@ -70,7 +70,12 @@ Få direkt tillgång till viktig information genom:
 - **Pushnotiser:** Motta larm och data direkt på din mobil eller dator. Detta möjliggör snabba reaktioner på kritiska händelser.
 - **Statuspanel:** Övervaka systemet i realtid via en intuitiv "dashboard". Visualisera data från olika sensorer för att få en helhetsbild av situationen.
 
+![Statuspanel](/images/statuspanel01.png)
+
+![Pushnotiser på telefon](/images/pushnotiser2.jpg)
 ![Pushnotiser på telefon](/images/pushnotiser.png)
+
+Pushnotiser på telefon ovan.
 
 ### Fler möjligheter…
 
