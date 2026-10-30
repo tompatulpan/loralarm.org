@@ -104,7 +104,8 @@ $ node-red
 
 Nedan ett exempel på hur "koden" i node-red kan se ut, ett så kallad "flow", se mer [här](https://codeberg.org/loralarm/node-red-applications).
 
-![Node-RED flow](/images/node-red.png)
+<!-- Lägg node-red.png i static/images/ och ta bort kommentaren nedan.
+![Node-RED flow](/images/node-red.png) -->
 
 #### Upgradering
 

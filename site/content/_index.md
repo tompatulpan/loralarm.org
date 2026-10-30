@@ -22,6 +22,7 @@ Mer om [öppen källkod](https://sv.wikipedia.org/wiki/%C3%96ppen_k%C3%A4llkod) 
 - Ny adress till hemsidan – [loralarm.org](https://loralarm.org)
 
 ![Gateway (basenhet) och några olika LoRa-enheter](/images/sensorgateway.jpg)
+![Sensormontering på utombordare](/images/montagemotor.jpg)
 
 ## Vad försöker LoRaLarm att lösa?
 
@@ -74,6 +75,7 @@ Få direkt tillgång till viktig information genom:
 
 ![Pushnotiser på telefon](/images/pushnotiser2.jpg)
 ![Pushnotiser på telefon](/images/pushnotiser.png)
+![Pushnotiser på telefon](/images/screenshot20260612171005.png)
 
 Pushnotiser på telefon ovan.
 

@@ -1,15 +1,14 @@
 # Bilder
 
-Bilderna från den gamla Grav-sajten finns inte i git (de gick inte att rädda från
-arkivet – se TODO:n i content/_index.md). Lägg in filerna här med följande namn:
+Bilderna som används på webbplatsen. Referenser i Markdown: `/images/<filnamn>`.
 
-| Filnamn här           | Ursprunglig fil i Grav-exporten                     | Används på        |
-|-----------------------|-----------------------------------------------------|-------------------|
-| sensorgateway.jpg     | user/pages/01.Start/… (foto på gateway + sensorer)  | Startsidan        |
-| arkitektur.png        | user/pages/01.Start/arkitektur.png                  | Startsidan        |
-| statuspanel01.png     | statuspanel01.png (skärmdump av dashboarden)        | Startsidan        |
-| pushnotiser.png       | screenshot20241020183218.png (skärmdump av ntfy)    | Startsidan        |
-| pushnotiser2.jpg      | image2024-12-0319-02-15.jpg                         | Startsidan        |
-| node-red.png          | user/pages/04.installation/node-red.png             | /installation     |
-
-Så fort filerna ligger här byggs de med automatik – referenserna i Markdown är redan klara.
+| Fil                        | Motiv                                       | Används på    |
+|----------------------------|---------------------------------------------|---------------|
+| sensorgateway.jpg          | Gateway (basenhet) och LoRa-enheter         | Startsidan    |
+| montagemotor.jpg           | Sensormontering på utombordare              | Startsidan    |
+| arkitektur.png             | Systemarkitektur                           | Startsidan    |
+| statuspanel01.png          | Statuspanel/dashboard                       | Startsidan    |
+| pushnotiser.png            | Pushnotiser på telefon                      | Startsidan    |
+| pushnotiser2.jpg           | Pushnotiser på telefon                      | Startsidan    |
+| screenshot20260612171005.png | Pushnotiser på telefon (2026-06-12)      | Startsidan    |
+| node-red.png               | Node-RED-flow                               | /installation – **saknas ännu** |
