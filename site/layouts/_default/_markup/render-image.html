@@ -3,5 +3,5 @@
   <a class="lightbox" href="{{ .Destination | safeURL }}">
     <img src="{{ .Destination | safeURL }}" alt="{{ .PlainText }}">
   </a>
-  <figcaption>{{ if $wide }}{{ .PlainText }}{{ else }}{{ with .Title }}{{ . }}{{ else }}{{ .PlainText }}{{ end }}</figcaption>
+  <figcaption>{{ if $wide }}{{ .PlainText }}{{ else }}{{ with .Title }}{{ . }}{{ else }}{{ .PlainText }}{{ end }}{{ end }}</figcaption>
 </figure>
