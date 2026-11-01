@@ -1,6 +1,7 @@
-<figure>
+{{ $wide := eq .Title "wide" }}
+<figure{{ if $wide }} class="wide"{{ end }}>
   <a class="lightbox" href="{{ .Destination | safeURL }}">
     <img src="{{ .Destination | safeURL }}" alt="{{ .PlainText }}">
   </a>
-  <figcaption>{{ with .Title }}{{ . }}{{ else }}{{ .PlainText }}{{ end }}</figcaption>
+  <figcaption>{{ if $wide }}{{ .PlainText }}{{ else }}{{ with .Title }}{{ . }}{{ else }}{{ .PlainText }}{{ end }}</figcaption>
 </figure>
