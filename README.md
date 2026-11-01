@@ -1,11 +1,15 @@
 # loralarm.org
 
-Hemvist för hela LoRaLarm-projektet: webbplats, klient- och serverkod samlade i samma repo.
+Home of the entire LoRaLarm project: website, device and server code collected in the same repository.
 
-## Struktur
+## Structure
 
-- `site/` – källkoden till webbplatsen [loralarm.org](https://loralarm.org), byggd med Hugo och publicerad på Cloudflare Pages (se `site/README.md`)
-- `client/` – kod för LoRa-klienter/sensorer (firmware, hårdvarudesign)
-- `server/` – kod för basenheter/gateways och nätverksserver
+- `site/` – source code for the website [loralarm.org](https://loralarm.org), built with Hugo and published on Cloudflare Pages (see `site/README.md`)
+- `devices/` – code for LoRa clients/sensors (firmware, hardware design)
+- `server/` – code for base units/gateways and the network server
 
-Webbplatsen byggs automatiskt på Cloudflare Pages vid varje `git push` – se `site/README.md` för redigerings arbetsflödet och build-inställningar.
+The website is rebuilt automatically on Cloudflare Pages on every `git push` – see `site/README.md` for the editing workflow and build settings.
+
+## Data flow
+
+![Signal path from LoRa devices through a gateway and ChirpStack to Node-RED, which sends notifications to phones and updates the web dashboard](docs/loralarm-flow.svg)

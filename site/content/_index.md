@@ -34,7 +34,7 @@ En komplett uppsättning av hårdvara och mjukvara för att enkelt kunna sätta 
 
 LoRaWAN är ett långdistans, lågenergi kommunikationsnätverk som används för Internet of Things (IoT). Här är en kort beskrivning av de viktigaste komponenterna:
 
-![Arkitektur](/images/arkitektur.png)
+![Signalflöde från LoRa-enheter via gateway och ChirpStack till Node-RED, som skickar notiser till telefon och web](/images/loralarm-flow.svg)
 
 ### Sensorer
 
