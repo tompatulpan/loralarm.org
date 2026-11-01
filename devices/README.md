@@ -1,4 +1,4 @@
-# client/
+# devices/
 
 Kod för LoRaLarm-klienter (sensorer/slutenheter): firmware, sensorprogramvara och hårdvarudesign (mönsterkort).
 

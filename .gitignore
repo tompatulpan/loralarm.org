@@ -3,3 +3,9 @@ public/
 resources/
 .hugo_build.lock
 site/.hugo_build.lock
+
+# Secrets – LoRaWAN keys, device credentials (keep example.secrets.h!)
+secrets.h
+
+# Logs from device firmware / debugging
+*.log
