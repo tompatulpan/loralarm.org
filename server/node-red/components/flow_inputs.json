@@ -1,0 +1,476 @@
+[
+    {
+        "id": "73fec5176ff2b148",
+        "type": "tab",
+        "label": "Inputs",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "5ae1fd78202f2979",
+        "type": "change",
+        "z": "73fec5176ff2b148",
+        "name": "",
+        "rules": [
+            {
+                "t": "set",
+                "p": "sensorConfig",
+                "pt": "global",
+                "to": "{\"sensor3\":{\"devEui\":\"ac1f09fffe1003ae\",\"deviceName\":\"sensor3\",\"dashboardName\":\"Sensor3_Sensorer\",\"hasSettings\":true},\"sensor4\":{\"devEui\":\"ac1f09fffe100590\",\"deviceName\":\"sensor4\",\"dashboardName\":\"Sensor4_Sensorer\",\"hasSettings\":false},\"sensor5\":{\"devEui\":\"ac1f09fffe10033b\",\"deviceName\":\"sensor5\",\"dashboardName\":\"Sensor5_Sensorer\",\"hasSettings\":false},\"sensor6\":{\"devEui\":\"24e124535d243458\",\"deviceName\":\"button1\"},\"sensor7\":{\"devEui\":\"ac1f09fffe145d68\",\"deviceName\":\"sensor7\",\"dashboardName\":\"Sensor7_Sensorer\",\"hasSettings\":true},\"sensor8\":{\"devEui\":\"ac1f09fffe145d60\",\"deviceName\":\"sensor8\",\"dashboardName\":\"Sensor8_Sensorer\",\"hasSettings\":true},\"subsensor9\":{\"devEui\":\"ac1f09fffe1463ea\",\"deviceName\":\"sensor9\",\"dashboardName\":\"Sensor9_Sensorer\",\"hasSettings\":true},\"sensor10\":{\"devEui\":\"ac1f09fffe146c0e\",\"deviceName\":\"sensor10\",\"dashboardName\":\"Sensor10_Sensorer\",\"hasSettings\":true},\"subsensor11\":{\"devEui\":\"ac1f09fffe146b61\",\"deviceName\":\"sensor11\",\"dashboardName\":\"Sensor11_Sensorer\",\"hasSettings\":true},\"subsensor12\":{\"devEui\":\"ac1f09fffe10033b\",\"deviceName\":\"sensor12\",\"dashboardName\":\"Sensor12_Sensorer\",\"hasSettings\":true},\"subsensor13\":{\"devEui\":\"ac1f09fffe183b3e\",\"deviceName\":\"sensor13\",\"dashboardName\":\"Sensor13_Sensorer\",\"hasSettings\":true},\"door1\":{\"devEui\":\"a84041a5d7598dd0\",\"deviceName\":\"door1\"},\"door2\":{\"devEui\":\"a84041e3d189503d\",\"deviceName\":\"door2\"},\"water1\":{\"devEui\":\"e8e1e100010a7173\",\"deviceName\":\"water1\"},\"water2\":{\"devEui\":\"e8e1e100010a7100\",\"deviceName\":\"water2\"},\"sensor14\":{\"devEui\":\"ac1f09fffe12d9ac\",\"deviceName\":\"sensor14\",\"dashboardName\":\"Sensor14_Sensorer\",\"hasSettings\":true},\"sensor16\":{\"devEui\":\"ac1f09fffe12da63\",\"deviceName\":\"sensor16\",\"dashboardName\":\"Sensor16_Sensorer\",\"hasSettings\":true}}",
+                "tot": "json"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 350,
+        "y": 220,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "5aeac6c84ecdfd58",
+        "type": "change",
+        "z": "73fec5176ff2b148",
+        "name": "",
+        "rules": [
+            {
+                "t": "set",
+                "p": "application",
+                "pt": "global",
+                "to": "{\"larm\":\"1d7d3417-e6bf-4e85-ab60-fb422fecdf90\",\"sublarm\":\"1d7d3417-e6bf-4e85-ab60-fb422fecdf90\",\"button\":\"9717742d-df1e-4f57-988c-d5cb1f5ade35\",\"weather\":\"13c15391-7954-40ae-9539-dedb556de85e\"}",
+                "tot": "json"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 340,
+        "y": 120,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "9020f448c9d121ac",
+        "type": "inject",
+        "z": "73fec5176ff2b148",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": true,
+        "onceDelay": "1",
+        "topic": "",
+        "payload": "true",
+        "payloadType": "bool",
+        "x": 110,
+        "y": 120,
+        "wires": [
+            [
+                "5aeac6c84ecdfd58",
+                "5ae1fd78202f2979",
+                "99f5109588bdf6b6",
+                "f4ac95b31f4e94da"
+            ]
+        ]
+    },
+    {
+        "id": "99f5109588bdf6b6",
+        "type": "change",
+        "z": "73fec5176ff2b148",
+        "d": true,
+        "name": "",
+        "rules": [
+            {
+                "t": "set",
+                "p": "activate",
+                "pt": "global",
+                "to": "{\"sensor3\":\"true\",\"sensor4\":\"true\",\"sensor5\":\"true\",\"sensor6\":\"true\",\"sensor7\":\"true\"}",
+                "tot": "json"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 330,
+        "y": 380,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "c6d2fd40c81ab2f6",
+        "type": "comment",
+        "z": "73fec5176ff2b148",
+        "name": "application id",
+        "info": "",
+        "x": 290,
+        "y": 80,
+        "wires": []
+    },
+    {
+        "id": "526bd752ebda2c50",
+        "type": "comment",
+        "z": "73fec5176ff2b148",
+        "name": "SensorConfig",
+        "info": "",
+        "x": 280,
+        "y": 180,
+        "wires": []
+    },
+    {
+        "id": "dfd4a9677f213788",
+        "type": "comment",
+        "z": "73fec5176ff2b148",
+        "name": "Not Used yet",
+        "info": "",
+        "x": 290,
+        "y": 340,
+        "wires": []
+    },
+    {
+        "id": "29dc376147da0eee",
+        "type": "comment",
+        "z": "73fec5176ff2b148",
+        "name": "<<< outer key (ID) is used for global settings",
+        "info": "",
+        "x": 690,
+        "y": 220,
+        "wires": []
+    },
+    {
+        "id": "44631d2d0afa6e66",
+        "type": "comment",
+        "z": "73fec5176ff2b148",
+        "name": "Resend 3-axis sensor config on sensor join/restart",
+        "info": "Saves threshold/frequency/duration in persistent global context (localfilesystem store).\nOn sensor rejoin (e.g. battery loss), resends last known settings as downlinks.",
+        "x": 230,
+        "y": 440,
+        "wires": []
+    },
+    {
+        "id": "f4ac95b31f4e94da",
+        "type": "function",
+        "z": "73fec5176ff2b148",
+        "name": "init sensorSettings defaults",
+        "func": "var sensorConfig = global.get(\"sensorConfig\") || {};\nvar settings = global.get(\"sensorSettings\", \"default\") || {};\nvar changed = false;\nObject.keys(sensorConfig).forEach(function(name) {\n    if (!sensorConfig[name].hasSettings) return;\n    var eui = sensorConfig[name].devEui;\n    if (eui && !settings[eui]) {\n        settings[eui] = { interrupt_threshold: null, acc_frequency: null, interrupt_duration: null };\n        changed = true;\n    }\n});\nif (changed) global.set(\"sensorSettings\", settings, \"default\");\nreturn null;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 340,
+        "y": 280,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "43225811916a12df",
+        "type": "mqtt in",
+        "z": "73fec5176ff2b148",
+        "name": "join events",
+        "topic": "application/1d7d3417-e6bf-4e85-ab60-fb422fecdf90/device/+/event/join",
+        "qos": "1",
+        "datatype": "json",
+        "broker": "6702f55c7ff28076",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 120,
+        "y": 480,
+        "wires": [
+            [
+                "d81ed8da1d62b5d8"
+            ]
+        ]
+    },
+    {
+        "id": "d81ed8da1d62b5d8",
+        "type": "function",
+        "z": "73fec5176ff2b148",
+        "name": "resend settings on join",
+        "func": "var devEui = msg.payload.deviceInfo && msg.payload.deviceInfo.devEui;\nif (!devEui) return null;\n\nvar settings = global.get(\"sensorSettings\", \"default\") || {};\nvar s = settings[devEui];\nif (!s) return null;\n\nvar msgs = [];\nif (s.interrupt_threshold) msgs.push({ payload: s.interrupt_threshold, fPort: \"5\", confirmed: \"false\", devEui: devEui });\nif (s.acc_frequency) msgs.push({ payload: s.acc_frequency, fPort: \"6\", confirmed: \"false\", devEui: devEui });\nif (s.interrupt_duration)  msgs.push({ payload: s.interrupt_duration,  fPort: \"7\", confirmed: \"false\", devEui: devEui });\n\nif (msgs.length === 0) return null;\nreturn [msgs];",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 340,
+        "y": 480,
+        "wires": [
+            [
+                "e60b917cc5b4561d"
+            ]
+        ]
+    },
+    {
+        "id": "e60b917cc5b4561d",
+        "type": "device downlink",
+        "z": "73fec5176ff2b148",
+        "name": "resend DL",
+        "server": "localhost:8080",
+        "useTls": false,
+        "apiToken": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJjaGlycHN0YWNrIiwiaXNzIjoiY2hpcnBzdGFjayIsInN1YiI6ImZkZWE5ZTFjLTAxZTUtNDJjOC1hMTQzLWI2NzY5NGMyMzEwNiIsInR5cCI6ImtleSJ9.VODUmFDg-0rSfXEgD__lsdnuZGgkcVU7nkGJUgGt5Bc",
+        "encoding": "base64",
+        "x": 580,
+        "y": 480,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "3d45b6249567a744",
+        "type": "comment",
+        "z": "73fec5176ff2b148",
+        "name": "Monthly TX log deletion (1st of each month at midnight)",
+        "info": "",
+        "x": 240,
+        "y": 580,
+        "wires": []
+    },
+    {
+        "id": "5ea38226aa75f0c1",
+        "type": "inject",
+        "z": "73fec5176ff2b148",
+        "name": "1st of month midnight",
+        "props": [],
+        "repeat": "",
+        "crontab": "0 0 1 * *",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "x": 180,
+        "y": 620,
+        "wires": [
+            [
+                "e4025b2259c7b312"
+            ]
+        ]
+    },
+    {
+        "id": "e4025b2259c7b312",
+        "type": "exec",
+        "z": "73fec5176ff2b148",
+        "command": "rm /home/tomas/log_tx.csv",
+        "addpay": false,
+        "append": "",
+        "useSpawn": "false",
+        "timer": "10",
+        "winHide": false,
+        "oldrc": false,
+        "name": "delete TX log",
+        "x": 410,
+        "y": 620,
+        "wires": [
+            [],
+            [],
+            []
+        ]
+    },
+    {
+        "id": "302d50823ef0204d",
+        "type": "inject",
+        "z": "73fec5176ff2b148",
+        "name": "1st of month midnight",
+        "props": [],
+        "repeat": "",
+        "crontab": "0 0 1 * *",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "x": 180,
+        "y": 680,
+        "wires": [
+            [
+                "b03c53c6f124aded"
+            ]
+        ]
+    },
+    {
+        "id": "b03c53c6f124aded",
+        "type": "exec",
+        "z": "73fec5176ff2b148",
+        "command": "rm /home/tomas/log_alarms.csv",
+        "addpay": false,
+        "append": "",
+        "useSpawn": "false",
+        "timer": "10",
+        "winHide": false,
+        "oldrc": false,
+        "name": "delete log_alarms.csv",
+        "x": 440,
+        "y": 680,
+        "wires": [
+            [],
+            [],
+            []
+        ]
+    },
+    {
+        "id": "24547ae03b64e631",
+        "type": "comment",
+        "z": "73fec5176ff2b148",
+        "d": true,
+        "name": "Download log_tx_sensor16.csv",
+        "info": "HTTP endpoint: GET /download/sensor16/log_tx.csv",
+        "x": 170,
+        "y": 760,
+        "wires": []
+    },
+    {
+        "id": "7e269376afbf2b7a",
+        "type": "http in",
+        "z": "73fec5176ff2b148",
+        "d": true,
+        "name": "GET log_tx sensor16",
+        "url": "/download/sensor16/log_tx.csv",
+        "method": "get",
+        "upload": false,
+        "swaggerDoc": "",
+        "x": 125,
+        "y": 800,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "6dc068df9cea7bf7",
+        "type": "file in",
+        "z": "73fec5176ff2b148",
+        "d": true,
+        "name": "read log_tx_sensor16",
+        "filename": "/home/tomas/log_tx_sensor16.csv",
+        "filenameType": "str",
+        "format": "utf8",
+        "chunk": false,
+        "sendError": true,
+        "encoding": "none",
+        "allProps": false,
+        "x": 340,
+        "y": 860,
+        "wires": [
+            [
+                "0989b5d3112523d9"
+            ]
+        ]
+    },
+    {
+        "id": "0989b5d3112523d9",
+        "type": "function",
+        "z": "73fec5176ff2b148",
+        "d": true,
+        "name": "set download headers",
+        "func": "if (msg.error) {\n    msg.statusCode = 404;\n    msg.headers = {\"Content-Type\": \"text/plain\"};\n    msg.payload = \"Log file not found: \" + msg.error.message;\n} else {\n    msg.headers = {\n        \"Content-Disposition\": \"attachment; filename=\\\"log_tx_sensor16.csv\\\"\",\n        \"Content-Type\": \"text/csv; charset=utf-8\"\n    };\n    msg.statusCode = 200;\n}\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 535,
+        "y": 800,
+        "wires": [
+            [
+                "32cb39d380699191"
+            ]
+        ]
+    },
+    {
+        "id": "32cb39d380699191",
+        "type": "http response",
+        "z": "73fec5176ff2b148",
+        "d": true,
+        "name": "",
+        "statusCode": "",
+        "headers": {},
+        "x": 715,
+        "y": 800,
+        "wires": []
+    },
+    {
+        "id": "5d040df6ff0038a2",
+        "type": "inject",
+        "z": "73fec5176ff2b148",
+        "d": true,
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 120,
+        "y": 860,
+        "wires": [
+            [
+                "6dc068df9cea7bf7"
+            ]
+        ]
+    },
+    {
+        "id": "6702f55c7ff28076",
+        "type": "mqtt-broker",
+        "name": "Lora Server 192.168.2.26",
+        "broker": "192.168.2.26",
+        "port": "1883",
+        "clientid": "",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": "4",
+        "keepalive": "60",
+        "cleansession": true,
+        "autoUnsubscribe": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthRetain": "false",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closeQos": "0",
+        "closeRetain": "false",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willRetain": "false",
+        "willPayload": "",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    },
+    {
+        "id": "dcd6abce8967b75f",
+        "type": "global-config",
+        "env": [],
+        "modules": {
+            "@chirpstack/node-red-contrib-chirpstack": "4.1.1"
+        }
+    }
+]
