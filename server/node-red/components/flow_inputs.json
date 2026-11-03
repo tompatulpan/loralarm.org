@@ -17,7 +17,7 @@
                 "t": "set",
                 "p": "sensorConfig",
                 "pt": "global",
-                "to": "{\"sensor3\":{\"devEui\":\"ac1f09fffe1003ae\",\"deviceName\":\"sensor3\",\"dashboardName\":\"Sensor3_Sensorer\",\"hasSettings\":true},\"sensor4\":{\"devEui\":\"ac1f09fffe100590\",\"deviceName\":\"sensor4\",\"dashboardName\":\"Sensor4_Sensorer\",\"hasSettings\":false},\"sensor5\":{\"devEui\":\"ac1f09fffe10033b\",\"deviceName\":\"sensor5\",\"dashboardName\":\"Sensor5_Sensorer\",\"hasSettings\":false},\"sensor6\":{\"devEui\":\"24e124535d243458\",\"deviceName\":\"button1\"},\"sensor7\":{\"devEui\":\"ac1f09fffe145d68\",\"deviceName\":\"sensor7\",\"dashboardName\":\"Sensor7_Sensorer\",\"hasSettings\":true},\"sensor8\":{\"devEui\":\"ac1f09fffe145d60\",\"deviceName\":\"sensor8\",\"dashboardName\":\"Sensor8_Sensorer\",\"hasSettings\":true},\"subsensor9\":{\"devEui\":\"ac1f09fffe1463ea\",\"deviceName\":\"sensor9\",\"dashboardName\":\"Sensor9_Sensorer\",\"hasSettings\":true},\"sensor10\":{\"devEui\":\"ac1f09fffe146c0e\",\"deviceName\":\"sensor10\",\"dashboardName\":\"Sensor10_Sensorer\",\"hasSettings\":true},\"subsensor11\":{\"devEui\":\"ac1f09fffe146b61\",\"deviceName\":\"sensor11\",\"dashboardName\":\"Sensor11_Sensorer\",\"hasSettings\":true},\"subsensor12\":{\"devEui\":\"ac1f09fffe10033b\",\"deviceName\":\"sensor12\",\"dashboardName\":\"Sensor12_Sensorer\",\"hasSettings\":true},\"subsensor13\":{\"devEui\":\"ac1f09fffe183b3e\",\"deviceName\":\"sensor13\",\"dashboardName\":\"Sensor13_Sensorer\",\"hasSettings\":true},\"door1\":{\"devEui\":\"a84041a5d7598dd0\",\"deviceName\":\"door1\"},\"door2\":{\"devEui\":\"a84041e3d189503d\",\"deviceName\":\"door2\"},\"water1\":{\"devEui\":\"e8e1e100010a7173\",\"deviceName\":\"water1\"},\"water2\":{\"devEui\":\"e8e1e100010a7100\",\"deviceName\":\"water2\"},\"sensor14\":{\"devEui\":\"ac1f09fffe12d9ac\",\"deviceName\":\"sensor14\",\"dashboardName\":\"Sensor14_Sensorer\",\"hasSettings\":true},\"sensor16\":{\"devEui\":\"ac1f09fffe12da63\",\"deviceName\":\"sensor16\",\"dashboardName\":\"Sensor16_Sensorer\",\"hasSettings\":true}}",
+                "to": "{\"sensor1\":{\"devEui\":\"ac1f09fffe000001\",\"deviceName\":\"sensor1\",\"dashboardName\":\"Sensor1_Sensorer\",\"hasSettings\":false},\"sensor2\":{\"devEui\":\"ac1f09fffe000002\",\"deviceName\":\"sensor2\",\"dashboardName\":\"Sensor2_Sensorer\",\"hasSettings\":false}}",
                 "tot": "json"
             }
         ],
@@ -42,7 +42,7 @@
                 "t": "set",
                 "p": "application",
                 "pt": "global",
-                "to": "{\"larm\":\"1d7d3417-e6bf-4e85-ab60-fb422fecdf90\",\"sublarm\":\"1d7d3417-e6bf-4e85-ab60-fb422fecdf90\",\"button\":\"9717742d-df1e-4f57-988c-d5cb1f5ade35\",\"weather\":\"13c15391-7954-40ae-9539-dedb556de85e\"}",
+                "to": "{\"larm\":\"11111111-2222-4333-8444-555555555555\",\"sublarm\":\"1d7d3417-e6bf-4e85-ab60-fb422fecdf90\"}",
                 "tot": "json"
             }
         ],
@@ -80,35 +80,8 @@
             [
                 "5aeac6c84ecdfd58",
                 "5ae1fd78202f2979",
-                "99f5109588bdf6b6",
                 "f4ac95b31f4e94da"
             ]
-        ]
-    },
-    {
-        "id": "99f5109588bdf6b6",
-        "type": "change",
-        "z": "73fec5176ff2b148",
-        "d": true,
-        "name": "",
-        "rules": [
-            {
-                "t": "set",
-                "p": "activate",
-                "pt": "global",
-                "to": "{\"sensor3\":\"true\",\"sensor4\":\"true\",\"sensor5\":\"true\",\"sensor6\":\"true\",\"sensor7\":\"true\"}",
-                "tot": "json"
-            }
-        ],
-        "action": "",
-        "property": "",
-        "from": "",
-        "to": "",
-        "reg": false,
-        "x": 330,
-        "y": 380,
-        "wires": [
-            []
         ]
     },
     {
@@ -129,16 +102,6 @@
         "info": "",
         "x": 280,
         "y": 180,
-        "wires": []
-    },
-    {
-        "id": "dfd4a9677f213788",
-        "type": "comment",
-        "z": "73fec5176ff2b148",
-        "name": "Not Used yet",
-        "info": "",
-        "x": 290,
-        "y": 340,
         "wires": []
     },
     {
@@ -327,10 +290,9 @@
         "id": "24547ae03b64e631",
         "type": "comment",
         "z": "73fec5176ff2b148",
-        "d": true,
-        "name": "Download log_tx_sensor16.csv",
-        "info": "HTTP endpoint: GET /download/sensor16/log_tx.csv",
-        "x": 170,
+        "name": "Download log files",
+        "info": "HTTP endpoints: GET /download/log_tx.csv and GET /download/log_alarms.csv\nFlow: http in (/download/:filename) -> 'validate filename' (whitelist; builds\nmsg.filename = /home/tomas/<logfile>; unknown names -> 404 straight to http\nresponse) -> file in (reads msg.filename) -> 'set download headers' (200 with\ntext/csv and Content-Disposition attachment, or 404 when the file is missing)\n-> http response.\nThe monthly job above deletes the same files, so download them before month end.",
+        "x": 200,
         "y": 760,
         "wires": []
     },
@@ -338,33 +300,56 @@
         "id": "7e269376afbf2b7a",
         "type": "http in",
         "z": "73fec5176ff2b148",
-        "d": true,
-        "name": "GET log_tx sensor16",
-        "url": "/download/sensor16/log_tx.csv",
+        "name": "GET /download/:filename",
+        "url": "/download/:filename",
         "method": "get",
         "upload": false,
         "swaggerDoc": "",
-        "x": 125,
+        "x": 180,
         "y": 800,
         "wires": [
-            []
+            [
+                "a7c1e8d94b0f3215"
+            ]
+        ]
+    },
+    {
+        "id": "a7c1e8d94b0f3215",
+        "type": "function",
+        "z": "73fec5176ff2b148",
+        "name": "validate filename",
+        "func": "var allowed = [\"log_tx.csv\", \"log_alarms.csv\"];\nvar f = msg.req.params.filename;\nif (allowed.indexOf(f) === -1) {\n    msg.statusCode = 404;\n    msg.headers = {\"Content-Type\": \"text/plain\"};\n    msg.payload = \"Unknown log file. Available: \" + allowed.join(\", \");\n    return [null, msg];\n}\nmsg.filename = \"/home/tomas/\" + f;\nreturn [msg, null];",
+        "outputs": 2,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 400,
+        "y": 800,
+        "wires": [
+            [
+                "6dc068df9cea7bf7"
+            ],
+            [
+                "32cb39d380699191"
+            ]
         ]
     },
     {
         "id": "6dc068df9cea7bf7",
         "type": "file in",
         "z": "73fec5176ff2b148",
-        "d": true,
-        "name": "read log_tx_sensor16",
-        "filename": "/home/tomas/log_tx_sensor16.csv",
-        "filenameType": "str",
+        "name": "read log file",
+        "filename": "filename",
+        "filenameType": "msg",
         "format": "utf8",
         "chunk": false,
         "sendError": true,
         "encoding": "none",
         "allProps": false,
-        "x": 340,
-        "y": 860,
+        "x": 600,
+        "y": 800,
         "wires": [
             [
                 "0989b5d3112523d9"
@@ -375,16 +360,15 @@
         "id": "0989b5d3112523d9",
         "type": "function",
         "z": "73fec5176ff2b148",
-        "d": true,
         "name": "set download headers",
-        "func": "if (msg.error) {\n    msg.statusCode = 404;\n    msg.headers = {\"Content-Type\": \"text/plain\"};\n    msg.payload = \"Log file not found: \" + msg.error.message;\n} else {\n    msg.headers = {\n        \"Content-Disposition\": \"attachment; filename=\\\"log_tx_sensor16.csv\\\"\",\n        \"Content-Type\": \"text/csv; charset=utf-8\"\n    };\n    msg.statusCode = 200;\n}\nreturn msg;",
+        "func": "if (msg.error) {\n    msg.statusCode = 404;\n    msg.headers = {\"Content-Type\": \"text/plain\"};\n    msg.payload = \"Log file not found: \" + (msg.error.message || \"\");\n} else {\n    var name = msg.req.params.filename;\n    msg.headers = {\n        \"Content-Disposition\": \"attachment; filename=\\\"\" + name + \"\\\"\",\n        \"Content-Type\": \"text/csv; charset=utf-8\"\n    };\n    msg.statusCode = 200;\n}\nreturn msg;",
         "outputs": 1,
         "timeout": 0,
         "noerr": 0,
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 535,
+        "x": 800,
         "y": 800,
         "wires": [
             [
@@ -396,43 +380,12 @@
         "id": "32cb39d380699191",
         "type": "http response",
         "z": "73fec5176ff2b148",
-        "d": true,
         "name": "",
         "statusCode": "",
         "headers": {},
-        "x": 715,
+        "x": 990,
         "y": 800,
         "wires": []
-    },
-    {
-        "id": "5d040df6ff0038a2",
-        "type": "inject",
-        "z": "73fec5176ff2b148",
-        "d": true,
-        "name": "",
-        "props": [
-            {
-                "p": "payload"
-            },
-            {
-                "p": "topic",
-                "vt": "str"
-            }
-        ],
-        "repeat": "",
-        "crontab": "",
-        "once": false,
-        "onceDelay": 0.1,
-        "topic": "",
-        "payload": "",
-        "payloadType": "date",
-        "x": 120,
-        "y": 860,
-        "wires": [
-            [
-                "6dc068df9cea7bf7"
-            ]
-        ]
     },
     {
         "id": "6702f55c7ff28076",
