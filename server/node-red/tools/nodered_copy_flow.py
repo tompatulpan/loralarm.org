@@ -6,27 +6,45 @@ for a new sensor number.
 Templates (in ../components/) are normalized to sensor number 1:
 dashboardName "Sensor1_Sensorer", tab "Sensor1", deviceName "sensor1",
 ntfy topic "sensor1".  This script copies such a template and renames
-everything to the target sensor number, regenerates the ids of all
-ui_tab / ui_group nodes (and the references to them), and optionally
-overrides per-deployment settings (MQTT broker, ntfy, ChirpStack,
-TTN application id).
+everything to the target sensor number, regenerates the ids of all nodes
+except shared global config nodes, and remaps every id reference
+(wires, links, tabs/groups, subflow definitions and their instances), so
+the output can be imported into a running instance without id conflicts.
+It can also override per-deployment settings (MQTT broker, ntfy,
+ChirpStack, TTN application id).
 
 Usage:
     python3 nodered_copy_flow.py <input.json> <output.json> --to 2
-    python3 nodered_copy_flow.py ../components/flow_sensor_rui.json \
+    python3 nodered_copy_flow.py ../components/flow_sensor_rui.json \\
         flow_sensor2_rui.json --to 2 --broker 192.168.2.26
 
-Afterwards, import the output file in Node-RED and set the sensor's real
-devEUI (subflow env `devEui` / `devEuiGlobal.sensorN`).
+Afterwards, import the output file in Node-RED and fill the sensor's
+per-instance values in the subflow env: the RAK4631/Android flow reads
+all per-sensor settings (devEui, deviceName, dashboardName,
+ttnDeviceName, tilt_sense, Tk, ntfyChannel, pushover) from the
+subflow instance env.  The RUI flow has no such env values; it reads
+devEui/deviceName/dashboardName at flow start from the sensorConfig
+registry (components/flow_inputs.json).
 
-Known limitation: the sensor registry in components/flow_inputs.json is
-NOT updated by this script.  A new sensor must also be registered there
-(devEui, deviceName, dashboardName) for settings uplinks/downlinks to work.
+Known limitation: the script updates neither the sensorConfig registry
+in components/flow_inputs.json nor any subflow env value -- they are
+entered per sensor in the editor after import.
 """
 
 import argparse
 import json
 import random
+
+# Global config node types: shared across flows and instances, so their ids
+# are kept.  The output then reuses the existing config nodes on import (or,
+# with "Import copy", gets its own copies).  Everything else -- including
+# z-scoped config nodes like "device downlink" -- is referenced via wires and
+# gets a fresh id.
+CONFIG_TYPES = {
+    "mqtt-broker",
+    "pushover-keys",
+    "global-config",
+}
 
 # Per-deployment defaults.  Values that are None keep the template value.
 DEFAULTS = {
@@ -39,34 +57,55 @@ DEFAULTS = {
 
 
 def generate_uid():
-    """Node-RED style id: two hex numbers separated by a dot."""
-    return "{0:x}.{1:x}".format(random.randint(0, 0xFFFFFFFF),
-                                random.randint(0, 0xFFFFFF))
+    """Node-RED style id: 16 lowercase hex chars."""
+    return "%016x" % random.getrandbits(64)
 
 
-def regenerate_ui_ids(flows):
-    """Give ui_tab/ui_group nodes fresh ids and remap all references."""
-    replace_map = {}
+def remap_nid(nid, id_map):
+    """Map an old node id to its new id (unchanged for kept config ids)."""
+    return id_map.get(nid, nid)
+
+
+def regenerate_ids(flows):
+    """Give every non-config node a fresh id and remap all references.
+
+    Remapped references: node ids, wires, z (flow tab / subflow definition),
+    g (editor groups), ui_group.tab, ui_*.group, link in/out links,
+    subflow definition in/out ports, and subflow instance node types.
+    Returns the number of regenerated ids.
+    """
+    id_map = {}
+    for item in flows:
+        if item.get("type", "") in CONFIG_TYPES:
+            continue
+        id_map[item["id"]] = generate_uid()
 
     for item in flows:
-        if item.get("type", "").startswith("ui_tab"):
-            new_uid = generate_uid()
-            replace_map[item["id"]] = new_uid
-            item["id"] = new_uid
-
-    for item in flows:
-        if item.get("type", "").startswith("ui_group"):
-            new_uid = generate_uid()
-            item["tab"] = replace_map.get(item.get("tab"), item.get("tab"))
-            replace_map[item["id"]] = new_uid
-            item["id"] = new_uid
-
-    for item in flows:
-        if item.get("type", "").startswith("ui_"):
-            if "group" in item:
-                item["group"] = replace_map.get(item["group"], item["group"])
-
-    return len(replace_map)
+        t = item.get("type", "")
+        item["id"] = remap_nid(item["id"], id_map)
+        if "z" in item:
+            item["z"] = remap_nid(item["z"], id_map)
+        if "g" in item:
+            item["g"] = remap_nid(item["g"], id_map)
+        if t.startswith("subflow:"):
+            item["type"] = "subflow:" + remap_nid(t.split(":", 1)[1], id_map)
+        if t == "ui_group" and "tab" in item:
+            item["tab"] = remap_nid(item["tab"], id_map)
+        if t.startswith("ui_") and "group" in item:
+            item["group"] = remap_nid(item["group"], id_map)
+        if t in ("link in", "link out") and isinstance(item.get("links"), list):
+            item["links"] = [remap_nid(link, id_map) for link in item["links"]]
+        if t == "subflow":
+            for port in item.get("in", []) + item.get("out", []):
+                for wire in port.get("wires", []):
+                    if "id" in wire:
+                        wire["id"] = remap_nid(wire["id"], id_map)
+        if isinstance(item.get("wires"), list):
+            for port in item["wires"]:
+                if isinstance(port, list):
+                    for i, target in enumerate(port):
+                        port[i] = remap_nid(target, id_map)
+    return len(id_map)
 
 
 def apply_broker_settings(flows, broker, port):
@@ -124,7 +163,7 @@ def main():
     with open(args.input, "r") as f:
         flows = json.load(f)
 
-    n_ids = regenerate_ui_ids(flows)
+    n_ids = regenerate_ids(flows)
     n_brokers = apply_broker_settings(flows, args.broker, args.broker_port)
 
     # Serialize once with indentation so the output is reviewable/diffable,
@@ -145,10 +184,11 @@ def main():
     with open(args.output, "w") as f:
         f.write(data)
 
-    print("wrote {} ({} nodes, {} ui tab/group ids regenerated, {} broker(s) set to {}:{})".format(
+    print("wrote {} ({} nodes, {} node ids regenerated, {} broker(s) set to {}:{})".format(
         args.output, len(flows), n_ids, n_brokers, args.broker, args.broker_port))
-    print("NOTE: register the new sensor in components/flow_inputs.json "
-          "(devEui/deviceName/dashboardName) and set its devEUI after import.")
+    print("NOTE: fill the per-sensor values (devEui etc.) in the imported" +
+          " subflow instance env; RUI flows read them from" +
+          " components/flow_inputs.json at flow start.")
 
 
 if __name__ == "__main__":

@@ -40,36 +40,50 @@ Workflow in the editor:
    exist" -- click **Import copy**.
 5. **Deploy**.
 
-The warning is expected: only the `ui_tab` / `ui_group` ids are
-regenerated, every other node in the output still carries the template's
-ids, so with a live flow built from the same template about 330 of the
-334 nodes are listed as duplicates. **Import copy** assigns fresh ids to
-the duplicated nodes and leaves the live flow untouched. **View nodes**
-only lists the conflicting nodes for inspection -- leave all of them
-selected, do not remove any from the import. If your Node-RED version
-offers a per-node choice, keep "copy" for everything and never pick an
-option that keeps the original ids / replaces the existing node: the
-live sensor's nodes share these ids, and replacing them would overwrite
-the running flow with the new sensor's content (sensorConfig refs, ntfy
-URL, tab labels, UI widgets).
+The warning is expected and small: the script regenerates the ids of all
+nodes (including the subflow definitions and every wire/link/group
+reference), but the shared global config nodes keep their template ids
+so an import can reuse the existing ones. Only those config nodes are
+listed as duplicates (typically `mqtt-broker` x2, `global-config`, plus
+`pushover-keys` for the RUI flow). **Import copy** gives the new flow its
+own copies; **View nodes** only lists the conflicts for inspection --
+leave all of them selected. Never pick an option that keeps the original
+ids / replaces the existing node for *flow* nodes: with this script
+there should be no flow-node conflicts at all -- if you see many, you
+are importing a raw template, not script output.
 
-After Deploy, the new flow brings its own copies of the shared config
-nodes (`mqtt-broker` x2, `pushover api`, `pushover-keys`, the ChirpStack
-`device downlink` node, the subflow definition). That works as-is -- the
-only cost is extra MQTT client connections. To keep the instance tidy,
-open the configuration-nodes sidebar, delete the *new* copies and
-re-point the new flow's nodes (mqtt in/out, pushover, device downlink,
-subflow instances) to the existing live config nodes. Never delete the
-live copies, and note the live `pushover-keys` holds the real API keys
-while the imported copy ships empty.
+The templates' own `ui_tab`/`ui_group` ids are unique to the templates
+(they were re-generated once when live flows were found still carrying
+them), so an as-is template import no longer hides behind a live
+sensor's dashboard tab. Importing a raw template into a running instance
+is still not recommended: the flow-node and config-node ids collide with
+live flows and need "Import copy", and you get duplicate config nodes.
+On a running instance always import script output. For a demo sensor1:
+run the script with `--to 1`.
+
+After Deploy, everything in the new flow except the shared global config
+nodes is independent by design: the subflow definitions, the ChirpStack
+`device downlink` node and all flow nodes got fresh ids, so there is
+nothing to clean up or re-point there. With **Import copy**, only the
+kept config nodes (`mqtt-broker` x2, `pushover-keys` on RUI flows) are
+duplicated -- that works as-is; the only cost is an extra MQTT client
+connection per broker. To keep the instance tidy, delete the *new*
+broker copies and re-point the flow's MQTT nodes to the existing live
+brokers. For `pushover-keys` either keep the imported (empty) copy and
+fill it per sensor, or leave it out and re-point to the live copy that
+holds the real API keys. Never delete the live copies.
 
 Then continue with the manual steps below.
 
 ### What it does
 
-1. Loads the template and regenerates the ids of all `ui_tab` / `ui_group`
-   nodes (and every reference to them), so the new flow gets its own
-   dashboard tab and groups instead of colliding with the template's.
+1. Loads the template and regenerates the ids of **all** nodes except
+   shared global config nodes (`mqtt-broker`, `pushover-keys`,
+   `global-config`), remapping every reference: wires, link-node pairs,
+   flow tab, editor groups, ui_tab/ui_group and their widget references,
+   and the subflow definitions together with their instance types. The
+   output therefore collides with nothing in a running instance except
+   the few shared config nodes.
 2. Sets address/port on the local `mqtt-broker` config nodes. The TTN
    broker (`eu1.cloud.thethings.network`) is never touched.
 3. Applies string replacements, longest match first:
@@ -82,6 +96,9 @@ Then continue with the manual steps below.
    | `127.0.0.1:8075` (ntfy)     | value of `--ntfy-base` |
    | `localhost:8080` (ChirpStack downlink API) | value of `--chirpstack-base` |
    | `larm-test@ttn` (TTN application id) | value of `--ttn-app` |
+
+   The subflow definitions keep their template names (`Sensor (RAK4631)
+   v2`, `Alarm counter v2`) -- only their ids are regenerated.
 
 4. Writes the result with `indent=2` so the file stays reviewable in git.
    The script warns when a replacement pattern matches nothing, and
@@ -96,29 +113,86 @@ Then continue with the manual steps below.
 
 The script does **not** complete the deployment on its own:
 
-- **Register the sensor** in `../components/flow_inputs.json`
-  (`devEui`, `deviceName`, `dashboardName`, `hasSettings`). Settings
-  uplinks/downlinks are keyed by that registry, so a sensor missing there
-  will not get its settings panels. (Extending the script to update the
-  registry automatically is a possible future improvement.)
+- **The `application` global must be real** (both flow types): every
+  uplink passes a switch on `global.application.larm`, so the Inputs
+  flow's registry must set `larm` to the sensor's actual ChirpStack
+  application UUID. The committed `components/flow_inputs.json` carries
+  a placeholder UUID for `larm` (`11111111-...`) -- replace it before
+  injecting, otherwise every sensor flow silently shows no data.
 
-  **Mind the injection order.** Each sensor flow copies its registry
-  entry into its own flow context exactly once, ~5 s after the flow
-  starts (the `init` inject wired to the change node reading
-  `sensorConfig.sensorN.*`). If the registry did not contain the sensor
-  at that moment (flow imported before registering, or the registry
-  edited later), `flow.devEui` stays undefined and the flow **silently
-  drops every uplink** -- no error, no output. After changing the
-  registry: inject the `flow_inputs` config first, then press the
-  sensor flow's `init` inject (or re-deploy that flow), and check that
-  `devEui` is set in the flow's context data (sidebar → context).
-
-  ToDo: automate this -- e.g. let the sensor flow re-read its
-  `sensorConfig` entry on every uplink, or on a registry-change
-  notification, instead of once at startup, so a missing or mistimed
-  injection can never leave a flow silent.
-- **Set the per-sensor secrets/values** in the imported flow (subflow
-  env): `devEui`, `ttnDeviceName` and pushover `pushoverToken` /
-  `pushoverUser` ship empty in the templates.
+- **Set the per-sensor values in the subflow instance env (RAK4631/
+  Android flows)**: all per-sensor settings -- `devEui`, `deviceName`,
+  `dashboardName`, `ttnDeviceName`, `tilt_sense`, `Tk`, `ntfyChannel`
+  and pushover `pushoverToken` / `pushoverUser` -- are read from the
+  subflow instance env. `devEui` ships empty and must be filled after
+  import (it filters MQTT uplinks and keys sensorSettings), then
+  **Deploy** -- env values only reach the flow context when the flow
+  (re)starts; a running flow that never restarted after the env edit
+  silently drops every uplink while the dashboard still renders.
+  The filter is a **substring** match (`topic contains devEui`): a
+  truncated EUI (dropped trailing characters) or wrong case will
+  behave unexpectedly -- a truncation of the real EUI still matches
+  (data keeps flowing), uppercase never matches. Always set the full
+  16-character lowercase EUI from ChirpStack/TTN. There is no
+  registry dependency in these flows.  **One sensor per flow tab**:
+  the `init` change node inside the subflow copies the instance env
+  (`devEui`, `deviceName`, `dashboardName`) into the *flow context of
+  the tab the subflow is placed on* -- subflow nodes have no context of
+  their own. Two sensor subflow instances on the same tab would
+  overwrite each other's `flow.devEui`; keep each sensor on its own
+  flow tab, as the templates do.
+- **Register the sensor for RUI flows** in `../components/flow_inputs.json`
+  (`devEui`, `deviceName`, `dashboardName`). The RUI flow has no env
+  values; it copies its registry entry into flow context ~5 s after the
+  flow starts (the `init` inject wired to the change node reading
+  `sensorConfig.sensorN.*`) and re-reads it every 60 s. If the registry
+  did not contain the sensor at that moment, `flow.devEui` is undefined
+  and the flow **silently drops every uplink** -- no error, no output;
+  a missed injection heals itself within a minute. For instant effect:
+  inject the `flow_inputs` config first, then press the flow's `init`
+  inject (or re-deploy), and check `devEui` in the flow's context data
+  (sidebar → context). The startup cascade is tiered so the registry is
+  written before the flows read it: `flow_inputs` injects at 1 s, the
+  RUI flow loads its config at 5 s, the other init nodes (watchdog,
+  connection supervision, dashboard labels) run at 10 s.
+- **Settings defaults and resend** (both flow types) are keyed by the
+  device EUI, not by the registry: settings are saved to the persistent
+  `sensorSettings` global context on every settings downlink, and the
+  `join events` chain in `flow_inputs` resends the saved values when a
+  sensor rejoins (e.g. after battery loss). This silently does nothing
+  unless the Node-RED instance has a persistent context store configured
+  -- see the section below.
 - **Point the ntfy channel** at the topic your clients subscribe to
   (`ntfyChannel` env, default `127.0.0.1:8075/sensorN` after the rename).
+
+## Node-RED instance configuration: persistent context
+
+The configuration memory is **server-side**: the sensor keeps nothing,
+the flows save every settings downlink into the global context
+(`global.set("sensorSettings", settings, "default")` -- note the explicit
+store name `"default"`) and re-push it when the device rejoins. For this
+to survive a Node-RED restart, the running instance's `settings.js`
+(in the Node-RED userDir, e.g. `~/.node-red/settings.js`) must define a
+file-backed store **named `default`**:
+
+```js
+contextStorage: {
+    default: {
+        module: "localfilesystem",
+        // optional: shorter write-behind interval than the 30 s default
+        config: { flushInterval: 10 }
+    },
+},
+```
+
+Node-RED must be restarted after the edit (settings.js is only read at
+startup). Without this block, the built-in store is memory-only:
+`sensorSettings` is wiped on every restart, the `join events` resend
+finds nothing to send, and the sensor silently falls back to firmware
+defaults after a restart or battery loss.
+
+The store writes to `<userDir>/context/global/global.json`. Verify by
+setting a sensor setting, restarting Node-RED, and checking that the
+`sensorSettings` content is still there (editor sidebar → context data →
+global, or the file above). Note that with the default `flushInterval` of
+30 s, values written immediately before a crash may be lost.
