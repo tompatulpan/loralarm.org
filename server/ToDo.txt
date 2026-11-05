@@ -1,0 +1,14 @@
+TODO List for loralarm.org
+==================================
+
+1. RUI Device Tilt Alarm Integration
+   - Issue: Motion detection (rörelselarm) does not trigger tilt alarm check for RUI devices
+   - Current behavior: RAK4631 sends motion flag + accelerometer data in same message, allowing tilt check
+   - Problem: RUI sends motion alert (3 bytes, channel 12) and accelerometer data (31 bytes) as separate messages
+   - Solution: Modify send_acc_alert() in devices/rui3_sensor/RAK1904_acc.cpp to include accelerometer data
+   - File: /home/tomas/Documents/Projekt/_dev/loralarm.org/devices/rui3_sensor/RAK1904_acc.cpp
+   - Change: Add accelerometer read/encode before sending motion alert
+   - Priority: Medium
+   - Status: Not started
+
+2. 
