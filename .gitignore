@@ -9,3 +9,5 @@ secrets.h
 
 # Logs from device firmware / debugging
 *.log
+
+testing/

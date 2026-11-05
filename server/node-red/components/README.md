@@ -15,6 +15,16 @@ Node-RED flow components for the LoRaLarm server.
   (`devices/android_rak4631`). Also normalized to **sensor 1**; the
   per-sensor values live in the `Sensor (RAK4631)` subflow env
   (`deviceName`, `devEui`, `dashboardName`, `ntfyChannel`, ...).
+- **flow_sensor_unified.json** — one flow for both sensor types: the
+  RAK4631 custom binary frame and the RUI3 Cayenne LPP frame. Based on
+  the RAK4631 layout (one `Sensor (RAK4631 + RUI3) v3` subflow instance
+  per sensor tab, env only, no registry dependency). The subflow's
+  `protocol` env selects the decoder (`custom`, `cayenne` or `auto`);
+  everything after decoding (alarms, battery, temperature, signal,
+  connection watchdog, downlinks, dashboard) is shared. Adds a 9th
+  `Environment` output (humidity, pressure, illuminance, gas) and a
+  `Status Krets` / `LED Dörr` circuit-state widget. Normalized to
+  **sensor 1**; see [Unified sensor flow](#unified-sensor-flow).
 - **flow_inputs.json** — settings registry: maps devEUI to
   `deviceName` / `dashboardName` for all deployed sensors (currently
   sensor3–16 plus doors/water). Settings uplinks/downlinks are keyed by
@@ -48,6 +58,44 @@ The log directory must exist and be writable by the Node-RED user
 `ntfyChannel` subflow env. The ChirpStack join listener in
 `flow_inputs.json` subscribes to all applications and only acts on the
 one in the `application.sublarm` registry entry.
+
+## Unified sensor flow
+
+`flow_sensor_unified.json` replaces the choice between the RUI and
+RAK4631 templates. Set these env vars on the subflow instance (and on
+the subflow definition for new defaults):
+
+| Env | RAK4631 (custom frame) | RUI3 (Cayenne LPP) |
+|---|---|---|
+| `protocol` | `custom` (or `auto`) | `cayenne` (or `auto`) |
+| `csApp` (key in `global.application`) | `larm` | `sublarm` |
+| `Tk` (temperature offset, C) | `8` | `0` |
+| `tempAlarmLimit` (C) | `2` | `0` |
+| `battFull` / `battWarn` / `battEmpty` (V) | `4.2` / `3.5` / `3.2` | `3.1` / `2.9` / `2.8` (3 V cell) |
+
+- **`auto`** treats a frame as Cayenne only if it is strictly valid
+  Cayenne LPP for the RUI3 channel map (`devices/rui3_sensor/app.h`,
+  every record a known type on its expected channel, no leftover
+  bytes); anything else is the custom frame. A test with 4 million
+  random and plausible custom frames produced no false positives. The
+  decided protocol is kept in flow context (`protocolSeen`). Set the
+  protocol explicitly if you prefer no heuristics.
+- **Downlinks** use the same ASCII-decimal format on ports 4-7 for both
+  protocols. The dashboard frequency codes are the RAK4631 register
+  values (31/47/63/79/95); for Cayenne sensors they are translated to
+  the RUI3 index 1-5. With `auto` the frequency downlink waits for the
+  first uplink (until then the protocol is unknown and a warning is
+  logged).
+- The Cayenne branch feeds the same nodes as the custom parsers: it
+  produces the per-field messages the `buffer-parser` chain makes, and a
+  `{ALARM_SW, ALARM_ACC}` status object from channels 11 (switch) and 12
+  (motion alert). Battery is already in volts, so the raw ADC
+  conversion is bypassed.
+- Behaviour that was hardcoded in the RAK4631 flow is now env driven:
+  battery thresholds and percent scale, temperature alarm limit.
+  Defaults equal the previous RAK4631 values.
+- The old `flow_sensor_rui.json` and `flow_sensor_android_rak4631.json`
+  are kept unchanged.
 
 ## Persisting sensor settings across restarts (context storage)
 

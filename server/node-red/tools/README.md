@@ -22,6 +22,9 @@ python3 nodered_copy_flow.py ../components/flow_sensor_android_rak4631.json \
     --chirpstack-base localhost:8080 \
     --ttn-app larm-test@ttn
 
+# new sensor 4 from the unified template (RAK4631 custom frame and RUI3 Cayenne)
+python3 nodered_copy_flow.py ../components/flow_sensor_unified.json flow_sensor4_unified.json --to 4
+
 # without the subflow definitions: the new flow reuses the subflows
 # already present on the instance (instances keep the template def ids)
 python3 nodered_copy_flow.py ../components/flow_sensor_rui.json \
@@ -141,7 +144,8 @@ Then continue with the manual steps below.
    | `127.0.0.1:8075` (`LORALARM_NTFY_BASE`, Android `ntfyChannel`) | value of `--ntfy-base` |
 
    The subflow definitions keep their template names (`Sensor (RAK4631)
-   v2`, `Alarm counter v2`) -- only their ids are regenerated.
+   v2`, `Sensor (RAK4631 + RUI3) v3`, `Alarm counter v2`) -- only their
+   ids are regenerated.
 
 4. Writes the result with `indent=2` so the file stays reviewable in git.
    The script warns when a replacement pattern matches nothing, and
@@ -163,12 +167,17 @@ The script does **not** complete the deployment on its own:
   application UUID. The committed `components/flow_inputs.json` carries
   a placeholder UUID for `larm` (`11111111-...`) -- replace it before
   injecting, otherwise every sensor flow silently shows no data.
+  (The unified flow picks the key with its `csApp` env: `larm` for
+  RAK4631, `sublarm` for RUI3 sensors.)
 
 - **Set the per-sensor values in the subflow instance env (RAK4631/
-  Android flows)**: all per-sensor settings -- `devEui`, `deviceName`,
-  `dashboardName`, `ttnDeviceName`, `tilt_sense`, `Tk`, `ntfyChannel`
-  and pushover `pushoverToken` / `pushoverUser` -- are read from the
-  subflow instance env. `devEui` ships empty and must be filled after
+  Android and unified flows)**: all per-sensor settings -- `devEui`,
+  `deviceName`, `dashboardName`, `ttnDeviceName`, `tilt_sense`, `Tk`,
+  `ntfyChannel` and pushover `pushoverToken` / `pushoverUser` -- are
+  read from the subflow instance env. The unified flow adds `protocol`
+  (`auto` / `custom` / `cayenne`), `csApp`, `tempAlarmLimit` and the
+  battery voltages `battFull` / `battWarn` / `battEmpty`; see
+  `../components/README.md` for the values per sensor type. `devEui` ships empty and must be filled after
   import (it filters MQTT uplinks and keys sensorSettings), then
   **Deploy** -- env values only reach the flow context when the flow
   (re)starts; a running flow that never restarted after the env edit

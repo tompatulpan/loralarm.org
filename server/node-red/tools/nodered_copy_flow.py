@@ -36,10 +36,12 @@ with fresh ids, so every import gets its own subflow copies):
                     regenerated ids.
 
 Afterwards, import the output file in Node-RED and fill the sensor's
-per-instance values in the subflow env: the RAK4631/Android flow reads
-all per-sensor settings (devEui, deviceName, dashboardName,
-ttnDeviceName, tilt_sense, Tk, ntfyChannel, pushover) from the
-subflow instance env.  The RUI flow has no such env values; it reads
+per-instance values in the subflow env: the RAK4631/Android flow and the
+unified flow (flow_sensor_unified.json, RAK4631 + RUI3) read all
+per-sensor settings (devEui, deviceName, dashboardName, ttnDeviceName,
+tilt_sense, Tk, ntfyChannel, pushover; unified also protocol, csApp,
+tempAlarmLimit, battFull/battWarn/battEmpty) from the subflow instance
+env.  The RUI flow has no such env values; it reads
 devEui/deviceName/dashboardName at flow start from the sensorConfig
 registry (components/flow_inputs.json).
 
