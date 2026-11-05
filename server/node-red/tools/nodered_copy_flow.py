@@ -51,6 +51,7 @@ entered per sensor in the editor after import.
 import argparse
 import json
 import random
+import re
 
 # Global config node types: shared across flows and instances, so their ids
 # are kept.  The output then reuses the existing config nodes on import (or,
@@ -87,8 +88,10 @@ def regenerate_ids(flows):
     """Give every non-config node a fresh id and remap all references.
 
     Remapped references: node ids, wires, z (flow tab / subflow definition),
-    g (editor groups), ui_group.tab, ui_*.group, link in/out links,
-    subflow definition in/out ports, and subflow instance node types.
+    g (editor groups), group membership lists ("nodes"), ui_group.tab,
+    ui_*.group, link in/out links, node scope lists (catch/status/complete
+    nodes -- empty scope means all nodes and needs no list), subflow
+    definition in/out ports, and subflow instance node types.
     Returns the number of regenerated ids.
     """
     id_map = {}
@@ -104,6 +107,14 @@ def regenerate_ids(flows):
             item["z"] = remap_nid(item["z"], id_map)
         if "g" in item:
             item["g"] = remap_nid(item["g"], id_map)
+        if t == "group" and isinstance(item.get("nodes"), list):
+            # Group membership list.  Node-RED rebuilds it from each
+            # member's "g" on import, but stale ids are wrong and risky.
+            item["nodes"] = [remap_nid(nid, id_map) for nid in item["nodes"]]
+        if isinstance(item.get("scope"), list):
+            # Scope list of catch/status/complete nodes holds node ids
+            # (or type strings, which pass through remap_nid unchanged).
+            item["scope"] = [remap_nid(s, id_map) for s in item["scope"]]
         if t.startswith("subflow:"):
             item["type"] = "subflow:" + remap_nid(t.split(":", 1)[1], id_map)
         if t == "ui_group" and "tab" in item:
@@ -194,17 +205,36 @@ def apply_env_overrides(flows, args):
             print("note: '{}' not used by this template".format(name))
 
 
-def build_replacements(from_num, to_num, ntfy_base):
-    rules = [
-        ("Sensor{0}_Sensorer".format(from_num), "Sensor{0}_Sensorer".format(to_num)),
-        ("Sensor{0}".format(from_num), "Sensor{0}".format(to_num)),
-        ("sensor{0}".format(from_num), "sensor{0}".format(to_num)),
-    ]
+def apply_replacements(data, from_num, to_num, ntfy_base):
+    r"""Rename the sensor number and override the ntfy base on flow text.
+
+    The sensor number is renamed in one regex pass: sequential string
+    replacements double-apply whenever the target number starts with the
+    source digits (e.g. --to 11 first turns Sensor1 into Sensor11 and a
+    second rule would turn that into Sensor111).  The negative lookahead
+    (?!\d) also keeps a template for sensor 1 from matching inside e.g.
+    "sensor10".  re.sub with a function avoids backslash escaping in
+    the replacement.
+    """
+
+    pattern = re.compile("(Sensor|sensor){0}(?!\\d)".format(from_num))
+    n = len(pattern.findall(data))
+    if n == 0:
+        print("WARNING: 'Sensor{0}' not found in template".format(from_num))
+    else:
+        data = pattern.sub(lambda m: m.group(1) + str(to_num), data)
+        print("renamed Sensor{0}/sensor{0} -> Sensor{1}/sensor{1}: "
+              "{2} occurrence(s)".format(from_num, to_num, n))
     if ntfy_base:
         # Covers LORALARM_NTFY_BASE and the per-sensor ntfyChannel subflow env.
-        rules.append((DEFAULTS["ntfy_base"], ntfy_base))
-    # Longest match first so e.g. "Sensor1_Sensorer" is replaced before "Sensor1".
-    return sorted(rules, key=lambda r: len(r[0]), reverse=True)
+        n = data.count(DEFAULTS["ntfy_base"])
+        if n == 0:
+            print("WARNING: '{}' not found in template".format(DEFAULTS["ntfy_base"]))
+        elif ntfy_base != DEFAULTS["ntfy_base"]:
+            print("replaced '{}' -> '{}': {} occurrence(s)".format(
+                DEFAULTS["ntfy_base"], ntfy_base, n))
+            data = data.replace(DEFAULTS["ntfy_base"], ntfy_base)
+    return data
 
 
 def main():
@@ -272,17 +302,9 @@ def main():
     apply_env_overrides(flows, args)
 
     # Serialize once with indentation so the output is reviewable/diffable,
-    # then apply the string replacements on the text.
+    # then apply the renames on the text.
     data = json.dumps(flows, ensure_ascii=False, indent=2)
-
-    rules = build_replacements(args.from_num, args.to_num, args.ntfy_base)
-    for old, new in rules:
-        count = data.count(old)
-        if count == 0:
-            print("WARNING: '{}' not found in template".format(old))
-        elif old != new:
-            print("replaced '{}' -> '{}': {} occurrence(s)".format(old, new, count))
-        data = data.replace(old, new)
+    data = apply_replacements(data, args.from_num, args.to_num, args.ntfy_base)
 
     json.loads(data)  # fail loudly instead of writing broken JSON
 

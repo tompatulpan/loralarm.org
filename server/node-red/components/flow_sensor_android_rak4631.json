@@ -1085,36 +1085,11 @@
     ]
   },
   {
-    "id": "660be70ad8d1220b",
-    "type": "switch",
-    "z": "ed075c3ac10f36df",
-    "name": "devEui",
-    "property": "topic",
-    "propertyType": "msg",
-    "rules": [
-      {
-        "t": "cont",
-        "v": "devEui",
-        "vt": "flow"
-      }
-    ],
-    "checkall": "true",
-    "repair": false,
-    "outputs": 1,
-    "x": 690,
-    "y": 160,
-    "wires": [
-      [
-        "4f9f43ae40e2a89b"
-      ]
-    ]
-  },
-  {
     "id": "9ca211f51817c030",
     "type": "mqtt in",
     "z": "ed075c3ac10f36df",
     "name": "Chirpstack",
-    "topic": "application/+/device/+/event/+",
+    "topic": "application/+/device/+/event/up",
     "qos": "1",
     "datatype": "json",
     "broker": "6702f55c7ff28076",
@@ -1424,26 +1399,21 @@
   },
   {
     "id": "89befa3532f46ae3",
-    "type": "switch",
+    "type": "function",
     "z": "ed075c3ac10f36df",
-    "name": "application",
-    "property": "topic",
-    "propertyType": "msg",
-    "rules": [
-      {
-        "t": "cont",
-        "v": "application.larm",
-        "vt": "global"
-      }
-    ],
-    "checkall": "true",
-    "repair": false,
+    "name": "application + devEui",
+    "func": "// topic: application/<appId>/device/<devEui>/event/up\nconst p = String(msg.topic).split(\"/\");\nconst app = (global.get(\"application\") || {}).larm;\nconst eui = String(flow.get(\"devEui\") || \"\").toLowerCase();\nif (!app || !eui || p[1] !== app || String(p[3]).toLowerCase() !== eui) {\n    return null;\n}\nreturn msg;",
     "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
     "x": 270,
     "y": 160,
     "wires": [
       [
-        "660be70ad8d1220b"
+        "4f9f43ae40e2a89b"
       ]
     ]
   },
@@ -4674,21 +4644,16 @@
   },
   {
     "id": "0729d7fc43158736",
-    "type": "switch",
+    "type": "function",
     "z": "ed075c3ac10f36df",
     "name": "deviceName - End device ID",
-    "property": "topic",
-    "propertyType": "msg",
-    "rules": [
-      {
-        "t": "cont",
-        "v": "deviceName",
-        "vt": "flow"
-      }
-    ],
-    "checkall": "true",
-    "repair": false,
+    "func": "// topic: v3/<appId>/devices/<deviceName>/up\nconst p = String(msg.topic).split(\"/\");\nconst name = flow.get(\"deviceName\");\nif (!name || p[3] !== name) {\n    return null;\n}\nreturn msg;",
     "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
     "x": 580,
     "y": 220,
     "wires": [
@@ -4696,7 +4661,7 @@
         "af4b15b9123c61db"
       ]
     ],
-    "info": "Device name is the same as in TTN settings for the \"sensor\"."
+    "info": "Device name is the same as in TTN settings for the \"sensor\". Exact match, so sensor1 does not also pass sensor10."
   },
   {
     "id": "b3cf4bc250fc8a8a",

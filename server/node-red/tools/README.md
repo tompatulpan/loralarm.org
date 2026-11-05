@@ -21,11 +21,47 @@ python3 nodered_copy_flow.py ../components/flow_sensor_android_rak4631.json \
     --ntfy-base 127.0.0.1:8075 \
     --chirpstack-base localhost:8080 \
     --ttn-app larm-test@ttn
+
+# without the subflow definitions: the new flow reuses the subflows
+# already present on the instance (instances keep the template def ids)
+python3 nodered_copy_flow.py ../components/flow_sensor_rui.json \
+    flow_sensor2_rui.json --to 2 --no-subflows
 ```
 
 Note: with multi-line commands, every line except the last must end with `\`
 and nothing may follow it (not even a space) -- otherwise the shell runs the
 first line alone and treats the remaining lines as a new command.
+
+### With or without the subflows
+
+By default the output contains the subflow definitions with fresh ids, so
+every import gets its own copies of the subflows (e.g. a second
+`Alarm counter v2`).
+
+`--no-subflows` drops the subflow definitions and their inner nodes from
+the output. The flow then reuses the subflows already present on the
+instance. This requires the instance's subflow definitions to carry the
+**template definition ids** -- import the subflows once from a raw
+template (or `--to 1` output *with* subflows, then re-point; simplest is
+the raw template) before importing copies without them. The instances
+reference the definitions by id; if the instance lacks a referenced
+subflow, Node-RED imports those instances as *unknown subflow* and the
+import is useless. Check the subflow ids in the raw template
+(`"type": "subflow"` entries) against the running instance's subflows.
+
+`--subflow-map OLD=NEW` (repeatable, implies `--no-subflows`) re-points
+the subflow instances from the template definition id `OLD` to a live
+definition id `NEW`. Use it when the instance's subflows were themselves
+imported from script output and therefore have regenerated ids:
+
+```bash
+python3 nodered_copy_flow.py ../components/flow_sensor_rui.json \
+    flow_sensor2_rui.json --to 2 \
+    --subflow-map 80204cbf6e8db977=<live-alarm-counter-v2-id>
+```
+
+Alternatively: keep using the default (with subflows) and *keep* the
+duplicate `Import copy` subflows -- that works as before.
 
 Then import the output file into Node-RED as described below.
 
@@ -80,23 +116,28 @@ Then continue with the manual steps below.
 1. Loads the template and regenerates the ids of **all** nodes except
    shared global config nodes (`mqtt-broker`, `pushover-keys`,
    `global-config`), remapping every reference: wires, link-node pairs,
-   flow tab, editor groups, ui_tab/ui_group and their widget references,
-   and the subflow definitions together with their instance types. The
+   flow tab, editor groups (including the group membership lists),
+   node scope lists (catch/status/complete -- the templates currently
+   use none), ui_tab/ui_group and their widget references, and the
+   subflow definitions together with their instance types. The
    output therefore collides with nothing in a running instance except
-   the few shared config nodes.
+   the few shared config nodes. With `--no-subflows` (or
+   `--subflow-map`, see above) the subflow definitions and their inner
+   nodes are dropped instead, and the instances reference the existing
+   subflows by their original ids.
 2. Sets the port on the local `mqtt-broker` config nodes. The TTN broker
    is never touched. The broker address, ChirpStack API and TTN
    application are the `LORALARM_*` variables of the flow file's
    `global-config` node (see `../components/README.md`); the script
    writes `--broker`, `--chirpstack-base` and `--ttn-app` (also the
    derived `LORALARM_TTN_UP_TOPIC`) there.
-3. Applies string replacements, longest match first:
+3. Renames the sensor number in one regex pass (so a `--to` number that
+   starts with the template's digits, like 10 or 11, renames exactly
+   once), plus one literal replacement:
 
    | Template value (sensor 1)   | Becomes (sensor N)    |
    |-----------------------------|-----------------------|
-   | `Sensor1_Sensorer` (env `dashboardName`) | `SensorN_Sensorer` |
-   | `Sensor1` (tab name)        | `SensorN`            |
-   | `sensor1` (deviceName, ntfy topic) | `sensorN` |
+   | `Sensor1` / `sensor1` (tab name, deviceName, ntfy topic, env `dashboardName`) | `SensorN` / `sensorN` |
    | `127.0.0.1:8075` (`LORALARM_NTFY_BASE`, Android `ntfyChannel`) | value of `--ntfy-base` |
 
    The subflow definitions keep their template names (`Sensor (RAK4631)
@@ -104,12 +145,13 @@ Then continue with the manual steps below.
 
 4. Writes the result with `indent=2` so the file stays reviewable in git.
    The script warns when a replacement pattern matches nothing, and
-   refuses to write output that is not valid JSON. One warning is
-   expected: `Sensor1_Sensorer` does not occur in `flow_sensor_rui.json`.
-   It is harmless -- the dashboard show/hide calls address groups as
-   `TabName_GroupName`, so the registered `dashboardName`
-   (e.g. `Sensor2_Sensorer`) already resolves to tab `Sensor2` + group
-   `Sensorer`; the group itself must stay named `Sensorer`.
+   refuses to write output that is not valid JSON. `Sensor1_Sensorer`
+   does not occur literally in
+   `flow_sensor_rui.json` -- that is expected and needs no warning: the
+   dashboard show/hide calls address groups as `TabName_GroupName`, so
+   the registered `dashboardName` (e.g. `Sensor2_Sensorer`) already
+   resolves to tab `Sensor2` + group `Sensorer`; the group itself must
+   stay named `Sensorer`.
 
 ### After running the script (manual steps)
 

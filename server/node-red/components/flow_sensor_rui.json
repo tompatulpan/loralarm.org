@@ -572,7 +572,6 @@
             "b4c4ee699657df21",
             "81ef145bee4a8669",
             "2184abeb7d303942",
-            "8ff81404c13a61e8",
             "c250a399e7351143",
             "ee98c0f9921cbf41",
             "dadeac23c0f0609c",
@@ -989,22 +988,17 @@
     },
     {
         "id": "f6c8f1caa20908e5",
-        "type": "switch",
+        "type": "function",
         "z": "d53bbdfde8fe392b",
         "g": "a93b6f64bd096d4b",
         "name": "deviceName - End device ID",
-        "property": "topic",
-        "propertyType": "msg",
-        "rules": [
-            {
-                "t": "cont",
-                "v": "deviceName",
-                "vt": "flow"
-            }
-        ],
-        "checkall": "true",
-        "repair": false,
+        "func": "// topic: v3/<appId>/devices/<deviceName>/up\nconst p = String(msg.topic).split(\"/\");\nconst name = flow.get(\"deviceName\");\nif (!name || p[3] !== name) {\n    return null;\n}\nreturn msg;",
         "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
         "x": 640,
         "y": 240,
         "wires": [
@@ -1012,7 +1006,7 @@
                 "81ef145bee4a8669"
             ]
         ],
-        "info": "Device name is the same as in TTN settings for the \"sensor\"."
+        "info": "Device name is the same as in TTN settings for the \"sensor\". Exact match, so sensor1 does not also pass sensor10."
     },
     {
         "id": "b4c4ee699657df21",
@@ -4677,38 +4671,12 @@
         "wires": []
     },
     {
-        "id": "8ff81404c13a61e8",
-        "type": "switch",
-        "z": "d53bbdfde8fe392b",
-        "g": "a93b6f64bd096d4b",
-        "name": "devEui",
-        "property": "topic",
-        "propertyType": "msg",
-        "rules": [
-            {
-                "t": "cont",
-                "v": "devEui",
-                "vt": "flow"
-            }
-        ],
-        "checkall": "true",
-        "repair": false,
-        "outputs": 1,
-        "x": 710,
-        "y": 180,
-        "wires": [
-            [
-                "2184abeb7d303942"
-            ]
-        ]
-    },
-    {
         "id": "c250a399e7351143",
         "type": "mqtt in",
         "z": "d53bbdfde8fe392b",
         "g": "a93b6f64bd096d4b",
         "name": "Chirpstack v4",
-        "topic": "application/+/device/+/event/+",
+        "topic": "application/+/device/+/event/up",
         "qos": "1",
         "datatype": "json",
         "broker": "6702f55c7ff28076",
@@ -4726,27 +4694,22 @@
     },
     {
         "id": "ee98c0f9921cbf41",
-        "type": "switch",
+        "type": "function",
         "z": "d53bbdfde8fe392b",
         "g": "a93b6f64bd096d4b",
-        "name": "application",
-        "property": "topic",
-        "propertyType": "msg",
-        "rules": [
-            {
-                "t": "cont",
-                "v": "application.sublarm",
-                "vt": "global"
-            }
-        ],
-        "checkall": "true",
-        "repair": false,
+        "name": "application + devEui",
+        "func": "// topic: application/<appId>/device/<devEui>/event/up\nconst p = String(msg.topic).split(\"/\");\nconst app = (global.get(\"application\") || {}).sublarm;\nconst eui = String(flow.get(\"devEui\") || \"\").toLowerCase();\nif (!app || !eui || p[1] !== app || String(p[3]).toLowerCase() !== eui) {\n    return null;\n}\nreturn msg;",
         "outputs": 1,
-        "x": 290,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 340,
         "y": 180,
         "wires": [
             [
-                "8ff81404c13a61e8"
+                "2184abeb7d303942"
             ]
         ]
     },
