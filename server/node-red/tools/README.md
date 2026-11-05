@@ -84,18 +84,20 @@ Then continue with the manual steps below.
    and the subflow definitions together with their instance types. The
    output therefore collides with nothing in a running instance except
    the few shared config nodes.
-2. Sets address/port on the local `mqtt-broker` config nodes. The TTN
-   broker (`eu1.cloud.thethings.network`) is never touched.
+2. Sets the port on the local `mqtt-broker` config nodes. The TTN broker
+   is never touched. The broker address, ChirpStack API and TTN
+   application are the `LORALARM_*` variables of the flow file's
+   `global-config` node (see `../components/README.md`); the script
+   writes `--broker`, `--chirpstack-base` and `--ttn-app` (also the
+   derived `LORALARM_TTN_UP_TOPIC`) there.
 3. Applies string replacements, longest match first:
 
    | Template value (sensor 1)   | Becomes (sensor N)    |
    |-----------------------------|-----------------------|
    | `Sensor1_Sensorer` (env `dashboardName`) | `SensorN_Sensorer` |
    | `Sensor1` (tab name)        | `SensorN`            |
-   | `sensor1` (deviceName, ntfy topic `127.0.0.1:8075/sensor1`) | `sensorN` |
-   | `127.0.0.1:8075` (ntfy)     | value of `--ntfy-base` |
-   | `localhost:8080` (ChirpStack downlink API) | value of `--chirpstack-base` |
-   | `larm-test@ttn` (TTN application id) | value of `--ttn-app` |
+   | `sensor1` (deviceName, ntfy topic) | `sensorN` |
+   | `127.0.0.1:8075` (`LORALARM_NTFY_BASE`, Android `ntfyChannel`) | value of `--ntfy-base` |
 
    The subflow definitions keep their template names (`Sensor (RAK4631)
    v2`, `Alarm counter v2`) -- only their ids are regenerated.

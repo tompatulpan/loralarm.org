@@ -11,12 +11,29 @@ except shared global config nodes, and remaps every id reference
 (wires, links, tabs/groups, subflow definitions and their instances), so
 the output can be imported into a running instance without id conflicts.
 It can also override per-deployment settings (MQTT broker, ntfy,
-ChirpStack, TTN application id).
+ChirpStack, TTN application id).  Those live as LORALARM_* variables in
+the flow file's global-config env (referenced as ${LORALARM_...} by the
+nodes), so the overrides edit that env and nothing else.
 
 Usage:
     python3 nodered_copy_flow.py <input.json> <output.json> --to 2
     python3 nodered_copy_flow.py ../components/flow_sensor_rui.json \\
         flow_sensor2_rui.json --to 2 --broker 192.168.2.26
+
+Subflow selection (default: the output includes the subflow definitions
+with fresh ids, so every import gets its own subflow copies):
+    --no-subflows   omit the subflow definitions and their inner nodes;
+                    the subflow instances reference the ids of the
+                    template definitions, which must already exist on
+                    the target instance (e.g. import the raw template's
+                    subflows once) - otherwise Node-RED imports the
+                    instances as "unknown subflow".
+    --subflow-map OLD=NEW   (repeatable, implies --no-subflows)
+                    re-point the subflow instances from template
+                    definition id OLD to the live definition id NEW;
+                    use it when the target instance's subflows were
+                    imported from script output and thus carry
+                    regenerated ids.
 
 Afterwards, import the output file in Node-RED and fill the sensor's
 per-instance values in the subflow env: the RAK4631/Android flow reads
@@ -108,32 +125,84 @@ def regenerate_ids(flows):
     return len(id_map)
 
 
-def apply_broker_settings(flows, broker, port):
-    """Set address/port on local mqtt-broker config nodes (never TTN)."""
+def drop_subflow_definitions(flows):
+    """Remove the subflow definitions and their inner nodes.
+
+    Subflow instances (type "subflow:<id>") are kept and reference the
+    definitions by their original (template) ids, which must already
+    exist on the target instance.  Returns (kept_flows, subflow_ids).
+    """
+    subflow_ids = {item["id"] for item in flows if item.get("type") == "subflow"}
+    kept = [item for item in flows
+            if item.get("type") != "subflow"
+            and item.get("z") not in subflow_ids]
+    return kept, subflow_ids
+
+
+def apply_subflow_map(flows, mapping):
+    """Re-point subflow instances at other definition ids."""
+    remapped = 0
+    for item in flows:
+        t = item.get("type", "")
+        if t.startswith("subflow:"):
+            old = t.split(":", 1)[1]
+            if old in mapping:
+                item["type"] = "subflow:" + mapping[old]
+                remapped += 1
+    return remapped
+
+
+def apply_broker_port(flows, port):
+    """Set the port on local mqtt-broker config nodes (never TTN).
+
+    The broker address itself is the LORALARM_CS_BROKER env var."""
     updated = 0
     for item in flows:
         if item.get("type") != "mqtt-broker":
             continue
-        if "thethings.network" in item.get("broker", ""):
+        if item.get("broker") == "${LORALARM_TTN_BROKER}":
             continue  # TTN broker is deployment independent
-        item["broker"] = broker
         item["port"] = port
         updated += 1
     return updated
 
 
-def build_replacements(from_num, to_num, overrides):
+def set_env(flows, name, value):
+    """Set a variable in the global-config env of the flow file.
+
+    Returns True when the template defines the variable."""
+    for item in flows:
+        if item.get("type") != "global-config":
+            continue
+        for var in item.get("env", []):
+            if var.get("name") == name:
+                var["value"] = value
+                return True
+    return False
+
+
+def apply_env_overrides(flows, args):
+    """Write the per-deployment settings into the global-config env."""
+    values = {
+        "LORALARM_CS_BROKER": args.broker,
+        "LORALARM_CS_API": args.chirpstack_base,
+        "LORALARM_TTN_APP": args.ttn_app,
+        "LORALARM_TTN_UP_TOPIC": "v3/{0}/devices/+/up".format(args.ttn_app),
+    }
+    for name, value in values.items():
+        if value and not set_env(flows, name, value):
+            print("note: '{}' not used by this template".format(name))
+
+
+def build_replacements(from_num, to_num, ntfy_base):
     rules = [
         ("Sensor{0}_Sensorer".format(from_num), "Sensor{0}_Sensorer".format(to_num)),
         ("Sensor{0}".format(from_num), "Sensor{0}".format(to_num)),
         ("sensor{0}".format(from_num), "sensor{0}".format(to_num)),
     ]
-    if overrides["ntfy_base"]:
-        rules.append((DEFAULTS["ntfy_base"], overrides["ntfy_base"]))
-    if overrides["chirpstack_base"]:
-        rules.append((DEFAULTS["chirpstack_base"], overrides["chirpstack_base"]))
-    if overrides["ttn_app"]:
-        rules.append((DEFAULTS["ttn_app"], overrides["ttn_app"]))
+    if ntfy_base:
+        # Covers LORALARM_NTFY_BASE and the per-sensor ntfyChannel subflow env.
+        rules.append((DEFAULTS["ntfy_base"], ntfy_base))
     # Longest match first so e.g. "Sensor1_Sensorer" is replaced before "Sensor1".
     return sorted(rules, key=lambda r: len(r[0]), reverse=True)
 
@@ -158,19 +227,55 @@ def main():
                         help="ChirpStack API address:port (default: %(default)s)")
     parser.add_argument("--ttn-app", default=DEFAULTS["ttn_app"],
                         help="TTN application id (default: %(default)s)")
+    parser.add_argument("--no-subflows", action="store_true",
+                        help="omit the subflow definitions and their inner "
+                             "nodes; the subflow instances reference the "
+                             "existing subflows (template definition ids)")
+    parser.add_argument("--subflow-map", action="append", default=[],
+                        metavar="OLD=NEW",
+                        help="re-point subflow instances from template "
+                             "definition id OLD to live definition id NEW "
+                             "(repeatable; implies --no-subflows)")
     args = parser.parse_args()
+
+    subflow_map = {}
+    for pair in args.subflow_map:
+        if "=" not in pair:
+            parser.error("--subflow-map expects OLD=NEW, got '" + pair + "'")
+        old, new = pair.split("=", 1)
+        subflow_map[old] = new
 
     with open(args.input, "r") as f:
         flows = json.load(f)
 
+    n_defs = 0
+    if args.no_subflows or subflow_map:
+        n_total = len(flows)
+        flows, template_subflow_ids = drop_subflow_definitions(flows)
+        n_defs = sum(1 for item in flows if item.get("type", "").startswith("subflow:"))
+        print("dropped {} subflow definition(s) and {} inner node(s) "
+              "({} -> {} nodes)".format(
+                  len(template_subflow_ids), n_total - len(flows) - len(template_subflow_ids),
+                  n_total, len(flows)))
+
     n_ids = regenerate_ids(flows)
-    n_brokers = apply_broker_settings(flows, args.broker, args.broker_port)
+
+    if subflow_map:
+        unknown = [old for old in subflow_map if old not in template_subflow_ids]
+        for old in unknown:
+            print("WARNING: subflow-map id '{}' is not a subflow definition "
+                  "in this template".format(old))
+        n_repointed = apply_subflow_map(flows, subflow_map)
+        print("re-pointed {} subflow instance(s) via --subflow-map".format(n_repointed))
+
+    n_brokers = apply_broker_port(flows, args.broker_port)
+    apply_env_overrides(flows, args)
 
     # Serialize once with indentation so the output is reviewable/diffable,
     # then apply the string replacements on the text.
     data = json.dumps(flows, ensure_ascii=False, indent=2)
 
-    rules = build_replacements(args.from_num, args.to_num, vars(args))
+    rules = build_replacements(args.from_num, args.to_num, args.ntfy_base)
     for old, new in rules:
         count = data.count(old)
         if count == 0:
@@ -184,8 +289,14 @@ def main():
     with open(args.output, "w") as f:
         f.write(data)
 
-    print("wrote {} ({} nodes, {} node ids regenerated, {} broker(s) set to {}:{})".format(
-        args.output, len(flows), n_ids, n_brokers, args.broker, args.broker_port))
+    print("wrote {} ({} nodes, {} node ids regenerated, {} broker(s) set to port {}, "
+          "LORALARM_CS_BROKER={})".format(
+              args.output, len(flows), n_ids, n_brokers, args.broker_port, args.broker))
+    if args.no_subflows or subflow_map:
+        print("NOTE: this output contains no subflow definitions ({} instance "
+              "type references); the target instance must already have the "
+              "referenced subflows, otherwise Node-RED imports them as "
+              "'unknown subflow'.".format(n_defs))
     print("NOTE: fill the per-sensor values (devEui etc.) in the imported" +
           " subflow instance env; RUI flows read them from" +
           " components/flow_inputs.json at flow start.")

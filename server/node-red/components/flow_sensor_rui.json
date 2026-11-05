@@ -746,6 +746,7 @@
             "3bf4af6ce56d3294",
             "99498a55c3dd2ae2",
             "f330dfef40ebef15",
+            "7c2e94b1a8d03f56",
             "21a4c7c17d9ce825",
             "beaaed4019fca62d",
             "24a7af193af6b626"
@@ -886,9 +887,30 @@
         "y": 800,
         "wires": [
             [
-                "5ab81c217e1996bc",
+                "7c2e94b1a8d03f56",
                 "4bf61371df46af45",
                 "99498a55c3dd2ae2"
+            ]
+        ]
+    },
+    {
+        "id": "7c2e94b1a8d03f56",
+        "type": "function",
+        "z": "d53bbdfde8fe392b",
+        "g": "83ea6610f5984358",
+        "name": "ntfy url",
+        "func": "const base = env.get(\"LORALARM_NTFY_BASE\");\nconst topic = flow.get(\"deviceName\");\nif (!base || !topic) {\n    node.error(\"ntfy url: LORALARM_NTFY_BASE or flow deviceName is not set\", msg);\n    return null;\n}\nmsg.url = base + \"/\" + topic;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 220,
+        "y": 740,
+        "wires": [
+            [
+                "5ab81c217e1996bc"
             ]
         ]
     },
@@ -949,7 +971,7 @@
         "z": "d53bbdfde8fe392b",
         "g": "a93b6f64bd096d4b",
         "name": "TTNv3",
-        "topic": "v3/larm-test@ttn/devices/+/up",
+        "topic": "${LORALARM_TTN_UP_TOPIC}",
         "qos": "2",
         "datatype": "json",
         "broker": "787fc296040e1e2e",
@@ -5218,7 +5240,7 @@
         "method": "POST",
         "ret": "txt",
         "paytoqs": "ignore",
-        "url": "127.0.0.1:8075/sensor1",
+        "url": "",
         "tls": "",
         "persist": false,
         "proxy": "",
@@ -5332,7 +5354,7 @@
         "z": "d53bbdfde8fe392b",
         "g": "83ea6610f5984358",
         "name": "write to log",
-        "filename": "/home/tomas/log_alarms.csv",
+        "filename": "${LORALARM_LOG_ALARMS}",
         "filenameType": "str",
         "appendNewline": true,
         "createDir": false,
@@ -5371,8 +5393,8 @@
         "z": "d53bbdfde8fe392b",
         "g": "83ea6610f5984358",
         "name": "",
-        "lat": "59.334591",
-        "lon": "18.063240",
+        "lat": "${LORALARM_LAT}",
+        "lon": "${LORALARM_LON}",
         "startTime": "08:00",
         "endTime": "22:00",
         "startOffset": 0,
@@ -5469,7 +5491,7 @@
         "z": "d53bbdfde8fe392b",
         "g": "a1870e0f680698de",
         "name": "DL Send",
-        "server": "localhost:8080",
+        "server": "${LORALARM_CS_API}",
         "useTls": false,
         "apiToken": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJjaGlycHN0YWNrIiwiaXNzIjoiY2hpcnBzdGFjayIsInN1YiI6ImZkZWE5ZTFjLTAxZTUtNDJjOC1hMTQzLWI2NzY5NGMyMzEwNiIsInR5cCI6ImtleSJ9.VODUmFDg-0rSfXEgD__lsdnuZGgkcVU7nkGJUgGt5Bc",
         "encoding": "base64",
@@ -6399,7 +6421,7 @@
         "z": "d53bbdfde8fe392b",
         "g": "a1870e0f680698de",
         "name": "TTN downlink port7",
-        "func": "// Function node to handle decimal input as a string, convert to base64, and set the topic\nlet inputString = msg.payload.toString().padStart(3, '0'); // Ensure the input is padded to 3 digits\nlet buff = Buffer.from(inputString, 'utf-8');\nlet base64data = buff.toString('base64');\n\nmsg.payload = {\n    \"downlinks\": [{\n        \"f_port\": 7,\n        \"frm_payload\": base64data,\n        \"priority\": \"NORMAL\"\n    }]\n};\n\n// Set the topic using a flow variable or a predefined value\nlet deviceName = flow.get('deviceName') || 'defaultDeviceName';\nmsg.topic = `v3/larm-test@ttn/devices/${deviceName}/down/push`;\n\nreturn msg;",
+        "func": "// Function node to handle decimal input as a string, convert to base64, and set the topic\nlet inputString = msg.payload.toString().padStart(3, '0'); // Ensure the input is padded to 3 digits\nlet buff = Buffer.from(inputString, 'utf-8');\nlet base64data = buff.toString('base64');\n\nmsg.payload = {\n    \"downlinks\": [{\n        \"f_port\": 7,\n        \"frm_payload\": base64data,\n        \"priority\": \"NORMAL\"\n    }]\n};\n\n// Set the topic using a flow variable or a predefined value\nlet deviceName = flow.get('deviceName') || 'defaultDeviceName';\nmsg.topic = `v3/${env.get('LORALARM_TTN_APP')}/devices/${deviceName}/down/push`;\n\nreturn msg;",
         "outputs": 1,
         "timeout": 0,
         "noerr": 0,
@@ -6420,7 +6442,7 @@
         "z": "d53bbdfde8fe392b",
         "g": "a1870e0f680698de",
         "name": "TTN downlink port7",
-        "func": "// Function node to handle decimal input as a string, convert to base64, and set the topic\nlet inputString = msg.payload.toString().padStart(3, '0'); // Ensure the input is padded to 3 digits\nlet buff = Buffer.from(inputString, 'utf-8');\nlet base64data = buff.toString('base64');\n\nmsg.payload = {\n    \"downlinks\": [{\n        \"f_port\": 6,\n        \"frm_payload\": base64data,\n        \"priority\": \"NORMAL\"\n    }]\n};\n\n// Set the topic using a flow variable or a predefined value\nlet deviceName = flow.get('deviceName') || 'defaultDeviceName';\nmsg.topic = `v3/larm-test@ttn/devices/${deviceName}/down/push`;\n\nreturn msg;",
+        "func": "// Function node to handle decimal input as a string, convert to base64, and set the topic\nlet inputString = msg.payload.toString().padStart(3, '0'); // Ensure the input is padded to 3 digits\nlet buff = Buffer.from(inputString, 'utf-8');\nlet base64data = buff.toString('base64');\n\nmsg.payload = {\n    \"downlinks\": [{\n        \"f_port\": 6,\n        \"frm_payload\": base64data,\n        \"priority\": \"NORMAL\"\n    }]\n};\n\n// Set the topic using a flow variable or a predefined value\nlet deviceName = flow.get('deviceName') || 'defaultDeviceName';\nmsg.topic = `v3/${env.get('LORALARM_TTN_APP')}/devices/${deviceName}/down/push`;\n\nreturn msg;",
         "outputs": 1,
         "timeout": 0,
         "noerr": 0,
@@ -6441,7 +6463,7 @@
         "z": "d53bbdfde8fe392b",
         "g": "a1870e0f680698de",
         "name": "TTN downlink port5",
-        "func": "// Function node to handle decimal input as a string, convert to base64, and set the topic\nlet inputString = msg.payload.toString().padStart(3, '0'); // Ensure the input is padded to 3 digits\nlet buff = Buffer.from(inputString, 'utf-8');\nlet base64data = buff.toString('base64');\n\nmsg.payload = {\n    \"downlinks\": [{\n        \"f_port\": 5,\n        \"frm_payload\": base64data,\n        \"priority\": \"NORMAL\"\n    }]\n};\n\n// Set the topic using a flow variable or a predefined value\nlet deviceName = flow.get('deviceName') || 'defaultDeviceName';\nmsg.topic = `v3/larm-test@ttn/devices/${deviceName}/down/push`;\n\nreturn msg;",
+        "func": "// Function node to handle decimal input as a string, convert to base64, and set the topic\nlet inputString = msg.payload.toString().padStart(3, '0'); // Ensure the input is padded to 3 digits\nlet buff = Buffer.from(inputString, 'utf-8');\nlet base64data = buff.toString('base64');\n\nmsg.payload = {\n    \"downlinks\": [{\n        \"f_port\": 5,\n        \"frm_payload\": base64data,\n        \"priority\": \"NORMAL\"\n    }]\n};\n\n// Set the topic using a flow variable or a predefined value\nlet deviceName = flow.get('deviceName') || 'defaultDeviceName';\nmsg.topic = `v3/${env.get('LORALARM_TTN_APP')}/devices/${deviceName}/down/push`;\n\nreturn msg;",
         "outputs": 1,
         "timeout": 0,
         "noerr": 0,
@@ -6463,7 +6485,7 @@
         "d": true,
         "g": "a1870e0f680698de",
         "name": "TTN downlink port4",
-        "func": "// Function node to handle decimal input as a string, convert to base64, and set the topic\nlet inputString = msg.payload.toString().padStart(3, '0'); // Ensure the input is padded to 3 digits\nlet buff = Buffer.from(inputString, 'utf-8');\nlet base64data = buff.toString('base64');\n\nmsg.payload = {\n    \"downlinks\": [{\n        \"f_port\": 4,\n        \"frm_payload\": base64data,\n        \"priority\": \"NORMAL\"\n    }]\n};\n\n// Set the topic using a flow variable or a predefined value\nlet deviceName = flow.get('deviceName') || 'defaultDeviceName';\nmsg.topic = `v3/larm-test@ttn/devices/${deviceName}/down/push`;\n\nreturn msg;",
+        "func": "// Function node to handle decimal input as a string, convert to base64, and set the topic\nlet inputString = msg.payload.toString().padStart(3, '0'); // Ensure the input is padded to 3 digits\nlet buff = Buffer.from(inputString, 'utf-8');\nlet base64data = buff.toString('base64');\n\nmsg.payload = {\n    \"downlinks\": [{\n        \"f_port\": 4,\n        \"frm_payload\": base64data,\n        \"priority\": \"NORMAL\"\n    }]\n};\n\n// Set the topic using a flow variable or a predefined value\nlet deviceName = flow.get('deviceName') || 'defaultDeviceName';\nmsg.topic = `v3/${env.get('LORALARM_TTN_APP')}/devices/${deviceName}/down/push`;\n\nreturn msg;",
         "outputs": 1,
         "timeout": 0,
         "noerr": 0,
@@ -7215,7 +7237,7 @@
         "z": "d53bbdfde8fe392b",
         "g": "1c872ae4bebeed15",
         "name": "write to TX log",
-        "filename": "/home/tomas/log_tx.csv",
+        "filename": "${LORALARM_LOG_TX}",
         "filenameType": "str",
         "appendNewline": true,
         "createDir": false,
@@ -7405,7 +7427,7 @@
         "id": "787fc296040e1e2e",
         "type": "mqtt-broker",
         "name": "TTNv3",
-        "broker": "eu1.cloud.thethings.network",
+        "broker": "${LORALARM_TTN_BROKER}",
         "port": "1883",
         "tls": "",
         "clientid": "",
@@ -7458,8 +7480,8 @@
     {
         "id": "6702f55c7ff28076",
         "type": "mqtt-broker",
-        "name": "Lora Server 192.168.2.26",
-        "broker": "192.168.2.26",
+        "name": "Lora Server",
+        "broker": "${LORALARM_CS_BROKER}",
         "port": "1883",
         "clientid": "",
         "autoConnect": true,
@@ -7503,7 +7525,58 @@
     {
         "id": "202c83af9f6b0dc8",
         "type": "global-config",
-        "env": [],
+        "env": [
+            {
+                "name": "LORALARM_LOG_ALARMS",
+                "value": "/var/log/loralarm/log_alarms.csv",
+                "type": "str"
+            },
+            {
+                "name": "LORALARM_LOG_TX",
+                "value": "/var/log/loralarm/log_tx.csv",
+                "type": "str"
+            },
+            {
+                "name": "LORALARM_CS_BROKER",
+                "value": "192.168.2.26",
+                "type": "str"
+            },
+            {
+                "name": "LORALARM_CS_API",
+                "value": "localhost:8080",
+                "type": "str"
+            },
+            {
+                "name": "LORALARM_TTN_BROKER",
+                "value": "eu1.cloud.thethings.network",
+                "type": "str"
+            },
+            {
+                "name": "LORALARM_TTN_APP",
+                "value": "larm-test@ttn",
+                "type": "str"
+            },
+            {
+                "name": "LORALARM_TTN_UP_TOPIC",
+                "value": "v3/larm-test@ttn/devices/+/up",
+                "type": "str"
+            },
+            {
+                "name": "LORALARM_NTFY_BASE",
+                "value": "127.0.0.1:8075",
+                "type": "str"
+            },
+            {
+                "name": "LORALARM_LAT",
+                "value": "59.334591",
+                "type": "str"
+            },
+            {
+                "name": "LORALARM_LON",
+                "value": "18.063240",
+                "type": "str"
+            }
+        ],
         "modules": {
             "node-red-contrib-moment": "5.0.0",
             "node-red-contrib-counter": "0.1.6",

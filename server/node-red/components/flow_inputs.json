@@ -147,7 +147,7 @@
         "type": "mqtt in",
         "z": "73fec5176ff2b148",
         "name": "join events",
-        "topic": "application/1d7d3417-e6bf-4e85-ab60-fb422fecdf90/device/+/event/join",
+        "topic": "application/+/device/+/event/join",
         "qos": "1",
         "datatype": "json",
         "broker": "6702f55c7ff28076",
@@ -168,7 +168,7 @@
         "type": "function",
         "z": "73fec5176ff2b148",
         "name": "resend settings on join",
-        "func": "var devEui = msg.payload.deviceInfo && msg.payload.deviceInfo.devEui;\nif (!devEui) return null;\n\nvar settings = global.get(\"sensorSettings\", \"default\") || {};\nvar s = settings[devEui];\nif (!s) return null;\n\nvar msgs = [];\nif (s.interrupt_threshold) msgs.push({ payload: s.interrupt_threshold, fPort: \"5\", confirmed: \"false\", devEui: devEui });\nif (s.acc_frequency) msgs.push({ payload: s.acc_frequency, fPort: \"6\", confirmed: \"false\", devEui: devEui });\nif (s.interrupt_duration)  msgs.push({ payload: s.interrupt_duration,  fPort: \"7\", confirmed: \"false\", devEui: devEui });\n\nif (msgs.length === 0) return null;\nreturn [msgs];",
+        "func": "var app = (global.get(\"application\") || {}).sublarm;\nif (!app || String(msg.topic).split(\"/\")[1] !== app) return null;\n\nvar devEui = msg.payload.deviceInfo && msg.payload.deviceInfo.devEui;\nif (!devEui) return null;\n\nvar settings = global.get(\"sensorSettings\", \"default\") || {};\nvar s = settings[devEui];\nif (!s) return null;\n\nvar msgs = [];\nif (s.interrupt_threshold) msgs.push({ payload: s.interrupt_threshold, fPort: \"5\", confirmed: \"false\", devEui: devEui });\nif (s.acc_frequency) msgs.push({ payload: s.acc_frequency, fPort: \"6\", confirmed: \"false\", devEui: devEui });\nif (s.interrupt_duration)  msgs.push({ payload: s.interrupt_duration,  fPort: \"7\", confirmed: \"false\", devEui: devEui });\n\nif (msgs.length === 0) return null;\nreturn [msgs];",
         "outputs": 1,
         "timeout": 0,
         "noerr": 0,
@@ -188,7 +188,7 @@
         "type": "device downlink",
         "z": "73fec5176ff2b148",
         "name": "resend DL",
-        "server": "localhost:8080",
+        "server": "${LORALARM_CS_API}",
         "useTls": false,
         "apiToken": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJjaGlycHN0YWNrIiwiaXNzIjoiY2hpcnBzdGFjayIsInN1YiI6ImZkZWE5ZTFjLTAxZTUtNDJjOC1hMTQzLWI2NzY5NGMyMzEwNiIsInR5cCI6ImtleSJ9.VODUmFDg-0rSfXEgD__lsdnuZGgkcVU7nkGJUgGt5Bc",
         "encoding": "base64",
@@ -231,9 +231,9 @@
         "id": "e4025b2259c7b312",
         "type": "exec",
         "z": "73fec5176ff2b148",
-        "command": "rm /home/tomas/log_tx.csv",
+        "command": "rm",
         "addpay": false,
-        "append": "",
+        "append": "${LORALARM_LOG_TX}",
         "useSpawn": "false",
         "timer": "10",
         "winHide": false,
@@ -270,9 +270,9 @@
         "id": "b03c53c6f124aded",
         "type": "exec",
         "z": "73fec5176ff2b148",
-        "command": "rm /home/tomas/log_alarms.csv",
+        "command": "rm",
         "addpay": false,
-        "append": "",
+        "append": "${LORALARM_LOG_ALARMS}",
         "useSpawn": "false",
         "timer": "10",
         "winHide": false,
@@ -291,7 +291,7 @@
         "type": "comment",
         "z": "73fec5176ff2b148",
         "name": "Download log files",
-        "info": "HTTP endpoints: GET /download/log_tx.csv and GET /download/log_alarms.csv\nFlow: http in (/download/:filename) -> 'validate filename' (whitelist; builds\nmsg.filename = /home/tomas/<logfile>; unknown names -> 404 straight to http\nresponse) -> file in (reads msg.filename) -> 'set download headers' (200 with\ntext/csv and Content-Disposition attachment, or 404 when the file is missing)\n-> http response.\nThe monthly job above deletes the same files, so download them before month end.",
+        "info": "HTTP endpoints: GET /download/log_tx.csv and GET /download/log_alarms.csv\nFlow: http in (/download/:filename) -> 'validate filename' (whitelist; builds\nmsg.filename from the LORALARM_LOG_TX / LORALARM_LOG_ALARMS env vars; unknown names -> 404 straight to http\nresponse) -> file in (reads msg.filename) -> 'set download headers' (200 with\ntext/csv and Content-Disposition attachment, or 404 when the file is missing)\n-> http response.\nThe monthly job above deletes the same files, so download them before month end.",
         "x": 200,
         "y": 760,
         "wires": []
@@ -318,7 +318,7 @@
         "type": "function",
         "z": "73fec5176ff2b148",
         "name": "validate filename",
-        "func": "var allowed = [\"log_tx.csv\", \"log_alarms.csv\"];\nvar f = msg.req.params.filename;\nif (allowed.indexOf(f) === -1) {\n    msg.statusCode = 404;\n    msg.headers = {\"Content-Type\": \"text/plain\"};\n    msg.payload = \"Unknown log file. Available: \" + allowed.join(\", \");\n    return [null, msg];\n}\nmsg.filename = \"/home/tomas/\" + f;\nreturn [msg, null];",
+        "func": "var files = {\"log_tx.csv\": env.get(\"LORALARM_LOG_TX\"), \"log_alarms.csv\": env.get(\"LORALARM_LOG_ALARMS\")};\nvar allowed = Object.keys(files);\nvar f = msg.req.params.filename;\nif (!Object.prototype.hasOwnProperty.call(files, f) || !files[f]) {\n    msg.statusCode = 404;\n    msg.headers = {\"Content-Type\": \"text/plain\"};\n    msg.payload = \"Unknown log file. Available: \" + allowed.join(\", \");\n    return [null, msg];\n}\nmsg.filename = files[f];\nreturn [msg, null];",
         "outputs": 2,
         "timeout": 0,
         "noerr": 0,
@@ -390,8 +390,8 @@
     {
         "id": "6702f55c7ff28076",
         "type": "mqtt-broker",
-        "name": "Lora Server 192.168.2.26",
-        "broker": "192.168.2.26",
+        "name": "Lora Server",
+        "broker": "${LORALARM_CS_BROKER}",
         "port": "1883",
         "clientid": "",
         "autoConnect": true,
@@ -421,7 +421,28 @@
     {
         "id": "dcd6abce8967b75f",
         "type": "global-config",
-        "env": [],
+        "env": [
+            {
+                "name": "LORALARM_LOG_ALARMS",
+                "value": "/var/log/loralarm/log_alarms.csv",
+                "type": "str"
+            },
+            {
+                "name": "LORALARM_LOG_TX",
+                "value": "/var/log/loralarm/log_tx.csv",
+                "type": "str"
+            },
+            {
+                "name": "LORALARM_CS_BROKER",
+                "value": "192.168.2.26",
+                "type": "str"
+            },
+            {
+                "name": "LORALARM_CS_API",
+                "value": "localhost:8080",
+                "type": "str"
+            }
+        ],
         "modules": {
             "@chirpstack/node-red-contrib-chirpstack": "4.1.1"
         }
