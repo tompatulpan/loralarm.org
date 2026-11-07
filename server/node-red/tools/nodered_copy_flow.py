@@ -30,21 +30,33 @@ of the template, so each file gets its own newly regenerated node ids:
 
 Deployment workflow (deterministic for any target instance, no live id
 lookup, no import ordering -- Node-RED resolves subflow instances by
-id, never by name): deploy each sensor batch as ONE file with
---no-subflows --with-subflows; it contains the canonical subflow
-definitions with their template ids plus all requested sensor copies:
-    python3 nodered_copy_flow.py ../components/flow_sensor_unified.json \\
-        'flow_sensor{n}_unified.json' --to-range 2-16 --no-subflows \\
-        --with-subflows
-The {n} in the output path becomes the number or range ("2-16").
-Import that single file; in the import dialog DESELECT every node
-flagged as already existing (shared config nodes; plus, from the second
-batch on, the subflow definitions installed by an earlier batch) and
-never click "Import copy" -- that would regenerate the definition ids.
-The definitions are in the same import as the instances, so nothing
-can arrive out of order; instances imported before their definition
-existed stay "unknown: subflow" forever and must be deleted and
-re-imported.
+id, never by name):
+
+  - first batch on an instance (or whenever the subflow definitions with
+    the template ids may be missing): ONE file per batch with
+    --with-subflows; it contains the canonical subflow definitions with
+    their template ids plus all requested sensor copies:
+        python3 nodered_copy_flow.py ../components/flow_sensor_unified.json \\
+            'flow_sensor{n}_unified.json' --to-range 2-16 --with-subflows
+    The {n} in the output path becomes the number or range ("2-16").
+    Import that single file; in the import dialog DESELECT every node
+    flagged as already existing and NEVER click "Import copy" -- that
+    would regenerate the definition ids (Node-RED renames each copied
+    subflow "name (2)" and its auto-dedup never matches it again).
+    The definitions are in the same import as the instances, so nothing
+    can arrive out of order; instances imported before their definition
+    existed stay "unknown: subflow" forever and must be deleted and
+    re-imported.
+
+  - subsequent batches (the definitions with the template ids are on
+    the instance): plain --no-subflows files, no bundle:
+        python3 nodered_copy_flow.py ../components/flow_sensor_unified.json \\
+            'flow_sensor{n}_unified.json' --to-range 17-32 --no-subflows
+    These are mistake-proof: they contain no subflow definitions, so
+    no import-dialog choice can duplicate one -- Node-RED resolves the
+    instance references against the live definitions either way and
+    only the shared config nodes may get copied (harmless; deselect
+    them to avoid even that).
 
 Subflow selection:
     --no-subflows   omit the subflow definitions and their inner nodes;
