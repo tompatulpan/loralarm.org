@@ -315,7 +315,7 @@
     "id": "d023bf99fbc81f3f",
     "type": "subflow",
     "name": "Sensor (RAK4631 + RUI3) v3",
-    "info": "## Sensor (RAK4631 + RUI3) v3\n\nOne subflow per sensor for both uplink protocols: the **custom** binary\nframe of the RAK4631 Android sensor and **Cayenne LPP** from the RUI3\nsensor. ChirpStack + TTN uplink, alarm counting, battery/signal\nmonitoring and downlink configuration are shared.\n\n### Env vars\n| Name | Example | Description |\n|------|---------|-------------|\n| `protocol` | `auto` | `custom`, `cayenne` or `auto` (see below) |\n| `deviceName` | `sensor1` | Shown in alarm notifications and UI labels; TTN device id |\n| `devEui` | `ac1f09fffe000000` | Filters ChirpStack uplinks and keys sensorSettings |\n| `csApp` | `larm` | Key in global `application` (ChirpStack application): `larm` or `sublarm` |\n| `dashboardName` | `Sensor1_Sensorer` | Name of the UI group for show/hide control |\n| `ttnDeviceName` | `sublarm-1` | Device name in the TTN MQTT topic |\n| `tilt_sense` | `0.1` | Tilt alarm threshold (g-units) |\n| `Tk` | `8` | Temperature correction offset (C), subtracted from the reading |\n| `tempAlarmLimit` | `2` | Temperature alarm at or below this (C) |\n| `battFull` / `battWarn` / `battEmpty` | `4.2` / `3.5` / `3.2` | Battery volts: 100 %, low warning below, 0 % and critical below |\n| `ntfyChannel` | `127.0.0.1:8075/sensor1` | Full ntfy POST URL for this sensor |\n| `pushoverToken` | `` | Pushover application token |\n| `pushoverUser` | `` | Pushover user/group key |\n\n### Protocol\n* `custom`: RAK4631 Android frame (14 bytes, battery as raw ADC).\n* `cayenne`: RUI3 sensor, channels as in `devices/rui3_sensor/app.h`.\n* `auto`: a frame that is strictly valid Cayenne LPP for the RUI3 channel\n  map is decoded as Cayenne, everything else as custom. The detected\n  protocol is remembered in flow context (`protocolSeen`); the frequency\n  downlink needs it, so it waits for the first uplink. Set the protocol\n  explicitly if you prefer.\n\nTypical values per sensor type:\n\n| | RAK4631 (custom) | RUI3 (Cayenne) |\n|---|---|---|\n| `csApp` | `larm` | `sublarm` |\n| `Tk` | `8` | `0` |\n| `tempAlarmLimit` | `2` | `0` |\n| `battFull` / `battWarn` / `battEmpty` | `4.2` / `3.5` / `3.2` | `3.1` / `2.9` / `2.8` (3 V cell) |\n\nAll per-sensor values live in the subflow instance env -- set them\nafter import. There is no registry (flow_inputs.json) dependency in\nthis flow.\n\n### Downlinks\nSame ASCII-decimal format on ports 4-7 for both protocols. The\naccelerometer frequency code from the dashboard is the custom register\nvalue (31/47/63/79/95); it is translated to the RUI3 index 1-5 for\nCayenne sensors.\n\n### Outputs\n0. **Accel** - msg.topic: xAxis / yAxis / zAxis\n1. **Temperature** - msg.topic: tempValue / tempChart\n2. **Battery** - msg.topic: battVoltage / battPercent / battStatus / battChart\n3. **Signal** - msg.topic: rssi / snr\n4. **Connection** - msg.topic: connLed / connText / connTs\n5. **Alarms** - msg.topic: circuitTs/Led/Count/Status, motionTs/Led/Count, tiltTs/Led/Count\n6. **UI control** - direct to ui_ui_control\n7. **Settings** - msg.topic: devName / version / threshold / duration / frequency / statusText / dropdown\n8. **Environment** (Cayenne only) - msg.topic: humidity / humChart / pressure / illuminance / gas\n",
+    "info": "## Sensor (RAK4631 + RUI3) v3\n\nOne subflow per sensor for both uplink protocols: the **custom** binary\nframe of the RAK4631 Android sensor and **Cayenne LPP** from the RUI3\nsensor. ChirpStack + TTN uplink, alarm counting, battery/signal\nmonitoring and downlink configuration are shared.\n\n### Env vars\n| Name | Example | Description |\n|------|---------|-------------|\n| `protocol` | `auto` | `custom`, `cayenne` or `auto` (see below) |\n| `deviceName` | `sensor1` | Shown in alarm notifications and UI labels; TTN device id |\n| `devEui` | `ac1f09fffe000000` | Filters ChirpStack uplinks and keys sensorSettings |\n| `csApp` | `larm` | Key in global `application` (ChirpStack application): `larm` or `sublarm` |\n| `dashboardName` | `Sensor1_Sensorer` | Name of the UI group for show/hide control |\n| `ttnDeviceName` | `sublarm-1` | Device name in the TTN MQTT topic |\n| `tilt_sense` | `0.1` | Tilt alarm threshold (g-units) |\n| `Tk` | `8` | Temperature correction offset (C), subtracted from the reading |\n| `tempAlarmLimit` | `2` | Temperature alarm at or below this (C) |\n| `battFull` / `battWarn` / `battEmpty` | `4.2` / `3.5` / `3.2` | Battery volts: 100 %, low warning below, 0 % and critical below |\n| `ntfyChannel` | `127.0.0.1:8075/sensor1` | Full ntfy POST URL for this sensor |\n| `pushoverToken` | `` | Pushover application token |\n| `pushoverUser` | `` | Pushover user/group key |\n\n### Protocol\n* `custom`: RAK4631 Android frame (14 bytes, battery as raw ADC).\n* `cayenne`: RUI3 sensor, channels as in `devices/rui3_sensor/app.h`.\n* `auto`: a frame that is strictly valid Cayenne LPP for the RUI3 channel\n  map is decoded as Cayenne, everything else as custom. The detected\n  protocol is remembered in flow context (`protocolSeen`); the frequency\n  downlink needs it, so it waits for the first uplink. Set the protocol\n  explicitly if you prefer.\n\nTypical values per sensor type:\n\n| | RAK4631 (custom) | RUI3 (Cayenne) |\n|---|---|---|\n| `csApp` | `larm` | `sublarm` |\n| `Tk` | `8` | `0` |\n| `tempAlarmLimit` | `2` | `0` |\n| `battFull` / `battWarn` / `battEmpty` | `4.2` / `3.5` / `3.2` | `3.1` / `2.9` / `2.8` (3 V cell) |\n\nAll per-sensor values live in the subflow instance env -- set them\nafter import. There is no registry (flow_inputs.json) dependency in\nthis flow.\n\n### Downlinks\nSame ASCII-decimal format on ports 4-7 for both protocols. The\naccelerometer frequency code from the dashboard is the custom register\nvalue (31/47/63/79/95); it is translated to the RUI3 index 1-5 for\nCayenne sensors.\n\n### Outputs\n0. **Accel** - msg.topic: xAxis / yAxis / zAxis\n1. **Temperature** - msg.topic: tempValue / tempChart\n2. **Battery** - msg.topic: battVoltage / battPercent / battStatus / battChart\n3. **Signal** - msg.topic: rssi / snr\n4. **Connection** - msg.topic: connStatus / connTs\n5. **Alarms** - msg.topic: circuitTs/Led/Count/Status, motionTs/Led/Count, tiltTs/Led/Count\n6. **UI control** - direct to ui_ui_control\n7. **Settings** - msg.topic: devName / version / threshold / duration / frequency / statusText / dropdown\n8. **Environment** (Cayenne only) - msg.topic: humidity / humChart / pressure / illuminance / gas\n",
     "category": "Sensorer",
     "in": [
       {
@@ -562,7 +562,7 @@
         "value": "0",
         "ui": {
           "label": {
-            "en-US": "Temp offset (\u00b0C)"
+            "en-US": "Temp offset (°C)"
           },
           "type": "input",
           "opts": {
@@ -1120,7 +1120,7 @@
     "name": "DL Send",
     "server": "${LORALARM_CS_API}",
     "useTls": false,
-    "apiToken": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJjaGlycHN0YWNrIiwiaXNzIjoiY2hpcnBzdGFjayIsInN1YiI6ImZkZWE5ZTFjLTAxZTUtNDJjOC1hMTQzLWI2NzY5NGMyMzEwNiIsInR5cCI6ImtleSJ9.VODUmFDg-0rSfXEgD__lsdnuZGgkcVU7nkGJUgGt5Bc",
+    "apiToken": "${LORALARM_CS_API_TOKEN}",
     "encoding": "base64",
     "x": 980,
     "y": 1940,
@@ -1331,7 +1331,7 @@
     "type": "function",
     "z": "d023bf99fbc81f3f",
     "name": "battery_low",
-    "func": "msg.topic = env.get(\"deviceName\");\nmsg.payload = \"Batteriniv\u00e5n \u00e4r l\u00e5g p\u00e5 \"+ env.get(\"deviceName\");\nmsg.sound = \"siren\"\nmsg.headers = {};\nmsg.headers['tags'] = 'warning, battery';\nmsg.headers['X-Title'] = 'SUB';\n\nreturn msg;\n",
+    "func": "msg.topic = env.get(\"deviceName\");\nmsg.payload = \"Batterinivån är låg på \"+ env.get(\"deviceName\");\nmsg.sound = \"siren\"\nmsg.headers = {};\nmsg.headers['tags'] = 'warning, battery';\nmsg.headers['X-Title'] = 'SUB';\n\nreturn msg;\n",
     "outputs": 1,
     "timeout": "",
     "noerr": 0,
@@ -1351,7 +1351,7 @@
     "type": "function",
     "z": "d023bf99fbc81f3f",
     "name": "switch_alarm",
-    "func": "msg.topic = env.get(\"deviceName\");\nmsg.payload = \"Kretslarm p\u00e5 \" + env.get(\"deviceName\");\nmsg.sound = \"siren\"\nmsg.headers = {};\nmsg.headers['tags'] = 'warning';\nmsg.headers['X-Title'] = 'SUB';\n\nreturn msg;",
+    "func": "msg.topic = env.get(\"deviceName\");\nmsg.payload = \"Kretslarm på \" + env.get(\"deviceName\");\nmsg.sound = \"siren\"\nmsg.headers = {};\nmsg.headers['tags'] = 'warning';\nmsg.headers['X-Title'] = 'SUB';\n\nreturn msg;",
     "outputs": 1,
     "timeout": "",
     "noerr": 0,
@@ -1423,7 +1423,7 @@
     "type": "function",
     "z": "d023bf99fbc81f3f",
     "name": "acc_alarm",
-    "func": "msg.topic = env.get(\"deviceName\");\nmsg.payload = \"R\u00f6relselarm p\u00e5 \"+ env.get(\"deviceName\");\nmsg.sound = \"siren\"\nmsg.headers = {};\nmsg.headers['tags'] = 'warning';\nmsg.headers['X-Title'] = 'SUB';\n// msg.time = {timestamp: Date.now()}\nreturn msg;\n",
+    "func": "msg.topic = env.get(\"deviceName\");\nmsg.payload = \"Rörelselarm på \"+ env.get(\"deviceName\");\nmsg.sound = \"siren\"\nmsg.headers = {};\nmsg.headers['tags'] = 'warning';\nmsg.headers['X-Title'] = 'SUB';\n// msg.time = {timestamp: Date.now()}\nreturn msg;\n",
     "outputs": 1,
     "timeout": "",
     "noerr": 0,
@@ -1459,7 +1459,7 @@
     "type": "function",
     "z": "d023bf99fbc81f3f",
     "name": "tilt_alarm",
-    "func": "msg.topic = env.get(\"deviceName\");\nmsg.payload = \"Tilt Alarm p\u00e5 \"+ env.get(\"deviceName\");\nmsg.sound = \"siren\"\nmsg.headers = {};\nmsg.headers['tags'] = 'warning';\nmsg.headers['X-Title'] = 'SUB';\n\nreturn msg;",
+    "func": "msg.topic = env.get(\"deviceName\");\nmsg.payload = \"Tilt Alarm på \"+ env.get(\"deviceName\");\nmsg.sound = \"siren\"\nmsg.headers = {};\nmsg.headers['tags'] = 'warning';\nmsg.headers['X-Title'] = 'SUB';\n\nreturn msg;",
     "outputs": 1,
     "timeout": "",
     "noerr": 0,
@@ -1723,7 +1723,6 @@
     "y": 880,
     "wires": [
       [
-        "5819639143445134",
         "7c86a3781f59d596"
       ]
     ]
@@ -1863,97 +1862,6 @@
     "x": 340,
     "y": 1600,
     "wires": []
-  },
-  {
-    "id": "5819639143445134",
-    "type": "switch",
-    "z": "d023bf99fbc81f3f",
-    "d": true,
-    "name": "RX byte OR-function",
-    "property": "payload",
-    "propertyType": "msg",
-    "rules": [
-      {
-        "t": "eq",
-        "v": "0",
-        "vt": "num"
-      },
-      {
-        "t": "eq",
-        "v": "1",
-        "vt": "num"
-      },
-      {
-        "t": "eq",
-        "v": "2",
-        "vt": "num"
-      },
-      {
-        "t": "eq",
-        "v": "3",
-        "vt": "num"
-      },
-      {
-        "t": "eq",
-        "v": "4",
-        "vt": "num"
-      },
-      {
-        "t": "eq",
-        "v": "5",
-        "vt": "num"
-      },
-      {
-        "t": "eq",
-        "v": "6",
-        "vt": "num"
-      },
-      {
-        "t": "eq",
-        "v": "7",
-        "vt": "num"
-      }
-    ],
-    "checkall": "true",
-    "repair": false,
-    "outputs": 8,
-    "x": 740,
-    "y": 1140,
-    "wires": [
-      [
-        "0237048678024e4f"
-      ],
-      [
-        "0237048678024e4f",
-        "6633ac427484ba3d"
-      ],
-      [
-        "0237048678024e4f",
-        "e2b79be32f4d2192"
-      ],
-      [
-        "0237048678024e4f",
-        "6633ac427484ba3d",
-        "e2b79be32f4d2192"
-      ],
-      [
-        "c7d2e32a0a5f7f46"
-      ],
-      [
-        "c7d2e32a0a5f7f46",
-        "6633ac427484ba3d"
-      ],
-      [
-        "c7d2e32a0a5f7f46",
-        "e2b79be32f4d2192"
-      ],
-      [
-        "c7d2e32a0a5f7f46",
-        "6633ac427484ba3d",
-        "e2b79be32f4d2192"
-      ]
-    ],
-    "info": "bitwise OR\n\nvalue 1: switc/circuit \nvalue 2: Accelerometer\nvalue 4: Value of funktion switch\nvalue 8: Value of sensitivity, high or low"
   },
   {
     "id": "747945f2af183d8d",
@@ -2404,55 +2312,6 @@
         "d80474959915c7ec"
       ]
     ]
-  },
-  {
-    "id": "b5e959100427a1b6",
-    "type": "link out",
-    "z": "d023bf99fbc81f3f",
-    "name": "out_other_server",
-    "mode": "link",
-    "links": [],
-    "x": 765,
-    "y": 600,
-    "wires": []
-  },
-  {
-    "id": "86a4616b3a89c7fa",
-    "type": "change",
-    "z": "d023bf99fbc81f3f",
-    "name": "Send to another server",
-    "rules": [
-      {
-        "t": "set",
-        "p": "payload",
-        "pt": "msg",
-        "to": "true",
-        "tot": "bool"
-      }
-    ],
-    "action": "",
-    "property": "",
-    "from": "",
-    "to": "",
-    "reg": false,
-    "x": 600,
-    "y": 600,
-    "wires": [
-      [
-        "b5e959100427a1b6"
-      ]
-    ]
-  },
-  {
-    "id": "5d8354169fbd48ee",
-    "type": "comment",
-    "z": "d023bf99fbc81f3f",
-    "d": true,
-    "name": "\"OR\" Status Config RX",
-    "info": "M  LSB\n000\t0\tFUNK_OFF\n001\t1\tFUNK_OFF\t        ALARM_SW\n010\t2\tFUNK_OFF ALARM_ACC\n011\t3\tFUNK_OFF ALARM_ACC  ALARM_SW\n100\t4\tFUNK_ON\n101\t5\tFUNK_ON\t            ALARM_SW\n110\t6\tFUNK_ON  ALARM_ACC\n111\t7\tFUNK_ON  ALARM_ACC  ALRAM_SW\n\nValue sent as BASE64\n\n// Client code below\n// Variables for alarm types (sent on byte 08)\nuint8_t status_byte;\nuint8_t sw_alarm;\nuint8_t acc_alarm;\nuint8_t output_status;\n\nstatus_byte = sw_alarm | acc_alarm | output_status; // Send status of alarms and functions.",
-    "x": 740,
-    "y": 1220,
-    "wires": []
   },
   {
     "id": "b2f81741fabc19b0",
@@ -4326,7 +4185,7 @@
     "type": "function",
     "z": "d023bf99fbc81f3f",
     "name": "temp_alarm",
-    "func": "msg.topic = env.get(\"deviceName\");\nmsg.payload = \"Temperatur Alarm p\u00e5 \"+ env.get(\"deviceName\");\nmsg.sound = \"siren\"\nmsg.headers = {};\nmsg.headers['tags'] = 'warning';\n// msg.headers['X-Title'] = 'SUB';\n\nreturn msg;",
+    "func": "msg.topic = env.get(\"deviceName\");\nmsg.payload = \"Temperatur Alarm på \"+ env.get(\"deviceName\");\nmsg.sound = \"siren\"\nmsg.headers = {};\nmsg.headers['tags'] = 'warning';\n// msg.headers['X-Title'] = 'SUB';\n\nreturn msg;",
     "outputs": 1,
     "timeout": "",
     "noerr": 0,
@@ -6757,7 +6616,6 @@
     "y": 600,
     "wires": [
       [
-        "86a4616b3a89c7fa",
         "20532ba9f7b7fc9b"
       ]
     ]
@@ -6772,50 +6630,6 @@
       [
         "fed4e302183803c3"
       ]
-    ]
-  },
-  {
-    "id": "0237048678024e4f",
-    "type": "junction",
-    "z": "d023bf99fbc81f3f",
-    "d": true,
-    "x": 920,
-    "y": 1160,
-    "wires": [
-      []
-    ]
-  },
-  {
-    "id": "c7d2e32a0a5f7f46",
-    "type": "junction",
-    "z": "d023bf99fbc81f3f",
-    "d": true,
-    "x": 920,
-    "y": 1200,
-    "wires": [
-      []
-    ]
-  },
-  {
-    "id": "6633ac427484ba3d",
-    "type": "junction",
-    "z": "d023bf99fbc81f3f",
-    "d": true,
-    "x": 920,
-    "y": 1080,
-    "wires": [
-      []
-    ]
-  },
-  {
-    "id": "e2b79be32f4d2192",
-    "type": "junction",
-    "z": "d023bf99fbc81f3f",
-    "d": true,
-    "x": 920,
-    "y": 1120,
-    "wires": [
-      []
     ]
   },
   {
@@ -7018,6 +6832,11 @@
         "name": "ttnDeviceName",
         "value": "",
         "type": "str"
+      },
+      {
+        "name": "tilt_sense",
+        "value": "0.1",
+        "type": "num"
       },
       {
         "name": "Tk",
@@ -7641,7 +7460,7 @@
     "width": 4,
     "height": 4,
     "gtype": "gage",
-    "title": "Batterisp\u00e4nning",
+    "title": "Batterispänning",
     "label": "",
     "format": "{{value | number:2}} V",
     "min": 0,
@@ -7688,7 +7507,7 @@
     "order": 4,
     "width": 4,
     "height": 1,
-    "name": "Tidsst\u00e4mpel Anslutning",
+    "name": "Tidsstämpel Anslutning",
     "label": "",
     "format": "{{msg.payload}}",
     "layout": "row-spread",
@@ -7827,7 +7646,7 @@
     "order": 10,
     "width": 4,
     "height": 1,
-    "name": "Tidsst\u00e4mpel Krets",
+    "name": "Tidsstämpel Krets",
     "label": "",
     "format": "{{msg.payload}}",
     "layout": "row-spread",
@@ -7866,7 +7685,7 @@
     "allowColorForValueInMessage": false,
     "shape": "square",
     "showGlow": false,
-    "name": "LED R\u00f6relse",
+    "name": "LED Rörelse",
     "x": 1170,
     "y": 1100,
     "wires": []
@@ -7879,7 +7698,7 @@
     "order": 15,
     "width": 4,
     "height": 1,
-    "name": "Tidsst\u00e4mpel R\u00f6relse",
+    "name": "Tidsstämpel Rörelse",
     "label": "",
     "format": "{{msg.payload}}",
     "layout": "row-spread",
@@ -8003,7 +7822,7 @@
         "type": "bool"
       },
       {
-        "label": "D\u00f6ljer Sensorer",
+        "label": "Döljer Sensorer",
         "value": false,
         "type": "bool"
       }
@@ -8091,8 +7910,8 @@
     "order": 14,
     "width": 4,
     "height": 1,
-    "name": "R\u00e4knare R\u00f6relse",
-    "label": "R\u00f6relselarm",
+    "name": "Räknare Rörelse",
+    "label": "Rörelselarm",
     "format": "{{msg.payload}}",
     "layout": "row-spread",
     "className": "",
@@ -8112,7 +7931,7 @@
     "order": 9,
     "width": 4,
     "height": 1,
-    "name": "R\u00e4knare Krets",
+    "name": "Räknare Krets",
     "label": "Kretslarm",
     "format": "{{msg.payload}}",
     "layout": "row-spread",
@@ -8154,7 +7973,7 @@
     "order": 18,
     "width": 4,
     "height": 1,
-    "name": "Tidsst\u00e4mpel tilt",
+    "name": "Tidsstämpel tilt",
     "label": "",
     "format": "{{msg.payload}}",
     "layout": "row-spread",
@@ -8175,7 +7994,7 @@
     "order": 17,
     "width": 4,
     "height": 1,
-    "name": "R\u00e4knare Tilt",
+    "name": "Räknare Tilt",
     "label": "Tiltlarm",
     "format": "{{msg.payload}}",
     "layout": "row-spread",
@@ -8835,7 +8654,7 @@
     "once": false,
     "onceDelay": 0.1,
     "topic": "testlarm",
-    "payload": "Detta \u00e4r ett testmeddelande (sensor1)",
+    "payload": "Detta är ett testmeddelande (sensor1)",
     "payloadType": "str",
     "x": 200,
     "y": 320,
@@ -9007,6 +8826,11 @@
       {
         "name": "LORALARM_LON",
         "value": "18.063240",
+        "type": "str"
+      },
+      {
+        "name": "LORALARM_CS_API_TOKEN",
+        "value": "",
         "type": "str"
       }
     ],
@@ -9731,7 +9555,7 @@
     "width": 4,
     "height": 2,
     "name": "Status Krets",
-    "label": "Kretsen \u00e4r ",
+    "label": "Kretsen är ",
     "format": "{{msg.payload}}",
     "layout": "row-spread",
     "className": "",
@@ -9762,14 +9586,14 @@
       },
       {
         "color": "#ff0000",
-        "value": "\u00f6ppen",
+        "value": "öppen",
         "valueType": "str"
       }
     ],
     "allowColorForValueInMessage": false,
     "shape": "square",
     "showGlow": false,
-    "name": "LED D\u00f6rr",
+    "name": "LED Dörr",
     "x": 1170,
     "y": 1340,
     "wires": []
@@ -9863,11 +9687,26 @@
         "t": "eq",
         "v": "humChart",
         "vt": "str"
+      },
+      {
+        "t": "eq",
+        "v": "pressure",
+        "vt": "str"
+      },
+      {
+        "t": "eq",
+        "v": "illuminance",
+        "vt": "str"
+      },
+      {
+        "t": "eq",
+        "v": "gas",
+        "vt": "str"
       }
     ],
     "checkall": "true",
     "repair": false,
-    "outputs": 2,
+    "outputs": 5,
     "x": 830,
     "y": 1720,
     "wires": [
@@ -9876,6 +9715,15 @@
       ],
       [
         "826b52d09c6bcd23"
+      ],
+      [
+        "env_press_gauge"
+      ],
+      [
+        "env_lux_gauge"
+      ],
+      [
+        "env_gas_gauge"
       ]
     ]
   },
@@ -9888,5 +9736,89 @@
     "order": 17,
     "width": 4,
     "height": 1
+  },
+  {
+    "id": "env_press_gauge",
+    "type": "ui_gauge",
+    "z": "425aa63abe4e49f8",
+    "name": "Lufttryck",
+    "group": "2931cd4d02ed6f93",
+    "order": 10,
+    "width": 4,
+    "height": 4,
+    "gtype": "gage",
+    "title": "Lufttryck",
+    "label": "",
+    "format": "{{value | number:1}} hPa",
+    "min": "900",
+    "max": "1100",
+    "colors": [
+      "#e01b24",
+      "#00b500",
+      "#e01b24"
+    ],
+    "seg1": "950",
+    "seg2": "1050",
+    "diff": false,
+    "className": "",
+    "x": 1160,
+    "y": 1780,
+    "wires": []
+  },
+  {
+    "id": "env_lux_gauge",
+    "type": "ui_gauge",
+    "z": "425aa63abe4e49f8",
+    "name": "Ljus",
+    "group": "2931cd4d02ed6f93",
+    "order": 11,
+    "width": 4,
+    "height": 4,
+    "gtype": "gage",
+    "title": "Belysning",
+    "label": "",
+    "format": "{{value | number:0}} lux",
+    "min": "0",
+    "max": "10000",
+    "colors": [
+      "#e01b24",
+      "#f8e45c",
+      "#00b500"
+    ],
+    "seg1": "100",
+    "seg2": "1000",
+    "diff": false,
+    "className": "",
+    "x": 1160,
+    "y": 1820,
+    "wires": []
+  },
+  {
+    "id": "env_gas_gauge",
+    "type": "ui_gauge",
+    "z": "425aa63abe4e49f8",
+    "name": "Gas",
+    "group": "2931cd4d02ed6f93",
+    "order": 12,
+    "width": 4,
+    "height": 4,
+    "gtype": "gage",
+    "title": "Gasmotstand",
+    "label": "",
+    "format": "{{value | number:0}} kOhm",
+    "min": "0",
+    "max": "1000",
+    "colors": [
+      "#00b500",
+      "#f8e45c",
+      "#e01b24"
+    ],
+    "seg1": "100",
+    "seg2": "500",
+    "diff": false,
+    "className": "",
+    "x": 1160,
+    "y": 1860,
+    "wires": []
   }
 ]
