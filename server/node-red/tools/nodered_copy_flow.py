@@ -20,20 +20,58 @@ Usage:
     python3 nodered_copy_flow.py ../components/flow_sensor_rui.json \\
         flow_sensor2_rui.json --to 2 --broker 192.168.2.26
 
-Subflow selection (default: the output includes the subflow definitions
-with fresh ids, so every import gets its own subflow copies):
+Bulk copy (one output file per sensor, e.g. sensors 2-16 with no subflows,
+or 17-32 for later scaling) via --to-range; the output path then needs a
+{n} placeholder for the sensor number (without one, "-<n>" is inserted
+before the file extension).  Every copy is built from a fresh deep copy
+of the template, so each file gets its own newly regenerated node ids:
+    python3 nodered_copy_flow.py ../components/flow_sensor_rui.json \\
+        'flow_sensor{n}_rui.json' --to-range 2-16 --no-subflows
+
+Deployment workflow (deterministic for any target instance, no live id
+lookup, no import ordering -- Node-RED resolves subflow instances by
+id, never by name): deploy each sensor batch as ONE file with
+--no-subflows --with-subflows; it contains the canonical subflow
+definitions with their template ids plus all requested sensor copies:
+    python3 nodered_copy_flow.py ../components/flow_sensor_unified.json \\
+        'flow_sensor{n}_unified.json' --to-range 2-16 --no-subflows \\
+        --with-subflows
+The {n} in the output path becomes the number or range ("2-16").
+Import that single file; in the import dialog DESELECT every node
+flagged as already existing (shared config nodes; plus, from the second
+batch on, the subflow definitions installed by an earlier batch) and
+never click "Import copy" -- that would regenerate the definition ids.
+The definitions are in the same import as the instances, so nothing
+can arrive out of order; instances imported before their definition
+existed stay "unknown: subflow" forever and must be deleted and
+re-imported.
+
+Subflow selection:
     --no-subflows   omit the subflow definitions and their inner nodes;
-                    the subflow instances reference the ids of the
-                    template definitions, which must already exist on
-                    the target instance (e.g. import the raw template's
-                    subflows once) - otherwise Node-RED imports the
-                    instances as "unknown subflow".
+                    the subflow instances reference the template
+                    definition ids, which the instance must already have
+                    (see step 1 above, --subflows-only) - otherwise
+                    Node-RED stops the flow with "missing node types
+                    subflow:<id>".
     --subflow-map OLD=NEW   (repeatable, implies --no-subflows)
-                    re-point the subflow instances from template
-                    definition id OLD to the live definition id NEW;
-                    use it when the target instance's subflows were
-                    imported from script output and thus carry
-                    regenerated ids.
+                    legacy escape hatch for instances whose subflow
+                    definitions were imported via "Import copy" or from
+                    script output and thus carry regenerated ids:
+                    re-points the instances from template definition id
+                    OLD to the live definition id NEW.  Prefer fixing
+                    the instance once with --subflows-only.
+    --subflows-only write the subflow definitions, their inner nodes and
+                    the shared global config nodes, ids UNCHANGED, and
+                    exit; the sensor-number flags are not allowed here.
+                    Optional helper to pre-install the canonical
+                    subflows; --with-subflows makes it unnecessary.
+    --with-subflows bundle the canonical subflow definitions (template
+                    ids, not regenerated) into the same output file as
+                    the sensor copies of this run: one file per batch,
+                    one import, no ordering dependency.  The output path
+                    {n} becomes the sensor number or range.  In the
+                    import dialog deselect the nodes flagged as
+                    existing -- never "Import copy" this file.
 
 Afterwards, import the output file in Node-RED and fill the sensor's
 per-instance values in the subflow env: the RAK4631/Android flow and the
@@ -51,7 +89,9 @@ entered per sensor in the editor after import.
 """
 
 import argparse
+import copy
 import json
+import os
 import random
 import re
 
@@ -152,6 +192,25 @@ def drop_subflow_definitions(flows):
     return kept, subflow_ids
 
 
+def extract_subflows(flows):
+    """The canonical subflow install: definitions, inner nodes, configs.
+
+    Keeps the ids UNCHANGED (unlike a normal copy, which regenerates
+    them): --no-subflows copies reference the template definition ids,
+    so the instance must carry the subflows under exactly these ids.
+    The shared global config nodes are included because the inner nodes
+    reference them by id (mqtt brokers, ntfy/pushover keys, the
+    LORALARM_* env of global-config); on a running instance they exist
+    already and are deselected in the import dialog.
+    Returns the node list to write.
+    """
+    subflow_ids = {item["id"] for item in flows if item.get("type") == "subflow"}
+    return [item for item in flows
+            if item.get("type") == "subflow"
+            or item.get("z") in subflow_ids
+            or item.get("type", "") in CONFIG_TYPES]
+
+
 def apply_subflow_map(flows, mapping):
     """Re-point subflow instances at other definition ids."""
     remapped = 0
@@ -239,6 +298,155 @@ def apply_replacements(data, from_num, to_num, ntfy_base):
     return data
 
 
+def sensor_range(spec):
+    """argparse type for --to-range: "START-END" -> range(START, END+1)."""
+    m = re.match(r"^(\d+)-(\d+)$", spec.strip())
+    if not m:
+        raise argparse.ArgumentTypeError(
+            "expected START-END, e.g. 2-16, got '{}'".format(spec))
+    start, end = int(m.group(1)), int(m.group(2))
+    if start > end:
+        raise argparse.ArgumentTypeError(
+            "range start {} is greater than end {}".format(start, end))
+    if end - start + 1 > 1000:
+        raise argparse.ArgumentTypeError(
+            "range {} covers more than 1000 sensors".format(spec))
+    return range(start, end + 1)
+
+
+def resolve_output(output, to_num, multi):
+    """Output path for one sensor of a (possibly multi-sensor) run.
+
+    With --to-range the path should contain {n} (or {}); without a
+    placeholder the sensor number is inserted before the extension, e.g.
+    flow_sensor_rui.json -> flow_sensor_rui-2.json.  A single --to run
+    uses the path unchanged.
+    """
+    if not multi:
+        return output
+    if "{}" in output:
+        return output.format(to_num)
+    if "{n}" in output:
+        return output.format(n=to_num)
+    base, ext = os.path.splitext(output)
+    return "{}-{}{}".format(base, to_num, ext)
+
+
+def build_copy(template, args, to_num, subflow_map, drop_defs=False,
+               strip_configs=False):
+    """Build one rebranded copy of the template for sensor to_num.
+
+    Works on a deep copy, so every target number gets its own regenerated
+    node ids.  drop_defs removes the subflow definitions and their inner
+    nodes (--no-subflows); strip_configs removes the shared config node
+    objects (the --with-subflows bundle carries them once, alongside the
+    definitions).  Returns (data, stats): the JSON text to write and a
+    dict of counts for the summary line.
+    """
+    flows = copy.deepcopy(template)
+    stats = {"to": to_num}
+
+    n_defs = 0
+    if drop_defs:
+        n_total = len(flows)
+        flows, template_subflow_ids = drop_subflow_definitions(flows)
+        n_defs = sum(1 for item in flows if item.get("type", "").startswith("subflow:"))
+        print("dropped {} subflow definition(s) and {} inner node(s) "
+              "({} -> {} nodes)".format(
+                  len(template_subflow_ids), n_total - len(flows) - len(template_subflow_ids),
+                  n_total, len(flows)))
+
+    stats["ids"] = regenerate_ids(flows)
+
+    if subflow_map:
+        unknown = [old for old in subflow_map if old not in template_subflow_ids]
+        for old in unknown:
+            print("WARNING: subflow-map id '{}' is not a subflow definition "
+                  "in this template".format(old))
+        n_repointed = apply_subflow_map(flows, subflow_map)
+        print("re-pointed {} subflow instance(s) via --subflow-map".format(n_repointed))
+
+    stats["brokers"] = apply_broker_port(flows, args.broker_port)
+    apply_env_overrides(flows, args)
+    if strip_configs:
+        # The bundle holds the shared config nodes once, next to the
+        # subflow definitions; the copies keep only their references.
+        flows = [item for item in flows
+                 if item.get("type", "") not in CONFIG_TYPES]
+
+    # Serialize once with indentation so the output is reviewable/diffable,
+    # then apply the renames on the text.
+    data = json.dumps(flows, ensure_ascii=False, indent=2)
+    data = apply_replacements(data, args.from_num, to_num, args.ntfy_base)
+
+    json.loads(data)  # fail loudly instead of writing broken JSON
+    stats["nodes"] = len(flows)
+    stats["subflow_refs"] = n_defs
+    return data, stats
+
+
+def write_subflows_only(template, args):
+    """Write the canonical subflow install file.
+
+    Ids stay as in the template; the per-deployment env overrides and
+    broker port still apply, so a fresh instance also gets the correct
+    LORALARM_* values.  Returns the JSON text written.
+    """
+    flows = extract_subflows(template)
+    n_defs = sum(1 for item in flows if item.get("type") == "subflow")
+    n_brokers = apply_broker_port(flows, args.broker_port)
+    apply_env_overrides(flows, args)
+    data = json.dumps(flows, ensure_ascii=False, indent=2)
+    json.loads(data)  # fail loudly instead of writing broken JSON
+    with open(args.output, "w") as f:
+        f.write(data)
+    print("wrote {} ({} subflow definition(s), {} nodes total, ids "
+          "unchanged, {} broker(s) set to port {}, LORALARM_CS_BROKER={})"
+          .format(args.output, n_defs, len(flows), n_brokers,
+                  args.broker_port, args.broker))
+    for item in flows:
+        if item.get("type") == "subflow":
+            print("subflow definition: {} ({})".format(
+                item["id"], item.get("name", "?")))
+    return data
+
+
+def subflow_defs_part(template, args):
+    """The canonical subflow definitions part of a --with-subflows bundle.
+
+    Subflow definitions, their inner nodes and the shared config nodes
+    with UNCHANGED template ids, plus the env/broker overrides.  The
+    copies in the same bundle reference these ids, so nothing depends on
+    what the instance happens to carry.  Returns (json_text, flow_list).
+    """
+    flows = extract_subflows(template)
+    apply_broker_port(flows, args.broker_port)
+    apply_env_overrides(flows, args)
+    data = json.dumps(flows, ensure_ascii=False, indent=2)
+    if args.ntfy_base and args.ntfy_base != DEFAULTS["ntfy_base"]:
+        data = data.replace(DEFAULTS["ntfy_base"], args.ntfy_base)
+    json.loads(data)  # fail loudly instead of writing broken JSON
+    return data, flows
+
+
+def merge_flow_parts(parts):
+    """Concatenate pretty-printed JSON flow arrays into one (validated)."""
+    combined = []
+    for part in parts:
+        combined.extend(json.loads(part))
+    return json.dumps(combined, ensure_ascii=False, indent=2)
+
+
+def output_token_path(output, token):
+    """Bundle output path: {n} / {} becomes the number or range token."""
+    if "{}" in output:
+        return output.format(token)
+    if "{n}" in output:
+        return output.format(n=token)
+    base, ext = os.path.splitext(output)
+    return "{0}-{1}{2}".format(base, token, ext)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Copy a Node-RED sensor flow template (sensor 1) "
@@ -247,8 +455,14 @@ def main():
     parser.add_argument("output", help="output flow JSON to import in Node-RED")
     parser.add_argument("--from", dest="from_num", type=int, default=1,
                         help="sensor number in the template (default: 1)")
-    parser.add_argument("--to", dest="to_num", type=int, required=True,
+    parser.add_argument("--to", dest="to_num", type=int, default=None,
                         help="sensor number for the new flow, e.g. 2")
+    parser.add_argument("--to-range", dest="to_range", type=sensor_range,
+                        default=None, metavar="START-END",
+                        help="sensor number range for a bulk copy, e.g. "
+                             "2-16; writes one output file per sensor and "
+                             "the output path needs a {n} placeholder "
+                             "(exactly one of --to / --to-range is required)")
     parser.add_argument("--broker", default=DEFAULTS["broker"],
                         help="local MQTT broker address (default: %(default)s)")
     parser.add_argument("--broker-port", default=DEFAULTS["broker_port"],
@@ -263,12 +477,47 @@ def main():
                         help="omit the subflow definitions and their inner "
                              "nodes; the subflow instances reference the "
                              "existing subflows (template definition ids)")
+    parser.add_argument("--with-subflows", action="store_true",
+                        help="bundle the canonical subflow definitions "
+                             "(template ids, not regenerated) into the same "
+                             "output file as the sensor copies of this run: "
+                             "one file per batch, one import, no ordering "
+                             "dependency; the output path {n} becomes the "
+                             "sensor number or range.  In the import dialog "
+                             "deselect the nodes flagged as existing -- "
+                             "never 'Import copy' this file")
+    parser.add_argument("--subflows-only", action="store_true",
+                        help="do not copy a sensor flow: write the subflow "
+                             "definitions, their inner nodes and the shared "
+                             "config nodes with UNCHANGED ids instead; import "
+                             "once per instance so the --no-subflows copies "
+                             "resolve (incompatible with the sensor-number "
+                             "and subflow-map flags)")
     parser.add_argument("--subflow-map", action="append", default=[],
                         metavar="OLD=NEW",
                         help="re-point subflow instances from template "
                              "definition id OLD to live definition id NEW "
                              "(repeatable; implies --no-subflows)")
     args = parser.parse_args()
+
+    if args.subflows_only:
+        if args.to_num is not None or args.to_range is not None:
+            parser.error("--subflows-only writes no sensor copy: "
+                         "do not combine it with --to / --to-range")
+        if args.no_subflows or args.subflow_map:
+            parser.error("--subflows-only cannot be combined with "
+                         "--no-subflows / --subflow-map")
+    elif (args.to_num is None) == (args.to_range is None):
+        parser.error("exactly one of --to / --to-range is required "
+                     "(or use --subflows-only)")
+    if args.with_subflows:
+        if args.no_subflows or args.subflow_map:
+            parser.error("--with-subflows drops the subflow definitions "
+                         "from the copies itself: do not combine it with "
+                         "--no-subflows / --subflow-map")
+        if args.subflows_only:
+            parser.error("--with-subflows needs sensor numbers "
+                         "(--to / --to-range)")
 
     subflow_map = {}
     for pair in args.subflow_map:
@@ -278,49 +527,90 @@ def main():
         subflow_map[old] = new
 
     with open(args.input, "r") as f:
-        flows = json.load(f)
+        template = json.load(f)
 
-    n_defs = 0
-    if args.no_subflows or subflow_map:
-        n_total = len(flows)
-        flows, template_subflow_ids = drop_subflow_definitions(flows)
-        n_defs = sum(1 for item in flows if item.get("type", "").startswith("subflow:"))
-        print("dropped {} subflow definition(s) and {} inner node(s) "
-              "({} -> {} nodes)".format(
-                  len(template_subflow_ids), n_total - len(flows) - len(template_subflow_ids),
-                  n_total, len(flows)))
+    if args.subflows_only:
+        data = write_subflows_only(template, args)
+        print("NOTE: import '{}' once per instance; in the import dialog "
+              "DESELECT every node flagged as already existing (config "
+              "nodes, subflow definitions already present) so the subflows "
+              "keep their template ids -- never 'Import copy' this file, "
+              "that would break every later --no-subflows copy."
+              .format(args.output))
+        return
 
-    n_ids = regenerate_ids(flows)
+    targets = [args.to_num] if args.to_num is not None else list(args.to_range)
+    multi = len(targets) > 1
 
-    if subflow_map:
-        unknown = [old for old in subflow_map if old not in template_subflow_ids]
-        for old in unknown:
-            print("WARNING: subflow-map id '{}' is not a subflow definition "
-                  "in this template".format(old))
-        n_repointed = apply_subflow_map(flows, subflow_map)
-        print("re-pointed {} subflow instance(s) via --subflow-map".format(n_repointed))
+    if args.with_subflows:
+        # One file per batch: canonical subflow definitions (template ids)
+        # plus all sensor copies, so a single import can never arrive in
+        # the wrong order and no live-id knowledge is needed.
+        defs_data, defs = subflow_defs_part(template, args)
+        parts = [defs_data]
+        n_ids_total = 0
+        for to_num in targets:
+            print("== sensor {} ==".format(to_num))
+            data, stats = build_copy(template, args, to_num, subflow_map,
+                                     drop_defs=True, strip_configs=True)
+            parts.append(data)
+            n_ids_total += stats["ids"]
+        bundle = merge_flow_parts(parts)
+        token = str(targets[0]) if len(targets) == 1 else \
+            "{0}-{1}".format(targets[0], targets[-1])
+        out_path = output_token_path(args.output, token)
+        with open(out_path, "w") as f:
+            f.write(bundle)
+        print("wrote {} ({} subflow definition(s) with template ids + "
+              "copies for sensor(s) {}, {} nodes total, {} copy node ids "
+              "regenerated, {} broker(s) set to port {}, "
+              "LORALARM_CS_BROKER={})".format(
+                  out_path, sum(1 for n in defs if n.get("type") == "subflow"),
+                  token, len(json.loads(bundle)), n_ids_total,
+                  sum(1 for n in defs if n.get("type") == "mqtt-broker"),
+                  args.broker_port, args.broker))
+        print("NOTE: import '{}' as ONE file -- the subflow definitions and "
+              "their instances are in the same import.  In the import "
+              "dialog DESELECT the nodes flagged as already existing "
+              "(shared config nodes; plus, from the second batch on, the "
+              "subflow definitions of an earlier batch) and import the "
+              "rest -- never 'Import copy' this file: that would "
+              "regenerate the definition ids.".format(out_path))
+        print("NOTE: instances imported before their definition existed "
+              "stay 'unknown: subflow' forever -- delete such flows and "
+              "re-import them from this bundle.")
+    else:
+        if args.no_subflows or subflow_map:
+            defs = ["{} ({})".format(n["id"], n.get("name", "?"))
+                    for n in template if n.get("type") == "subflow"]
+            print("the --no-subflows output references existing subflow "
+                  "definitions by template id; the instance must have: {}"
+                  .format(", ".join(defs)))
+            print("missing one? import a --subflows-only file once "
+                  "(ids unchanged), or --with-subflows to bundle them "
+                  "into this run's output.")
 
-    n_brokers = apply_broker_port(flows, args.broker_port)
-    apply_env_overrides(flows, args)
-
-    # Serialize once with indentation so the output is reviewable/diffable,
-    # then apply the renames on the text.
-    data = json.dumps(flows, ensure_ascii=False, indent=2)
-    data = apply_replacements(data, args.from_num, args.to_num, args.ntfy_base)
-
-    json.loads(data)  # fail loudly instead of writing broken JSON
-
-    with open(args.output, "w") as f:
-        f.write(data)
-
-    print("wrote {} ({} nodes, {} node ids regenerated, {} broker(s) set to port {}, "
-          "LORALARM_CS_BROKER={})".format(
-              args.output, len(flows), n_ids, n_brokers, args.broker_port, args.broker))
-    if args.no_subflows or subflow_map:
-        print("NOTE: this output contains no subflow definitions ({} instance "
-              "type references); the target instance must already have the "
-              "referenced subflows, otherwise Node-RED imports them as "
-              "'unknown subflow'.".format(n_defs))
+        for to_num in targets:
+            if multi:
+                print("== sensor {} ==".format(to_num))
+            data, stats = build_copy(
+                template, args, to_num, subflow_map,
+                drop_defs=args.no_subflows or bool(subflow_map))
+            out_path = resolve_output(args.output, to_num, multi)
+            with open(out_path, "w") as f:
+                f.write(data)
+            print("wrote {} (sensor {}, {} nodes, {} node ids regenerated, "
+                  "{} broker(s) set to port {}, LORALARM_CS_BROKER={})".format(
+                      out_path, to_num, stats["nodes"], stats["ids"], stats["brokers"],
+                      args.broker_port, args.broker))
+            if args.no_subflows or subflow_map:
+                print("NOTE: this output contains no subflow definitions ({} instance "
+                      "type references); the target instance must already have the "
+                      "referenced subflows, otherwise Node-RED imports them as "
+                      "'unknown subflow'.".format(stats["subflow_refs"]))
+        if multi:
+            print("wrote {} file(s) for sensors {}-{}".format(
+                len(targets), targets[0], targets[-1]))
     print("NOTE: fill the per-sensor values (devEui etc.) in the imported" +
           " subflow instance env; RUI flows read them from" +
           " components/flow_inputs.json at flow start.")

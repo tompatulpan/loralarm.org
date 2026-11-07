@@ -96,7 +96,12 @@ the subflow definition for new defaults):
   battery thresholds and percent scale, temperature alarm limit.
   `battEmpty`/`battWarn`/`battFull` also set the battery gauge scale
   (min/seg1/seg2/max) and chart axis (ymin/ymax) at runtime via
-  `msg.ui_control`. Defaults equal the previous RAK4631 values.
+  `msg.ui_control`. Dashboard widget settings live in memory only, so
+  the subflow's `init battery scale` inject (10 s after every deploy,
+  alongside the other init nodes) re-applies the scale on start -- the
+  properties themselves are flow config and survive restarts, unlike
+  `sensorSettings` no context store is involved.
+  Defaults equal the previous RAK4631 values.
 - The old `flow_sensor_rui.json` and `flow_sensor_android_rak4631.json`
   are kept unchanged.
 

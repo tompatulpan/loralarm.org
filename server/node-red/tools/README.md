@@ -29,33 +29,73 @@ python3 nodered_copy_flow.py ../components/flow_sensor_unified.json flow_sensor4
 # already present on the instance (instances keep the template def ids)
 python3 nodered_copy_flow.py ../components/flow_sensor_rui.json \
     flow_sensor2_rui.json --to 2 --no-subflows
+
+# bulk copy as ONE import file: canonical subflow definitions
+# (template ids) + sensors 2-16 in the same file; the {n} in the output
+# path becomes the number or range.  This is the recommended deployment
+# command (see "Subflows and the deployment workflow" below); the file
+# imports as a single unit, so nothing can arrive in the wrong order.
+python3 nodered_copy_flow.py ../components/flow_sensor_unified.json \
+    'flow_sensor{n}_unified.json' --to-range 2-16 --with-subflows
+
+# same again for later scaling, e.g. sensors 17-32
+python3 nodered_copy_flow.py ../components/flow_sensor_unified.json \
+    'flow_sensor{n}_unified.json' --to-range 17-32 --with-subflows
 ```
 
 Note: with multi-line commands, every line except the last must end with `\`
 and nothing may follow it (not even a space) -- otherwise the shell runs the
 first line alone and treats the remaining lines as a new command.
 
-### With or without the subflows
+### Subflows and the deployment workflow
 
-By default the output contains the subflow definitions with fresh ids, so
-every import gets its own copies of the subflows (e.g. a second
-`Alarm counter v2`).
+Node-RED resolves subflow instances by **id**, never by name, and an
+instance that is imported *before* its definition exists in the editor
+becomes `unknown: subflow` **forever** -- even after the definition
+arrives, the already-imported nodes stay broken and must be deleted and
+re-imported. That import order is exactly what goes wrong when the
+subflow definitions and the sensor copies travel in separate files (and
+"Import copy" additionally regenerates definition ids, another way to
+break the reference).
 
-`--no-subflows` drops the subflow definitions and their inner nodes from
-the output. The flow then reuses the subflows already present on the
-instance. This requires the instance's subflow definitions to carry the
-**template definition ids** -- import the subflows once from a raw
-template (or `--to 1` output *with* subflows, then re-point; simplest is
-the raw template) before importing copies without them. The instances
-reference the definitions by id; if the instance lacks a referenced
-subflow, Node-RED imports those instances as *unknown subflow* and the
-import is useless. Check the subflow ids in the raw template
-(`"type": "subflow"` entries) against the running instance's subflows.
+The fix: `--with-subflows` puts the canonical subflow definitions and
+all sensor copies of the run into **one file, one import**:
 
-`--subflow-map OLD=NEW` (repeatable, implies `--no-subflows`) re-points
-the subflow instances from the template definition id `OLD` to a live
-definition id `NEW`. Use it when the instance's subflows were themselves
-imported from script output and therefore have regenerated ids:
+```bash
+python3 nodered_copy_flow.py ../components/flow_sensor_unified.json \
+    'flow_sensor{n}_unified.json' --to-range 2-16 --with-subflows
+```
+
+* The bundle contains the subflow definitions with their **template
+  ids, not regenerated** (plus their inner nodes and the shared config
+  nodes) and then one flow tab per sensor, each with fresh node ids and
+  referencing the template subflow ids.
+* In the import dialog, **deselect every node flagged as "already
+  exists"** and import the rest. On a first batch those are only the
+  shared config nodes (`mqtt-broker` x2, `global-config`); from the
+  second batch on, Node-RED also flags the subflow definitions that an
+  earlier batch installed -- deselect them too, the new tabs then
+  reference the already-installed ones.
+* **Never "Import copy" this file**: that would regenerate the
+  definition ids and break the same-file references.
+* Sensor tabs referencing a deselected definition resolve against the
+  live node with that id -- that is the whole point: the canonical ids
+  land on the instance either way, in the first batch.
+
+Re-importing sensors later (e.g. after deleting a tab) works with a
+simple `--to N --with-subflows` run: the definitions get flagged as
+existing, deselect them, done.
+
+The plain `--no-subflows` mode (copies only, referencing the template
+definitions ids) stays available for instances that already carry the
+canonical subflows; the script prints the required definition ids
+before writing. `--subflows-only` writes just the canonical subflow
+definitions (+ inner nodes, + config nodes, ids unchanged) as an
+optional pre-install helper. `--subflow-map OLD=NEW` (repeatable,
+implies `--no-subflows`) is the legacy escape hatch for instances whose
+subflow definitions carry regenerated ids: it re-points the subflow
+instances from the template definition id `OLD` to a live definition id
+`NEW`. Prefer the bundle workflow instead:
 
 ```bash
 python3 nodered_copy_flow.py ../components/flow_sensor_rui.json \
@@ -63,8 +103,10 @@ python3 nodered_copy_flow.py ../components/flow_sensor_rui.json \
     --subflow-map 80204cbf6e8db977=<live-alarm-counter-v2-id>
 ```
 
-Alternatively: keep using the default (with subflows) and *keep* the
-duplicate `Import copy` subflows -- that works as before.
+Cleanup note: if sensor flows were previously imported while their
+subflow definition was missing, those tabs contain permanently broken
+`unknown: subflow` nodes -- delete them and re-import from a
+`--with-subflows` bundle.
 
 Then import the output file into Node-RED as described below.
 

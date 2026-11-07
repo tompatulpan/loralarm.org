@@ -315,7 +315,7 @@
     "id": "d023bf99fbc81f3f",
     "type": "subflow",
     "name": "Sensor (RAK4631 + RUI3) v3",
-    "info": "## Sensor (RAK4631 + RUI3) v3\n\nOne subflow per sensor for both uplink protocols: the **custom** binary\nframe of the RAK4631 Android sensor and **Cayenne LPP** from the RUI3\nsensor. ChirpStack + TTN uplink, alarm counting, battery/signal\nmonitoring and downlink configuration are shared.\n\n### Env vars\n| Name | Example | Description |\n|------|---------|-------------|\n| `protocol` | `auto` | `custom`, `cayenne` or `auto` (see below) |\n| `deviceName` | `sensor1` | Shown in alarm notifications and UI labels; TTN device id |\n| `devEui` | `ac1f09fffe000000` | Filters ChirpStack uplinks and keys sensorSettings |\n| `csApp` | `larm` | Key in global `application` (ChirpStack application): `larm` or `sublarm` |\n| `dashboardName` | `Sensor1_Sensorer` | Name of the UI group for show/hide control |\n| `ttnDeviceName` | `sublarm-1` | Device name in the TTN MQTT topic |\n| `tilt_sense` | `0.1` | Tilt alarm threshold (g-units) |\n| `Tk` | `8` | Temperature correction offset (C), subtracted from the reading |\n| `tempAlarmLimit` | `2` | Temperature alarm at or below this (C) |\n| `battFull` / `battWarn` / `battEmpty` | `4.2` / `3.5` / `3.2` | Battery volts: 100 %, low warning below, 0 % and critical below; also scales the dashboard gauge (min/segments/max) and chart (ymin/ymax) via msg.ui_control |\n| `ntfyChannel` | `127.0.0.1:8075/sensor1` | Full ntfy POST URL for this sensor |\n| `pushoverToken` | `` | Pushover application token |\n| `pushoverUser` | `` | Pushover user/group key |\n\n### Protocol\n* `custom`: RAK4631 Android frame (14 bytes, battery as raw ADC).\n* `cayenne`: RUI3 sensor, channels as in `devices/rui3_sensor/app.h`.\n* `auto`: a frame that is strictly valid Cayenne LPP for the RUI3 channel\n  map is decoded as Cayenne, everything else as custom. The detected\n  protocol is remembered in flow context (`protocolSeen`); the frequency\n  downlink needs it, so it waits for the first uplink. Set the protocol\n  explicitly if you prefer.\n\nTypical values per sensor type:\n\n| | RAK4631 (custom) | RUI3 (Cayenne) |\n|---|---|---|\n| `csApp` | `larm` | `sublarm` |\n| `Tk` | `8` | `0` |\n| `tempAlarmLimit` | `2` | `0` |\n| `battFull` / `battWarn` / `battEmpty` | `4.2` / `3.5` / `3.2` | `3.1` / `2.9` / `2.8` (3 V cell) |\n\nAll per-sensor values live in the subflow instance env -- set them\nafter import. There is no registry (flow_inputs.json) dependency in\nthis flow.\n\n### Downlinks\nSame ASCII-decimal format on ports 4-7 for both protocols. The\naccelerometer frequency code from the dashboard is the custom register\nvalue (31/47/63/79/95); it is translated to the RUI3 index 1-5 for\nCayenne sensors.\n\n### Outputs\n0. **Accel** - msg.topic: xAxis / yAxis / zAxis\n1. **Temperature** - msg.topic: tempValue / tempChart\n2. **Battery** - msg.topic: battVoltage / battPercent / battStatus / battChart\n3. **Signal** - msg.topic: rssi / snr\n4. **Connection** - msg.topic: connStatus / connTs\n5. **Alarms** - msg.topic: circuitTs/Led/Count/Status, motionTs/Led/Count, tiltTs/Led/Count\n6. **UI control** - direct to ui_ui_control\n7. **Settings** - msg.topic: devName / version / threshold / duration / frequency / statusText / dropdown\n8. **Environment** (Cayenne only) - msg.topic: humidity / humChart / pressure / illuminance / gas\n",
+    "info": "## Sensor (RAK4631 + RUI3) v3\n\nOne subflow per sensor for both uplink protocols: the **custom** binary\nframe of the RAK4631 Android sensor and **Cayenne LPP** from the RUI3\nsensor. ChirpStack + TTN uplink, alarm counting, battery/signal\nmonitoring and downlink configuration are shared.\n\n### Env vars\n| Name | Example | Description |\n|------|---------|-------------|\n| `protocol` | `auto` | `custom`, `cayenne` or `auto` (see below) |\n| `deviceName` | `sensor1` | Shown in alarm notifications and UI labels; TTN device id |\n| `devEui` | `ac1f09fffe000000` | Filters ChirpStack uplinks and keys sensorSettings |\n| `csApp` | `larm` | Key in global `application` (ChirpStack application): `larm` or `sublarm` |\n| `dashboardName` | `Sensor1_Sensorer` | Name of the UI group for show/hide control |\n| `ttnDeviceName` | `sublarm-1` | Device name in the TTN MQTT topic |\n| `tilt_sense` | `0.1` | Tilt alarm threshold (g-units) |\n| `Tk` | `8` | Temperature correction offset (C), subtracted from the reading |\n| `tempAlarmLimit` | `2` | Temperature alarm at or below this (C) |\n| `battFull` / `battWarn` / `battEmpty` | `4.2` / `3.5` / `3.2` | Battery volts: 100 %, low warning below, 0 % and critical below; also scales the dashboard gauge (min/segments/max) and chart (ymin/ymax) via msg.ui_control, re-applied at startup by the init battery scale inject |\n| `ntfyChannel` | `127.0.0.1:8075/sensor1` | Full ntfy POST URL for this sensor |\n| `pushoverToken` | `` | Pushover application token |\n| `pushoverUser` | `` | Pushover user/group key |\n\n### Protocol\n* `custom`: RAK4631 Android frame (14 bytes, battery as raw ADC).\n* `cayenne`: RUI3 sensor, channels as in `devices/rui3_sensor/app.h`.\n* `auto`: a frame that is strictly valid Cayenne LPP for the RUI3 channel\n  map is decoded as Cayenne, everything else as custom. The detected\n  protocol is remembered in flow context (`protocolSeen`); the frequency\n  downlink needs it, so it waits for the first uplink. Set the protocol\n  explicitly if you prefer.\n\nTypical values per sensor type:\n\n| | RAK4631 (custom) | RUI3 (Cayenne) |\n|---|---|---|\n| `csApp` | `larm` | `sublarm` |\n| `Tk` | `8` | `0` |\n| `tempAlarmLimit` | `2` | `0` |\n| `battFull` / `battWarn` / `battEmpty` | `4.2` / `3.5` / `3.2` | `3.1` / `2.9` / `2.8` (3 V cell) |\n\nAll per-sensor values live in the subflow instance env -- set them\nafter import. There is no registry (flow_inputs.json) dependency in\nthis flow.\n\n### Downlinks\nSame ASCII-decimal format on ports 4-7 for both protocols. The\naccelerometer frequency code from the dashboard is the custom register\nvalue (31/47/63/79/95); it is translated to the RUI3 index 1-5 for\nCayenne sensors.\n\n### Outputs\n0. **Accel** - msg.topic: xAxis / yAxis / zAxis\n1. **Temperature** - msg.topic: tempValue / tempChart\n2. **Battery** - msg.topic: battVoltage / battPercent / battStatus / battChart\n3. **Signal** - msg.topic: rssi / snr\n4. **Connection** - msg.topic: connStatus / connTs\n5. **Alarms** - msg.topic: circuitTs/Led/Count/Status, motionTs/Led/Count, tiltTs/Led/Count\n6. **UI control** - direct to ui_ui_control\n7. **Settings** - msg.topic: devName / version / threshold / duration / frequency / statusText / dropdown\n8. **Environment** (Cayenne only) - msg.topic: humidity / humChart / pressure / illuminance / gas\n",
     "category": "Sensorer",
     "in": [
       {
@@ -5167,6 +5167,32 @@
     "wires": [
       [
         "1cbc43a89dd40a0c"
+      ]
+    ]
+  },
+  {
+    "id": "5f8c2ab1d3e94f70",
+    "type": "inject",
+    "z": "d023bf99fbc81f3f",
+    "name": "init battery scale",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": true,
+    "onceDelay": "10",
+    "topic": "",
+    "payload": "",
+    "payloadType": "none",
+    "x": 2540,
+    "y": 960,
+    "wires": [
+      [
+        "27024c008726bb1d",
+        "c1b0e7aa9ab5ccba"
       ]
     ]
   },
