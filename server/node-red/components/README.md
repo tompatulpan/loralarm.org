@@ -94,7 +94,9 @@ the subflow definition for new defaults):
   conversion is bypassed.
 - Behaviour that was hardcoded in the RAK4631 flow is now env driven:
   battery thresholds and percent scale, temperature alarm limit.
-  Defaults equal the previous RAK4631 values.
+  `battEmpty`/`battWarn`/`battFull` also set the battery gauge scale
+  (min/seg1/seg2/max) and chart axis (ymin/ymax) at runtime via
+  `msg.ui_control`. Defaults equal the previous RAK4631 values.
 - The old `flow_sensor_rui.json` and `flow_sensor_android_rak4631.json`
   are kept unchanged.
 
