@@ -7025,8 +7025,7 @@
     "y": 320,
     "wires": [
       [
-        "73fd8b420c963ef0",
-        "36d8ebeac0fdf695"
+        "73fd8b420c963ef0"
       ],
       [
         "0d6c11271d53bb69"
@@ -8176,28 +8175,6 @@
     "color": "#000000",
     "x": 1180,
     "y": 1500,
-    "wires": []
-  },
-  {
-    "id": "36d8ebeac0fdf695",
-    "type": "ui_text",
-    "z": "425aa63abe4e49f8",
-    "d": true,
-    "group": "2931cd4d02ed6f93",
-    "order": 15,
-    "width": 4,
-    "height": 1,
-    "name": "Temperature",
-    "label": "Temperatur",
-    "format": "{{msg.payload}}C",
-    "layout": "row-spread",
-    "className": "",
-    "style": false,
-    "font": "",
-    "fontSize": "18",
-    "color": "#ffffff",
-    "x": 1170,
-    "y": 280,
     "wires": []
   },
   {
