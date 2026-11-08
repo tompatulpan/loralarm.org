@@ -28,7 +28,10 @@ Node-RED flow components for the LoRaLarm server.
 - **flow_inputs.json** — settings registry: maps devEUI to
   `deviceName` / `dashboardName` for all deployed sensors (currently
   sensor3–16 plus doors/water). Settings uplinks/downlinks are keyed by
-  this registry.
+  this registry. **Caution:** the file in this repo is a template with
+  only sensor1/sensor2 placeholders — never import it wholesale over a
+  production Inputs tab; the startup inject would overwrite the
+  registry and drop every deployed sensor.
 - **flow_EUI_key_generator.json** — helper UI that generates EUI/keys
   for onboarding a new device in ChirpStack/TTN.
 
@@ -54,8 +57,13 @@ a complete value (e.g. a full file path, not just a directory).
 | `LORALARM_NTFY_BASE` | `127.0.0.1:8075` | RUI flow: the `ntfy url` node builds `<base>/<deviceName>` |
 | `LORALARM_LAT` / `LORALARM_LON` | Stockholm | `time-switch` node (sunrise/sunset) |
 
-The log directory must exist and be writable by the Node-RED user
-(`createDir` is off). The Android flow's per-sensor ntfy URL stays in its
+The sensor flows' `file` nodes run with `createDir` off, so the log
+directory must exist and be writable by the Node-RED user.
+`flow_inputs.json` runs `mkdir -p` on it once at startup (see *Create log
+directory at startup*); when Node-RED runs as an unprivileged system
+user without write access to `/var/log`, create it once manually:
+`sudo mkdir -p /var/log/loralarm && sudo chown node-red:node-red /var/log/loralarm`.
+The Android flow's per-sensor ntfy URL stays in its
 `ntfyChannel` subflow env. The ChirpStack join listener in
 `flow_inputs.json` subscribes to all applications and only acts on the
 one in the `application.sublarm` registry entry.

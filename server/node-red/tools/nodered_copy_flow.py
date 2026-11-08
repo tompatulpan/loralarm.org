@@ -391,20 +391,22 @@ def offset_tab_order(flows, offset):
             item["order"] = item["order"] + offset
 
 
-def validate_flow_references(flows):
+def validate_flow_references(flows, external_subflow_ids=frozenset()):
     """Post-build integrity check: verify all id references exist.
-    
+
     Checks that every referenced id (in wires, z, g, links, etc.) exists
     in the flows list or is an allowed external id (config nodes with
-    template ids, or subflow definition ids when definitions are dropped).
-    
+    template ids, or subflow definition ids when definitions are dropped
+    -- pass them via external_subflow_ids so a bundle/--no-subflows copy
+    does not flag its own deliberately-dropped definitions).
+
     Returns: list of validation errors (empty if all good)
     """
     errors = []
     all_ids = {item["id"] for item in flows}
     kept_config_ids = {item["id"] for item in flows if item.get("type", "") in CONFIG_TYPES}
     # subflow definition ids that are referenced but not in this output
-    external_ids = kept_config_ids  # Config nodes are external references
+    external_ids = kept_config_ids | set(external_subflow_ids)
     
     for item in flows:
         t = item.get("type", "")
@@ -555,6 +557,7 @@ def build_copy(template, args, to_num, subflow_map, drop_defs=False,
     flows = copy.deepcopy(template)
     stats = {"to": to_num}
 
+    template_subflow_ids = set()
     n_defs = 0
     if drop_defs:
         n_total = len(flows)
@@ -600,8 +603,14 @@ def build_copy(template, args, to_num, subflow_map, drop_defs=False,
     data = json.dumps(flows, ensure_ascii=False, indent=2)
     data = apply_replacements(data, args.from_num, to_num, args.ntfy_base)
 
-    # Post-build integrity check
-    errors = validate_flow_references(flows)
+    # Post-build integrity check.  Subflow definitions dropped from this
+    # copy (--with-subflows bundle / --no-subflows) are carried elsewhere
+    # or pre-exist on the target instance: allow their ids (and any
+    # --subflow-map targets) so dropping them is not flagged as an error.
+    ext_subflow_ids = set(template_subflow_ids)
+    if subflow_map:
+        ext_subflow_ids |= set(subflow_map.values())
+    errors = validate_flow_references(flows, ext_subflow_ids)
     if errors:
         print("WARNING: {} validation error(s) found:".format(len(errors)))
         for err in errors[:10]:  # Limit output to first 10 errors
