@@ -11,9 +11,12 @@ except shared global config nodes, and remaps every id reference
 (wires, links, tabs/groups, subflow definitions and their instances), so
 the output can be imported into a running instance without id conflicts.
 It can also override per-deployment settings (MQTT broker, ntfy,
-ChirpStack, TTN application id).  Those live as LORALARM_* variables in
-the flow file's global-config env (referenced as ${LORALARM_...} by the
-nodes), so the overrides edit that env and nothing else.
+ChirpStack, TTN application id) and per-sensor settings (devEui, ttnDeviceName,
+etc.).  Global settings live as LORALARM_* variables in the flow file's
+global-config env (referenced as ${LORALARM_...} by the nodes). Per-sensor
+settings are written to each subflow instance's env array, so they are
+available as ${NAME} within that subflow. The overrides edit the env and
+nothing else.
 
 Usage:
     python3 nodered_copy_flow.py <input.json> <output.json> --to 2
@@ -27,6 +30,13 @@ before the file extension).  Every copy is built from a fresh deep copy
 of the template, so each file gets its own newly regenerated node ids:
     python3 nodered_copy_flow.py ../components/flow_sensor_rui.json \\
         'flow_sensor{n}_rui.json' --to-range 2-16 --no-subflows
+
+Per-sensor settings can be set via --set (batch-wide) or --sensors (CSV):
+    python3 nodered_copy_flow.py ../components/flow_sensor_unified.json \\
+        flow_sensor5_unified.json --to 5 --set csApp=sublarm --set Tk=0
+    python3 nodered_copy_flow.py ../components/flow_sensor_unified.json \\
+        'flow_sensor{n}_unified.json' --to-range 5-16 --sensors sensors.csv
+    # where sensors.csv contains columns: n,devEui,ttnDeviceName,battFull,etc.
 
 Deployment workflow (deterministic for any target instance, no live id
 lookup, no import ordering -- Node-RED resolves subflow instances by
@@ -95,13 +105,16 @@ env.  The RUI flow has no such env values; it reads
 devEui/deviceName/dashboardName at flow start from the sensorConfig
 registry (components/flow_inputs.json).
 
-Known limitation: the script updates neither the sensorConfig registry
-in components/flow_inputs.json nor any subflow env value -- they are
-entered per sensor in the editor after import.
+Note: the script does NOT update the sensorConfig registry in
+components/flow_inputs.json (RUI flows read from there at flow start).
+However, it CAN populate subflow instance env values via --set and --sensors
+for unified/RAK4631/Android flows that use instance env.
 """
 
 import argparse
 import copy
+import csv
+import hashlib
 import json
 import os
 import random
@@ -129,8 +142,20 @@ DEFAULTS = {
 
 
 def generate_uid():
-    """Node-RED style id: 16 lowercase hex chars."""
+    """Node-RED style id: 16 lowercase hex chars (legacy random fallback)."""
     return "%016x" % random.getrandbits(64)
+
+
+def generate_deterministic_uid(to_num, old_id):
+    """Deterministic Node-RED style id based on target sensor and old id.
+
+    Returns the same 16-char hex for the same (to_num, old_id) pair across
+    runs, making output reproducible.  Uses SHA-1 hashes of the input
+    seed to ensure uniqueness across sensors while maintaining the 16-hex
+    Node-RED id format.
+    """
+    seed = f"{to_num}:{old_id}".encode()
+    return hashlib.sha1(seed).hexdigest()[:16]
 
 
 def remap_nid(nid, id_map):
@@ -138,7 +163,7 @@ def remap_nid(nid, id_map):
     return id_map.get(nid, nid)
 
 
-def regenerate_ids(flows):
+def regenerate_ids(flows, to_num=None):
     """Give every non-config node a fresh id and remap all references.
 
     Remapped references: node ids, wires, z (flow tab / subflow definition),
@@ -147,12 +172,19 @@ def regenerate_ids(flows):
     nodes -- empty scope means all nodes and needs no list), subflow
     definition in/out ports, and subflow instance node types.
     Returns the number of regenerated ids.
+    
+    If to_num is provided, uses deterministic IDs via generate_deterministic_uid.
+    Otherwise falls back to random generate_uid (kept for backwards compatibility
+    with subflow-only exports where sensor number is not applicable).
     """
     id_map = {}
     for item in flows:
         if item.get("type", "") in CONFIG_TYPES:
             continue
-        id_map[item["id"]] = generate_uid()
+        if to_num is not None:
+            id_map[item["id"]] = generate_deterministic_uid(to_num, item["id"])
+        else:
+            id_map[item["id"]] = generate_uid()
 
     for item in flows:
         t = item.get("type", "")
@@ -278,6 +310,168 @@ def apply_env_overrides(flows, args):
             print("note: '{}' not used by this template".format(name))
 
 
+def load_sensors_csv(path):
+    """Load per-sensor settings from a CSV file.
+    
+    Returns a dict mapping sensor number (int) to a dict of settings.
+    The CSV must have a header row with 'n' or 'sensor' as the first column.
+    """
+    sensors = {}
+    with open(path, 'r', newline='') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            # Find the sensor number column
+            n = None
+            for key in ('n', 'sensor', 'sensor_number'):
+                if key in row:
+                    n = int(row[key])
+                    break
+            if n is None:
+                raise ValueError(f"CSV row missing sensor number column (n/sensor/sensor_number): {row}")
+            # Store all other columns as settings
+            sensor_settings = {k: v for k, v in row.items() if k != key}
+            sensors[n] = sensor_settings
+    return sensors
+
+
+def parse_set_args(set_args):
+    """Parse --set NAME=VALUE arguments into a dict."""
+    result = {}
+    for arg in set_args:
+        if '=' not in arg:
+            raise ValueError(f"--set expects NAME=VALUE, got '{arg}'")
+        name, value = arg.split('=', 1)
+        result[name] = value
+    return result
+
+
+def apply_instance_env_overrides(flows, batch_settings, sensor_settings=None):
+    """Apply per-sensor settings to subflow instance env.
+    
+    Args:
+        flows: list of flow nodes
+        batch_settings: dict of NAME=VALUE from --set (applied to all sensors)
+        sensor_settings: dict of settings for this specific sensor (from CSV)
+    
+    Returns: number of env variables set
+    """
+    count = 0
+    merged_settings = dict(batch_settings)
+    if sensor_settings:
+        merged_settings.update(sensor_settings)
+    
+    for item in flows:
+        if item.get("type", "").startswith("subflow:"):
+            # subflow instance nodes have an env array
+            if "env" not in item:
+                item["env"] = []
+            
+            for name, value in merged_settings.items():
+                # Check if this env var already exists
+                found = False
+                for env_var in item["env"]:
+                    if env_var.get("name") == name:
+                        env_var["value"] = value
+                        found = True
+                        count += 1
+                        break
+                if not found:
+                    item["env"].append({"name": name, "value": value})
+                    count += 1
+    return count
+
+
+def offset_tab_order(flows, offset):
+    """Offset ui_tab order by the given amount.
+    
+    This ensures each sensor's tabs have unique, sequential order values.
+    """
+    for item in flows:
+        if item.get("type") == "ui_tab" and "order" in item:
+            item["order"] = item["order"] + offset
+
+
+def validate_flow_references(flows):
+    """Post-build integrity check: verify all id references exist.
+    
+    Checks that every referenced id (in wires, z, g, links, etc.) exists
+    in the flows list or is an allowed external id (config nodes with
+    template ids, or subflow definition ids when definitions are dropped).
+    
+    Returns: list of validation errors (empty if all good)
+    """
+    errors = []
+    all_ids = {item["id"] for item in flows}
+    kept_config_ids = {item["id"] for item in flows if item.get("type", "") in CONFIG_TYPES}
+    # subflow definition ids that are referenced but not in this output
+    external_ids = kept_config_ids  # Config nodes are external references
+    
+    for item in flows:
+        t = item.get("type", "")
+        
+        # Check z (flow tab / subflow definition reference)
+        if "z" in item:
+            z_id = item["z"]
+            if z_id not in all_ids and z_id not in external_ids:
+                errors.append(f"Node {item['id']} ({t}) references non-existent tab/subflow: {z_id}")
+        
+        # Check g (group reference)
+        if "g" in item:
+            g_id = item["g"]
+            if g_id not in all_ids and g_id not in external_ids:
+                errors.append(f"Node {item['id']} ({t}) references non-existent group: {g_id}")
+        
+        # Check wires
+        if isinstance(item.get("wires"), list):
+            for port in item["wires"]:
+                if isinstance(port, list):
+                    for target_id in port:
+                        if target_id and target_id not in all_ids and target_id not in external_ids:
+                            errors.append(f"Node {item['id']} ({t}) wire references non-existent node: {target_id}")
+        
+        # Check subflow instance type
+        if t.startswith("subflow:"):
+            subflow_def_id = t.split(":", 1)[1]
+            if subflow_def_id not in all_ids and subflow_def_id not in external_ids:
+                errors.append(f"Subflow instance {item['id']} references non-existent definition: {subflow_def_id}")
+        
+        # Check ui_group.tab
+        if t == "ui_group" and "tab" in item:
+            tab_id = item["tab"]
+            if tab_id not in all_ids and tab_id not in external_ids:
+                errors.append(f"Group {item['id']} references non-existent tab: {tab_id}")
+        
+        # Check ui_*.group
+        if t.startswith("ui_") and "group" in item:
+            group_id = item["group"]
+            if group_id not in all_ids and group_id not in external_ids:
+                errors.append(f"Node {item['id']} ({t}) references non-existent group: {group_id}")
+        
+        # Check link in/out links
+        if t in ("link in", "link out") and isinstance(item.get("links"), list):
+            for link_id in item["links"]:
+                if link_id not in all_ids and link_id not in external_ids:
+                    errors.append(f"Node {item['id']} ({t}) link references non-existent node: {link_id}")
+        
+        # Check subflow definition wires
+        if t == "subflow":
+            for port in item.get("in", []) + item.get("out", []):
+                for wire in port.get("wires", []):
+                    if isinstance(wire, dict) and "id" in wire:
+                        wire_id = wire["id"]
+                        if wire_id not in all_ids and wire_id not in external_ids:
+                            errors.append(f"Subflow {item['id']} port wire references non-existent node: {wire_id}")
+        
+        # Check scope list
+        if isinstance(item.get("scope"), list):
+            for scope_id in item["scope"]:
+                # Scope can contain type strings, so only check if it looks like an id
+                if scope_id and scope_id not in CONFIG_TYPES and scope_id not in all_ids and scope_id not in external_ids:
+                    errors.append(f"Node {item['id']} ({t}) scope references non-existent node: {scope_id}")
+    
+    return errors
+
+
 def apply_replacements(data, from_num, to_num, ntfy_base):
     r"""Rename the sensor number and override the ntfy base on flow text.
 
@@ -345,7 +539,7 @@ def resolve_output(output, to_num, multi):
 
 
 def build_copy(template, args, to_num, subflow_map, drop_defs=False,
-               strip_configs=False):
+               strip_configs=False, batch_settings=None, sensor_settings=None):
     """Build one rebranded copy of the template for sensor to_num.
 
     Works on a deep copy, so every target number gets its own regenerated
@@ -354,6 +548,9 @@ def build_copy(template, args, to_num, subflow_map, drop_defs=False,
     objects (the --with-subflows bundle carries them once, alongside the
     definitions).  Returns (data, stats): the JSON text to write and a
     dict of counts for the summary line.
+    
+    batch_settings: dict of NAME=VALUE from --set (applied to all sensors)
+    sensor_settings: dict of settings for this specific sensor from CSV
     """
     flows = copy.deepcopy(template)
     stats = {"to": to_num}
@@ -368,7 +565,7 @@ def build_copy(template, args, to_num, subflow_map, drop_defs=False,
                   len(template_subflow_ids), n_total - len(flows) - len(template_subflow_ids),
                   n_total, len(flows)))
 
-    stats["ids"] = regenerate_ids(flows)
+    stats["ids"] = regenerate_ids(flows, to_num=to_num)
 
     if subflow_map:
         unknown = [old for old in subflow_map if old not in template_subflow_ids]
@@ -380,6 +577,18 @@ def build_copy(template, args, to_num, subflow_map, drop_defs=False,
 
     stats["brokers"] = apply_broker_port(flows, args.broker_port)
     apply_env_overrides(flows, args)
+    
+    # Apply per-sensor instance env overrides BEFORE text replacements
+    # This way the replacements won't accidentally modify the env values we just set
+    if batch_settings or sensor_settings:
+        stats["env_vars"] = apply_instance_env_overrides(
+            flows, batch_settings or {}, sensor_settings
+        )
+    
+    # Offset tab order to avoid collisions between sensors
+    if args.from_num != to_num:
+        offset_tab_order(flows, to_num - args.from_num)
+    
     if strip_configs:
         # The bundle holds the shared config nodes once, next to the
         # subflow definitions; the copies keep only their references.
@@ -391,6 +600,16 @@ def build_copy(template, args, to_num, subflow_map, drop_defs=False,
     data = json.dumps(flows, ensure_ascii=False, indent=2)
     data = apply_replacements(data, args.from_num, to_num, args.ntfy_base)
 
+    # Post-build integrity check
+    errors = validate_flow_references(flows)
+    if errors:
+        print("WARNING: {} validation error(s) found:".format(len(errors)))
+        for err in errors[:10]:  # Limit output to first 10 errors
+            print("  -", err)
+        if len(errors) > 10:
+            print(f"  ... and {len(errors) - 10} more")
+        stats["validation_errors"] = len(errors)
+    
     json.loads(data)  # fail loudly instead of writing broken JSON
     stats["nodes"] = len(flows)
     stats["subflow_refs"] = n_defs
@@ -510,6 +729,16 @@ def main():
                         help="re-point subflow instances from template "
                              "definition id OLD to live definition id NEW "
                              "(repeatable; implies --no-subflows)")
+    parser.add_argument("--set", action="append", default=[],
+                        metavar="NAME=VALUE",
+                        help="set a per-deployment/batch value in every "
+                             "sensor's subflow instance env (repeatable, "
+                             "e.g. --set csApp=sublarm --set Tk=0)")
+    parser.add_argument("--sensors", type=str, default=None,
+                        metavar="sensors.csv",
+                        help="CSV file with per-sensor settings; first row "
+                             "must be headers including 'n' (sensor number), "
+                             "e.g. n,devEui,ttnDeviceName,battFull")
     args = parser.parse_args()
 
     if args.subflows_only:
@@ -519,6 +748,9 @@ def main():
         if args.no_subflows or args.subflow_map:
             parser.error("--subflows-only cannot be combined with "
                          "--no-subflows / --subflow-map")
+        if args.set or args.sensors:
+            parser.error("--subflows-only cannot be combined with "
+                         "--set / --sensors (no sensor copies are made)")
     elif (args.to_num is None) == (args.to_range is None):
         parser.error("exactly one of --to / --to-range is required "
                      "(or use --subflows-only)")
@@ -537,6 +769,16 @@ def main():
             parser.error("--subflow-map expects OLD=NEW, got '" + pair + "'")
         old, new = pair.split("=", 1)
         subflow_map[old] = new
+    
+    # Parse --set arguments
+    batch_settings = parse_set_args(args.set)
+    
+    # Parse --sensors CSV if provided
+    sensor_csv_data = None
+    if args.sensors:
+        if not os.path.exists(args.sensors):
+            parser.error("--sensors file not found: '{}'".format(args.sensors))
+        sensor_csv_data = load_sensors_csv(args.sensors)
 
     with open(args.input, "r") as f:
         template = json.load(f)
@@ -563,8 +805,11 @@ def main():
         n_ids_total = 0
         for to_num in targets:
             print("== sensor {} ==".format(to_num))
+            sensor_specific = sensor_csv_data.get(to_num) if sensor_csv_data else None
             data, stats = build_copy(template, args, to_num, subflow_map,
-                                     drop_defs=True, strip_configs=True)
+                                     drop_defs=True, strip_configs=True,
+                                     batch_settings=batch_settings,
+                                     sensor_settings=sensor_specific)
             parts.append(data)
             n_ids_total += stats["ids"]
         bundle = merge_flow_parts(parts)
@@ -605,9 +850,12 @@ def main():
         for to_num in targets:
             if multi:
                 print("== sensor {} ==".format(to_num))
+            sensor_specific = sensor_csv_data.get(to_num) if sensor_csv_data else None
             data, stats = build_copy(
                 template, args, to_num, subflow_map,
-                drop_defs=args.no_subflows or bool(subflow_map))
+                drop_defs=args.no_subflows or bool(subflow_map),
+                batch_settings=batch_settings,
+                sensor_settings=sensor_specific)
             out_path = resolve_output(args.output, to_num, multi)
             with open(out_path, "w") as f:
                 f.write(data)

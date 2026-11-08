@@ -42,6 +42,17 @@ python3 nodered_copy_flow.py ../components/flow_sensor_unified.json \
 # plain --no-subflows files -- mistake-proof, see workflow section
 python3 nodered_copy_flow.py ../components/flow_sensor_unified.json \
     'flow_sensor{n}_unified.json' --to-range 17-32 --no-subflows
+
+# Automate per-sensor settings with --set and --sensors
+# --set applies batch-wide values to all sensor copies
+python3 nodered_copy_flow.py ../components/flow_sensor_unified.json \
+    flow_sensor5_unified.json --to 5 --set csApp=sublarm --set Tk=0
+
+# --sensors reads per-sensor values from a CSV file
+# CSV must have a header row with 'n' (sensor number) column
+python3 nodered_copy_flow.py ../components/flow_sensor_unified.json \
+    'flow_sensor{n}_unified.json' --to-range 5-16 --sensors sensors.csv
+# where sensors.csv contains: n,devEui,ttnDeviceName,battFull,battWarn,battEmpty,...
 ```
 
 Note: with multi-line commands, every line except the last must end with `\`
@@ -213,6 +224,26 @@ Then continue with the manual steps below.
    | `Sensor1` / `sensor1` (tab name, deviceName, ntfy topic, env `dashboardName`) | `SensorN` / `sensorN` |
    | `127.0.0.1:8075` (`LORALARM_NTFY_BASE`, Android `ntfyChannel`) | value of `--ntfy-base` |
 
+5. **Deterministic node IDs**: Output is reproducible across runs for the
+   same sensor number. The script derives node IDs from a SHA-1 hash of
+   `(target_sensor_number:original_template_id)`, ensuring the same IDs
+   are generated every time for the same sensor. This makes git diffs
+   clean and allows re-importing to replace existing flows without
+   creating duplicates.
+6. **Per-sensor automation**: The `--set NAME=VALUE` argument (repeatable)
+   sets environment variables in every sensor's subflow instance env for
+   batch-wide values (e.g., `csApp`, `Tk`, `protocol`). The `--sensors
+   sensors.csv` argument reads per-sensor settings from a CSV file with
+   columns `n,devEui,ttnDeviceName,battFull,...` where `n` is the sensor
+   number. This eliminates the need for manual entry of per-sensor values
+   after import for unified and RAK4631/Android flows.
+7. **Tab order offsetting**: Dashboard tab `order` values are offset by
+   `(to_num - from_num)` to avoid collisions and ensure consistent ordering
+   across sensors.
+8. **Integrity validation**: Post-build checks verify all node ID references
+   (wires, links, groups, subflow instances, etc.) resolve to existing nodes
+   or allowed external references (kept config nodes, template subflow IDs).
+
    The subflow definitions keep their template names (`Sensor (RAK4631)
    v2`, `Sensor (RAK4631 + RUI3) v3`, `Alarm counter v2`) -- only their
    ids are regenerated.
@@ -244,7 +275,9 @@ The script does **not** complete the deployment on its own:
   Android and unified flows)**: all per-sensor settings -- `devEui`,
   `deviceName`, `dashboardName`, `ttnDeviceName`, `tilt_sense`, `Tk`,
   `ntfyChannel` and pushover `pushoverToken` / `pushoverUser` -- are
-  read from the subflow instance env. The unified flow adds `protocol`
+  read from the subflow instance env. You can pre-populate these using
+  `--set` for batch-wide values or `--sensors sensors.csv` for per-sensor
+  values from a CSV file, eliminating manual entry. The unified flow adds `protocol`
   (`auto` / `custom` / `cayenne`), `csApp`, `tempAlarmLimit` and the
   battery voltages `battFull` / `battWarn` / `battEmpty`; see
   `../components/README.md` for the values per sensor type. `devEui` ships empty and must be filled after
