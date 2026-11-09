@@ -5456,7 +5456,7 @@
         "name": "DL Send",
         "server": "${LORALARM_CS_API}",
         "useTls": false,
-        "apiToken": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJjaGlycHN0YWNrIiwiaXNzIjoiY2hpcnBzdGFjayIsInN1YiI6ImZkZWE5ZTFjLTAxZTUtNDJjOC1hMTQzLWI2NzY5NGMyMzEwNiIsInR5cCI6ImtleSJ9.VODUmFDg-0rSfXEgD__lsdnuZGgkcVU7nkGJUgGt5Bc",
+        "apiToken": "${LORALARM_CS_API_TOKEN}",
         "encoding": "base64",
         "x": 860,
         "y": 3420,

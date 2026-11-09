@@ -8851,11 +8851,6 @@
         "name": "LORALARM_LON",
         "value": "18.063240",
         "type": "str"
-      },
-      {
-        "name": "LORALARM_CS_API_TOKEN",
-        "value": "",
-        "type": "str"
       }
     ],
     "modules": {
