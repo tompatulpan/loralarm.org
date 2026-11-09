@@ -71,6 +71,9 @@ function decodeUplink(input) {
     out[CHANNELS[ch] || (TYPE_NAMES[type] + '_' + ch)] = lppValue(type, b, i + 2);
     i += 2 + size;
   }
+  // the heartbeat (devices/rui3_sensor/README.md ch10) reports the ODR
+  // index -- add the normalized Hz so both codec families expose it
+  if (out.acc_frequency !== undefined) out.acc_frequency_hz = freqHz(out.acc_frequency);
   return { data: out, warnings: warnings, errors: [] };
 }
 

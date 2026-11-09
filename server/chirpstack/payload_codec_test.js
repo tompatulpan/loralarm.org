@@ -119,5 +119,31 @@ const f5 = rui.encodeDownlink({ data: { duration: 1 } });
 check('rui: encode duration 1 -> p7 "001"', f5.fPort === 7 && ascii(f5.outBytes) === '001', f5);
 check('rui: encode unrecognized -> error', rui.encodeDownlink({ data: { nothing: true } }).errors.length === 1);
 
+// ============================== real captured uplinks (log/ fixtures)
+// ChirpStack MQTT up events: "object" was produced by these very codecs;
+// decode the raw payload and require at least that output (superset: the
+// rui3 codec now also adds acc_frequency_hz on uplinks).
+const LOGS = [
+  ['log/single-log(rak4631).json', rak, { motion_switch: 0, motion_alert: 0, battery_voltage: 3.578095238095238, temperature: 32, acc_frequency_hz: 10 }],
+  ['log/single-log(rak4631 alarm).json', rak, { motion_switch: 0, motion_alert: 1, status_raw: 2, acc_frequency: 47 }],
+  ['log/single-log(RUI).json', rui, { battery_voltage: 2.98, temperature: 23.1, humidity: 43, acc_threshold: 16, acc_duration: 4, acc_frequency_hz: 100 }],
+  ['log/single-log(RUI alarm).json', rui, { motion_alert: 1 }],
+];
+for (const [file, codec, extra] of LOGS) {
+  const ev = JSON.parse(fs.readFileSync(path.join(__dirname, file), 'utf8'));
+  const dec = codec.decodeUplink({ bytes: Uint8Array.from(Buffer.from(ev.data, 'base64')), fPort: ev.fPort });
+  check('log ' + file + ': no warnings/errors', dec.warnings.length === 0 && dec.errors.length === 0, dec);
+  for (const [k, v] of Object.entries(ev.object)) {
+    check('log ' + file + ': ' + k, typeof v === 'object'
+      ? JSON.stringify(dec.data[k]) === JSON.stringify(v) ||
+        near(dec.data[k].x, v.x) && near(dec.data[k].y, v.y) && near(dec.data[k].z, v.z)
+      : (typeof v === 'number' ? near(dec.data[k], v, 1e-9) : dec.data[k] === v),
+      { mine: dec.data[k], logged: v });
+  }
+  for (const [k, v] of Object.entries(extra)) {
+    check('log ' + file + ': extra ' + k, typeof v === 'number' ? near(dec.data[k], v) : dec.data[k] === v, { mine: dec.data[k], expected: v });
+  }
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
