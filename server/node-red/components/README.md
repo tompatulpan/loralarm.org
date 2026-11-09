@@ -50,7 +50,7 @@ a complete value (e.g. a full file path, not just a directory).
 | `LORALARM_LOG_TX` | `/var/log/loralarm/log_tx.csv` | TX log, monthly delete and download |
 | `LORALARM_CS_BROKER` | `192.168.2.26` | local ChirpStack MQTT broker (`mqtt-broker` node "Lora Server") |
 | `LORALARM_CS_API` | `localhost:8080` | ChirpStack API for `device downlink` nodes |
-| `LORALARM_CS_API_TOKEN` | *(empty — set after import)* | ChirpStack API bearer token for `device downlink` nodes (`${LORALARM_CS_API_TOKEN}`). Generate in ChirpStack under API Keys |
+| `LORALARM_CS_API_TOKEN` | *(empty — set after import)* | ChirpStack API bearer token for `device downlink` nodes (`${LORALARM_CS_API_TOKEN}`). Defined once in `flow_inputs.json` global env -- set it there after import (or as an OS environment variable of the Node-RED process) and every sensor flow resolves it. Generate the key in ChirpStack under API Keys |
 | `LORALARM_TTN_BROKER` | `eu1.cloud.thethings.network` | TTN MQTT broker |
 | `LORALARM_TTN_APP` | `larm-test@ttn` | TTN downlink topics (function nodes) |
 | `LORALARM_TTN_UP_TOPIC` | `v3/larm-test@ttn/devices/+/up` | TTN uplink subscription -- must match `LORALARM_TTN_APP` |

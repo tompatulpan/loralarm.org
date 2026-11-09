@@ -8,6 +8,178 @@
         "env": []
     },
     {
+        "id": "cs_comment",
+        "type": "comment",
+        "z": "73fec5176ff2b148",
+        "name": "CHIRPSTACK SETTINGS - IMPORTANT: Read this!",
+        "info": "=== WHERE TO EDIT CHIRPSTACK CONFIG ===\n\nThe global-config node is NOT visible on this canvas!\nIt does not matter how much you scroll - you will not find it here.\n\nHOW TO FIND IT:\n  1. Menu (\u2630, top right corner of Node-RED)\n  2. Click 'Configuration Nodes'\n  3. Double-click 'global-config' (id: dcd6abce8967b75f)\n  4. Edit LORALARM_CS_API and LORALARM_CS_API_TOKEN\n  5. Click 'Deploy'\n\nWHAT TO SET:\n  LORALARM_CS_API       = 192.168.2.26:8080 (your ChirpStack server, NOT localhost!)\n  LORALARM_CS_API_TOKEN = your JWT API token from ChirpStack (API Keys page)\n\nWARNING:\n  Every flow import (sensor flows etc.) OVERWRITES these values!\n  After ANY flow import, re-check:\n  Menu -> Configuration Nodes -> global-config\n\nDownlink fails with 'Enqueue error' if these are wrong.\nClick 'Test ChirpStack' button below to verify after editing.",
+        "x": 250,
+        "y": 20,
+        "wires": []
+    },
+    {
+        "id": "cs_test_btn",
+        "type": "inject",
+        "z": "73fec5176ff2b148",
+        "name": "Test ChirpStack",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "test",
+        "payload": "",
+        "payloadType": "date",
+        "x": 140,
+        "y": 60,
+        "wires": [
+            [
+                "cs_build_test"
+            ]
+        ]
+    },
+    {
+        "id": "cs_build_test",
+        "type": "function",
+        "z": "73fec5176ff2b148",
+        "name": "Build test requests",
+        "func": "var s = env.get(\"LORALARM_CS_API\");\nvar t = env.get(\"LORALARM_CS_API_TOKEN\");\nif (!s || s === \"localhost:8080\" || !t || t === \"CHANGE_ME_TO_YOUR_CHIRPSTACK_API_TOKEN\") {\n    node.error(\"ChirpStack not configured! Fix: Menu -> Configuration Nodes -> global-config. Set LORALARM_CS_API and LORALARM_CS_API_TOKEN.\");\n    return null;\n}\nvar p = (s.startsWith(\"http\") ? \"\" : \"http://\") + s;\nvar h1 = {payload:{}, url:p + \"/api/health\", method:\"GET\", headers:{}};\nvar h2 = {payload:{}, url:p + \"/api/applications\", method:\"GET\", headers:{\"Authorization\": \"Bearer \" + t}};\nreturn [h1, h2];",
+        "outputs": 2,
+        "noerr": 0,
+        "x": 380,
+        "y": 60,
+        "wires": [
+            [
+                "cs_http_health"
+            ],
+            [
+                "cs_http_apps"
+            ]
+        ]
+    },
+    {
+        "id": "cs_http_health",
+        "type": "http request",
+        "z": "73fec5176ff2b148",
+        "name": "Health check",
+        "method": "GET",
+        "ret": "obj",
+        "url": "",
+        "tls": "",
+        "x": 620,
+        "y": 40,
+        "wires": [
+            [
+                "cs_result_health"
+            ]
+        ]
+    },
+    {
+        "id": "cs_result_health",
+        "type": "function",
+        "z": "73fec5176ff2b148",
+        "name": "Health result",
+        "func": "if (msg.statusCode === 200) {\n    node.log(\"[OK] ChirpStack health check passed - server reachable\");\n    msg.payload = \"Server: OK\";\n} else {\n    node.error(\"[FAIL] ChirpStack health check failed: \" + msg.statusCode + \" - check server address\");\n    msg.payload = \"Server: FAIL (\" + msg.statusCode + \")\";\n}\nmsg.topic = \"health\";\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 800,
+        "y": 40,
+        "wires": [
+            [
+                "cs_status"
+            ]
+        ]
+    },
+    {
+        "id": "cs_http_apps",
+        "type": "http request",
+        "z": "73fec5176ff2b148",
+        "name": "API auth check",
+        "method": "GET",
+        "ret": "obj",
+        "url": "",
+        "tls": "",
+        "x": 620,
+        "y": 100,
+        "wires": [
+            [
+                "cs_result_apps"
+            ]
+        ]
+    },
+    {
+        "id": "cs_result_apps",
+        "type": "function",
+        "z": "73fec5176ff2b148",
+        "name": "API auth result",
+        "func": "if (msg.statusCode === 200) {\n    node.log(\"[OK] ChirpStack API auth passed - token valid\");\n    msg.payload = \"Token: OK\";\n} else if (msg.statusCode === 401) {\n    node.error(\"[FAIL] ChirpStack API auth failed: Invalid token. Set correct LORALARM_CS_API_TOKEN in global-config. This causes 'Enqueue error'.\");\n    msg.payload = \"Token: FAIL (401 Invalid)\";\n} else if (msg.statusCode >= 400) {\n    node.error(\"[FAIL] ChirpStack API auth failed: \" + msg.statusCode + \" - check server + token\");\n    msg.payload = \"Token: FAIL (\" + msg.statusCode + \")\";\n} else {\n    msg.payload = \"Token: Unknown (\" + msg.statusCode + \")\";\n}\nmsg.topic = \"auth\";\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 800,
+        "y": 100,
+        "wires": [
+            [
+                "cs_status"
+            ]
+        ]
+    },
+    {
+        "id": "cs_status",
+        "type": "debug",
+        "z": "73fec5176ff2b148",
+        "name": "ChirpStack Test Results",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": true,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 980,
+        "y": 70,
+        "wires": []
+    },
+    {
+        "id": "cs_startup_check",
+        "type": "function",
+        "z": "73fec5176ff2b148",
+        "name": "Startup check",
+        "func": "var s = env.get(\"LORALARM_CS_API\");\nvar t = env.get(\"LORALARM_CS_API_TOKEN\");\nif (!s || s === \"localhost:8080\") {\n    node.warn(\"[STARTUP] ChirpStack server WRONG! Currently: '\" + (s || 'empty') + \"'. Fix: Menu -> Configuration Nodes -> global-config -> LORALARM_CS_API = your-server:8080\");\n}\nif (!t || t === \"\" || t === \"CHANGE_ME_TO_YOUR_CHIRPSTACK_API_TOKEN\") {\n    node.warn(\"[STARTUP] ChirpStack API token NOT SET! Fix: Menu -> Configuration Nodes -> global-config -> LORALARM_CS_API_TOKEN = your JWT token. This causes 'Enqueue error'.\");\n}\nreturn null;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 340,
+        "y": 140,
+        "wires": []
+    },
+    {
+        "id": "cs_startup_inject",
+        "type": "inject",
+        "z": "73fec5176ff2b148",
+        "name": "Check config on startup",
+        "props": [],
+        "repeat": "",
+        "crontab": "",
+        "once": true,
+        "onceDelay": "1",
+        "topic": "",
+        "x": 140,
+        "y": 140,
+        "wires": [
+            [
+                "cs_startup_check"
+            ]
+        ]
+    },
+    {
         "id": "5ae1fd78202f2979",
         "type": "change",
         "z": "73fec5176ff2b148",
@@ -513,7 +685,7 @@
             },
             {
                 "name": "LORALARM_CS_API_TOKEN",
-                "value": "",
+                "value": "CHANGE_ME_TO_YOUR_CHIRPSTACK_API_TOKEN",
                 "type": "str"
             }
         ],
