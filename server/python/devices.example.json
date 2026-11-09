@@ -1,0 +1,28 @@
+{
+  "defaults": {
+    "kind": "sensor",
+    "tilt_sense_g": 0.3,
+    "watchdog_hours": 24,
+    "ntfy_topic": "loralarm"
+  },
+  "families": {
+    "RAK3172": {
+      "tk_correction_c": 0.0,
+      "temp_alarm_limit_c": 0.0,
+      "batt_full_v": 3.1,
+      "batt_warn_v": 2.9,
+      "batt_empty_v": 2.8
+    },
+    "RAK4631": {
+      "tk_correction_c": 8.0,
+      "temp_alarm_limit_c": 2.0,
+      "batt_full_v": 4.2,
+      "batt_warn_v": 3.5,
+      "batt_empty_v": 3.2
+    }
+  },
+  "devices": {
+    "ac1f09fffe1003ae": { "name": "sensor3" },
+    "ac1f09fffe12da63": { "name": "sensor16", "ntfy_topic": "sensor16" }
+  }
+}
