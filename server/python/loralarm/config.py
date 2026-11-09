@@ -8,7 +8,7 @@ JSON keeps the test app dependency-free; PyYAML can replace the loader later.
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +29,11 @@ class DeviceConfig:
     ntfy_topic: str = "loralarm"
     pushover_user: str = ""
     pushover_token: str = ""
+    # notification texts: {name} and {detail} are substituted; keys are
+    # alarm kinds (temp, battery_low, battery_empty, motion, circuit, tilt, stale)
+    notify_title: str = "loralarm {name}"
+    notify_fire: dict[str, str] = field(default_factory=dict)
+    notify_clear: dict[str, str] = field(default_factory=dict)
 
 
 # Migration spec §4: RUI3 = 3 V cell (0 °C Tk, alarm limit 0 °C), RAK4631 Android = LiPo (8 °C Tk, limit 2 °C).

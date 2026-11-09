@@ -72,15 +72,18 @@ def evaluate(cfg: DeviceConfig, up: Uplink) -> tuple[Reading, list[Transition]]:
 
     fired: list[Transition] = []
     if temp_c is not None and temp_c <= cfg.temp_alarm_limit_c:
-        fired.append(Transition(AlarmKind.TEMP, True, f"{temp_c} °C ≤ limit {cfg.temp_alarm_limit_c} °C"))
+        fired.append(Transition(AlarmKind.TEMP, True,
+                                f"{temp_c} °C ≤ gräns {cfg.temp_alarm_limit_c} °C"))
     if batt_status == "low":
-        fired.append(Transition(AlarmKind.BATTERY_LOW, True, f"{batt_v} V ≤ warn {cfg.batt_warn_v} V"))
+        fired.append(Transition(AlarmKind.BATTERY_LOW, True,
+                                f"{batt_v:.2f} V ({batt_percent} %) ≤ varningsgräns {cfg.batt_warn_v} V"))
     elif batt_status == "empty":
-        fired.append(Transition(AlarmKind.BATTERY_EMPTY, True, f"{batt_v} V < empty {cfg.batt_empty_v} V"))
+        fired.append(Transition(AlarmKind.BATTERY_EMPTY, True,
+                                f"{batt_v:.2f} V ({batt_percent} %) < tomt {cfg.batt_empty_v} V"))
     if o.get("motion_alert"):
-        fired.append(Transition(AlarmKind.MOTION, True, "motion_alert=1"))
+        fired.append(Transition(AlarmKind.MOTION, True, "rörelse upptäckt"))
     if o.get("motion_switch"):
-        fired.append(Transition(AlarmKind.CIRCUIT, True, "circuit open"))
+        fired.append(Transition(AlarmKind.CIRCUIT, True, "krets öppen"))
     return reading, fired
 
 
@@ -104,6 +107,7 @@ class AlarmState:
     active: set[AlarmKind] = field(default_factory=set)
     last_seen: datetime | None = None
     accel_baseline: dict[str, float] = field(default_factory=dict)  # EMA per axis, from non-alarming samples
+    last_detail: dict[AlarmKind, str] = field(default_factory=dict)  # fired detail, reused on the clear
 
     def update(self, cfg: DeviceConfig, up: Uplink) -> tuple[Reading, list[Transition]]:
         reading, fired = evaluate(cfg, up)
@@ -114,7 +118,7 @@ class AlarmState:
             axis = tilt_deviation(acc, self.accel_baseline, cfg.tilt_sense_g)
             if axis is not None:
                 fired.append(Transition(AlarmKind.TILT, True,
-                                        f"{axis} moved {abs(float(acc[axis]) - self.accel_baseline[axis]):.3f} g > {cfg.tilt_sense_g}"))
+                                        f"{axis}-axeln rörde sig {abs(float(acc[axis]) - self.accel_baseline[axis]):.2f} g (> {cfg.tilt_sense_g} g)"))
             else:
                 # update baseline only from calm samples so a tilted reading never becomes the reference
                 for k, v in acc.items():
@@ -125,8 +129,9 @@ class AlarmState:
         for t in fired:
             if t.kind not in self.active:
                 transitions.append(t)
+                self.last_detail[t.kind] = t.detail
         for kind in self.active - now_active:
-            transitions.append(Transition(kind, False, "cleared"))
+            transitions.append(Transition(kind, False, self.last_detail.pop(kind, "kvitterad")))
         self.active = now_active
         return reading, transitions
 
@@ -136,8 +141,8 @@ class AlarmState:
         stale = now - self.last_seen > timedelta(hours=cfg.watchdog_hours)
         if stale and AlarmKind.STALE not in self.active:
             self.active.add(AlarmKind.STALE)
-            return [Transition(AlarmKind.STALE, True, f"no uplink for {now - self.last_seen}")]
+            return [Transition(AlarmKind.STALE, True, f"ingen uplink på {now - self.last_seen}")]
         if not stale and AlarmKind.STALE in self.active:
             self.active.discard(AlarmKind.STALE)
-            return [Transition(AlarmKind.STALE, False, "uplink received")]
+            return [Transition(AlarmKind.STALE, False, "uplink mottagen")]
         return []
