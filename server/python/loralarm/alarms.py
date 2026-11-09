@@ -24,6 +24,18 @@ class AlarmKind(str, Enum):
     STALE = "stale"          # watchdog: no uplink within watchdog_hours
 
 
+# user-facing Swedish labels for every alarm kind (notification text + console)
+LABELS = {
+    "temp": "Temperaturalarm",
+    "battery_low": "Batterinivå låg",
+    "battery_empty": "Batteri tomt",
+    "motion": "Rörelselarm",
+    "circuit": "Kretslarm",
+    "tilt": "Tiltlarm",
+    "stale": "Ingen kontakt (watchdog)",
+}
+
+
 @dataclass
 class Reading:
     temp_c: float | None

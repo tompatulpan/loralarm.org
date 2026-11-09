@@ -1,5 +1,6 @@
-"""First test application: run captured ChirpStack up events through the alarm
-evaluation, or subscribe live to Mosquitto.
+"""Test harness: run captured ChirpStack up events through the alarm
+evaluation, or subscribe live to Mosquitto. Uses the same Engine as the
+service, so replay output == service output.
 
     cd server/python
     python3 -m loralarm.replay ../chirpstack/log/*.json --config devices.example.json
@@ -14,34 +15,9 @@ import argparse
 import sys
 from pathlib import Path
 
-from .alarms import AlarmState, Transition
 from .config import Config
 from .event import Uplink
-
-LABELS = {
-    "temp": "Temperaturalarm",
-    "battery_low": "Batterinivå låg",
-    "battery_empty": "Batteri tomt",
-    "motion": "Rörelselarm",
-    "circuit": "Kretslarm",
-    "tilt": "Tiltlarm",
-    "stale": "Ingen kontakt (watchdog)",
-}
-
-
-def handle(config: Config, states: dict[str, AlarmState], up: Uplink) -> None:
-    cfg = config.for_event(up.dev_eui, up.device_name, up.device_profile_name)
-    state = states.setdefault(up.dev_eui, AlarmState())
-    reading, transitions = state.update(cfg, up)
-    print(f"{up.time:%Y-%m-%d %H:%M:%S} {up.device_name:<10} {up.device_profile_name:<8} "
-          f"fPort={up.f_port} fCnt={up.f_cnt} rssi={reading.rssi} snr={reading.snr}")
-    if up.is_sensor_data:
-        print(f"    temp={reading.temp_c} °C  batt={reading.batt_v} V "
-              f"({reading.batt_percent} %, {reading.batt_status})")
-    else:
-        print(f"    settings fPort {up.f_port}: {up.settings_text()!r}")
-    for t in transitions:
-        print(f"    >>> {LABELS[t.kind.value]}: {'LARM' if t.active else 'kvitterad'} — {t.detail}")
+from .service import Engine
 
 
 def main() -> int:
@@ -54,8 +30,7 @@ def main() -> int:
     ap.add_argument("--pass", dest="password", default=None, help="Mosquitto password")
     args = ap.parse_args()
 
-    config = Config.load(args.config)
-    states: dict[str, AlarmState] = {}
+    engine = Engine(Config.load(args.config))
 
     if args.mqtt:
         try:
@@ -72,7 +47,7 @@ def main() -> int:
                 print(f"connection refused: {reason_code}", file=sys.stderr)
 
         def on_message(_client, _userdata, msg):
-            handle(config, states, Uplink.from_json(msg.payload))
+            engine.on_uplink(Uplink.from_json(msg.payload))
 
         client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
         client.username_pw_set(args.user, args.password)
@@ -83,7 +58,7 @@ def main() -> int:
         return 0
 
     for path in args.logs:
-        handle(config, states, Uplink.from_file(path))
+        engine.on_uplink(Uplink.from_file(path))
     return 0
 
 

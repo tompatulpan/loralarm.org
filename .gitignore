@@ -9,6 +9,7 @@ secrets.h
 
 # Logs from device firmware / debugging
 *.log
+log/
 
 # TODO file - local only
 server/ToDo.txt
