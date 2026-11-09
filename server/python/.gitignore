@@ -16,3 +16,12 @@ venv/
 build/
 dist/
 *.egg-info/
+
+# Local secrets / runtime data — never commit these.
+# NB: gitignore has no inline comments; keep comments on their own lines.
+notes.txt
+# the real config (devices.example.json is the tracked template)
+devices.json
+.env
+# SQLite events log lives here at runtime
+*.db

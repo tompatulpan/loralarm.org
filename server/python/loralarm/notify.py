@@ -1,22 +1,34 @@
 """Alarm notifications, one function / two channels (migration spec §7.5):
 ntfy first (self-hosted), Pushover per-device when `pushover_user` /
 `pushover_token` are configured. stdlib only - no httpx dependency for this.
+
+Delivery is asynchronous: `notify()` only enqueues; a single worker thread
+sends with retries, so a slow ntfy/Pushover endpoint can never stall the MQTT
+callback thread or the keepalive. Every attempt is logged (and would be the
+place to record delivery status in the events DB).
 """
 from __future__ import annotations
 
+import logging
+import queue
+import threading
 import urllib.parse
 import urllib.request
+from email.header import Header
 
 from .alarms import LABELS
 from .config import DeviceConfig
 
+log = logging.getLogger(__name__)
+
 PUSHOVER_API = "https://api.pushover.net/1/messages.json"
 
-# Example notification texts per alarm kind, fire / clear: {name} and {detail}
-# are substituted (detail carries the measured values, e.g. "3.57 V ≤ warn 3.5 V").
+# Built-in notification texts per alarm kind, fire / clear: {name}, {detail}
+# and {label} are substituted (detail carries the measured values, e.g.
+# "3.57 V ≤ varningsgräns 3.5 V"). Config templates win over these built-ins.
 # Keep in sync with alarms.LABELS when adding a kind; tuned during cutover
 # (checklist step 9) until the phone shows the same as Node-RED did.
-EXAMPLE_TEXT: dict[str, tuple[str, str]] = {
+DEFAULT_TEXT: dict[str, tuple[str, str]] = {
     "temp":          ("❄️ TEMPERATURALARM: {name} — {detail}",
                       "🌡️ Temperatur OK: {name} — {detail}"),
     "battery_low":   ("🔋 BATTERI LÅGT: {name} — {detail}",
@@ -33,15 +45,18 @@ EXAMPLE_TEXT: dict[str, tuple[str, str]] = {
                       "✔️ Kontakt åter: {name} — {detail}"),
 }
 
+# backwards-compatible alias; the texts are the live defaults, not an example
+EXAMPLE_TEXT = DEFAULT_TEXT
+
 
 def message_text(kind: str, name: str, active: bool, detail: str,
                  fire: dict | None = None, clear: dict | None = None) -> str:
-    """Config templates (per kind) win over the EXAMPLE_TEXT built-ins.
+    """Config templates (per kind) win over the DEFAULT_TEXT built-ins.
     Available substitutions: {name} {detail} {label}."""
     templates = (fire or {}) if active else (clear or {})
     template = templates.get(kind)
     if not template:
-        fire_tpl, clear_tpl = EXAMPLE_TEXT.get(kind, ("", ""))
+        fire_tpl, clear_tpl = DEFAULT_TEXT.get(kind, ("", ""))
         template = fire_tpl if active else clear_tpl
     if not template:
         state = "LARM" if active else "kvitterad"
@@ -49,46 +64,113 @@ def message_text(kind: str, name: str, active: bool, detail: str,
     return template.format(name=name, detail=detail, label=LABELS.get(kind, kind))
 
 
+def encode_header(value: str) -> str:
+    """RFC 2047-encode a header value so non-ASCII titles survive http.client
+    (which requires latin-1-encodable header bytes)."""
+    return Header(value, "utf-8").encode()
+
+
 class Notifier:
-    def __init__(self, ntfy_url: str = "https://ntfy.sh", dry_run: bool = False,
-                 timeout: float = 10.0):
+    """Queued notifier: notify() enqueues, one worker thread delivers with retry.
+
+    Without start() (replay, tests) notify() sends inline, so behavior stays
+    synchronous and easy to assert.
+    """
+
+    def __init__(self, ntfy_url: str, dry_run: bool = False,
+                 timeout: float = 10.0, retries: int = 3,
+                 ntfy_token: str | None = None):
         self.ntfy_url = ntfy_url.rstrip("/")
         self.dry_run = dry_run
         self.timeout = timeout
+        self.retries = retries
+        self.ntfy_token = ntfy_token  # Bearer token for self-hosted ntfy with auth
+        self._queue: queue.Queue = queue.Queue()
+        self._worker: threading.Thread | None = None
+        self._closed = False
+
+    def start(self) -> None:
+        if self._worker is None:
+            self._worker = threading.Thread(target=self._run, name="loralarm-notify",
+                                            daemon=True)
+            self._worker.start()
+
+    def close(self, drain: bool = True) -> None:
+        """Stop the worker; with drain=True, deliver everything still queued."""
+        self._closed = True
+        if self._worker is not None:
+            self._queue.put(None)
+            self._worker.join(timeout=self.timeout * (self.retries + 1) + 5)
+            self._worker = None
 
     def notify(self, cfg: DeviceConfig, kind: str, active: bool, detail: str) -> None:
+        if self._worker is not None and not self._closed:
+            self._queue.put((cfg, kind, active, detail))
+        else:
+            self._deliver(cfg, kind, active, detail)
+
+    def _run(self) -> None:
+        while True:
+            job = self._queue.get()
+            if job is None:
+                return
+            cfg, kind, active, detail = job
+            try:
+                self._deliver(cfg, kind, active, detail)
+            except Exception:
+                # _deliver already catches per-channel errors; this is a last
+                # resort so the worker thread can never die silently
+                log.exception("notification worker failed for %s %s", cfg.dev_eui, kind)
+
+    def _deliver(self, cfg: DeviceConfig, kind: str, active: bool, detail: str) -> None:
         name = cfg.name or cfg.dev_eui
         message = message_text(kind, name, active, detail,
                                cfg.notify_fire, cfg.notify_clear)
-        title = cfg.notify_title.format(name=name, kind=kind, detail=detail)
+        title = cfg.notify_title.format(name=name, kind=kind, detail=detail,
+                                        label=LABELS.get(kind, kind))
 
         if self.dry_run:
-            print(f"    [dry-run] ntfy {cfg.ntfy_topic}: {message}")
-        else:
-            self._ntfy(cfg.ntfy_topic, title, message, active)
+            log.info("[dry-run] ntfy %s: %s | %s", cfg.ntfy_topic, title, message)
+            if cfg.pushover_user and cfg.pushover_token:
+                log.info("[dry-run] pushover %s: %s | %s", name, title, message)
+            return
 
+        self._send(self._ntfy, cfg.ntfy_topic, title, message, active,
+                   label="ntfy", target=cfg.ntfy_topic)
         if cfg.pushover_user and cfg.pushover_token:
-            if self.dry_run:
-                print(f"    [dry-run] pushover {name}: {message}")
-            else:
-                self._pushover(cfg.pushover_token, cfg.pushover_user,
-                               title, message, active)
+            self._send(self._pushover, cfg.pushover_token, cfg.pushover_user,
+                       title, message, active, label="pushover", target=name)
+
+    def _send(self, fn, *args, label: str, target: str) -> bool:
+        """One channel with retry; returns True on success. Never raises."""
+        for attempt in range(1, self.retries + 1):
+            try:
+                fn(*args)
+                log.info("%s delivered to %s (attempt %d)", label, target, attempt)
+                return True
+            except Exception as e:  # OSError, http.client.HTTPException, UnicodeEncodeError, ...
+                log.warning("%s attempt %d/%d to %s failed: %s", label, attempt,
+                            self.retries, target, e)
+        log.error("%s FAILED after %d attempts to %s — alarm not delivered",
+                  label, self.retries, target)
+        return False
 
     def _ntfy(self, topic: str, title: str, message: str, active: bool) -> None:
         # same shape as the Node-RED flows: plain-text body, metadata in headers
         # (ntfy JSON bodies render as raw metadata on some clients)
+        headers = {
+            "Content-Type": "text/plain; charset=utf-8",
+            "Title": encode_header(title),
+            "Tags": "rotating_light" if active else "white_check_mark",
+            "Priority": "5" if active else "3",
+        }
+        if self.ntfy_token:
+            headers["Authorization"] = f"Bearer {self.ntfy_token}"
         req = urllib.request.Request(
             f"{self.ntfy_url}/{topic}", data=message.encode("utf-8"),
-            headers={
-                "Content-Type": "text/plain; charset=utf-8",
-                "Title": title,
-                "Tags": "rotating_light" if active else "white_check_mark",
-                "Priority": "5" if active else "3",
-            })
-        try:
-            urllib.request.urlopen(req, timeout=self.timeout).read()
-        except OSError as e:
-            print(f"    [ntfy error] topic {topic}: {e}", flush=True)
+            headers=headers)
+        with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+            resp.read()
 
     def _pushover(self, token: str, user: str, title: str, message: str,
                   active: bool) -> None:
@@ -97,7 +179,5 @@ class Notifier:
             "priority": 1 if active else 0,
         }).encode()
         req = urllib.request.Request(PUSHOVER_API, data=data)
-        try:
-            urllib.request.urlopen(req, timeout=self.timeout).read()
-        except OSError as e:
-            print(f"    [pushover error] {e}", flush=True)
+        with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+            resp.read()

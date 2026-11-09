@@ -1,0 +1,4 @@
+# loralarm service runtime dependencies (stdlib otherwise)
+paho-mqtt>=2.0,<3
+
+# tests: python3 -m unittest discover -s tests   (or pytest, if installed)

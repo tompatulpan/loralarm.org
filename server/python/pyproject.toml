@@ -1,0 +1,14 @@
+[project]
+name = "loralarm"
+version = "0.1.0"
+description = "LoRaWAN alarm service: ChirpStack MQTT uplinks -> alarm state machine -> ntfy/Pushover + SQLite event log"
+requires-python = ">=3.11"   # fromisoformat with 'Z'/nanoseconds, dataclass slots, etc.
+dependencies = [
+    "paho-mqtt>=2.0,<3",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

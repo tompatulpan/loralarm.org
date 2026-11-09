@@ -48,7 +48,7 @@ class Uplink:
             device_name=info["deviceName"],
             application_name=info.get("applicationName", ""),
             device_profile_name=info.get("deviceProfileName", ""),
-            f_port=ev["fPort"],
+            f_port=ev.get("fPort", 0),   # ChirpStack may omit fPort on some events
             f_cnt=ev.get("fCnt", 0),
             time=datetime.fromisoformat(ev["time"]),
             data_b64=ev.get("data", ""),

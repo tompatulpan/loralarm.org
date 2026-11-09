@@ -1,16 +1,47 @@
 """Per-device configuration, keyed by devEUI (fallback: device name).
 
-Layering (most specific wins): `defaults` <- `families[<device profile>]` <- `devices[<devEUI>`].
+Layering (most specific wins): `defaults` <- `families[<device profile>]` <- `devices[<devEUI>]`.
 Family defaults encode the two sensor families from the migration spec §4;
 per-device values (Tk, battery thresholds, ntfy topic, ...) never live in codecs.
 JSON keeps the test app dependency-free; PyYAML can replace the loader later.
+
+Secrets never live in the tracked files: any string of the form "${VAR}" is
+expanded from the environment at load time (unset variables expand to "" and
+are reported), so devices.example.json can stay in git while the real
+devices.json / .env stay untracked.
 """
 from __future__ import annotations
 
 import json
+import logging
+import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+log = logging.getLogger(__name__)
+
+_ENV_RE = re.compile(r"^\$\{([A-Za-z_][A-Za-z0-9_]*)\}$")
+
+
+def _expand(value: Any, where: str) -> Any:
+    """Recursively expand "${VAR}" strings from the environment."""
+    if isinstance(value, str):
+        m = _ENV_RE.match(value)
+        if m:
+            env = os.environ.get(m.group(1))
+            if env is None:
+                log.warning("config %s: environment variable %s is not set; using empty value",
+                            where, m.group(1))
+                return ""
+            return env
+        return value
+    if isinstance(value, dict):
+        return {k: _expand(v, where) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_expand(v, where) for v in value]
+    return value
 
 
 @dataclass
@@ -29,14 +60,14 @@ class DeviceConfig:
     ntfy_topic: str = "loralarm"
     pushover_user: str = ""
     pushover_token: str = ""
-    # notification texts: {name} and {detail} are substituted; keys are
+    # notification texts: {name} {detail} {label} are substituted; keys are
     # alarm kinds (temp, battery_low, battery_empty, motion, circuit, tilt, stale)
     notify_title: str = "loralarm {name}"
     notify_fire: dict[str, str] = field(default_factory=dict)
     notify_clear: dict[str, str] = field(default_factory=dict)
 
 
-# Migration spec §4: RUI3 = 3 V cell (0 °C Tk, alarm limit 0 °C), RAK4631 Android = LiPo (8 °C Tk, limit 2 °C).
+# Migration spec §4: RAK3172 = 3 V cell (0 °C Tk, alarm limit 0 °C), RAK4631 Android = LiPo (8 °C Tk, limit 2 °C).
 FAMILY_DEFAULTS: dict[str, dict[str, Any]] = {
     "RAK3172": dict(tk_correction_c=0.0, temp_alarm_limit_c=0.0,
                     batt_full_v=3.1, batt_warn_v=2.9, batt_empty_v=2.8),
@@ -44,24 +75,57 @@ FAMILY_DEFAULTS: dict[str, dict[str, Any]] = {
                     batt_full_v=4.2, batt_warn_v=3.5, batt_empty_v=3.2),
 }
 
+# expected type per DeviceConfig field, for config validation
+_FIELD_TYPES: dict[str, tuple[type, ...]] = {
+    "name": (str,), "family": (str,), "kind": (str,),
+    "tk_correction_c": (int, float), "temp_alarm_limit_c": (int, float),
+    "batt_full_v": (int, float), "batt_warn_v": (int, float),
+    "batt_empty_v": (int, float), "tilt_sense_g": (int, float),
+    "watchdog_hours": (int, float), "ntfy_topic": (str,),
+    "pushover_user": (str,), "pushover_token": (str,),
+    "notify_title": (str,), "notify_fire": (dict,), "notify_clear": (dict,),
+}
+
 
 class Config:
     def __init__(self, data: dict[str, Any]):
+        data = _expand(data, "config")
         self.defaults = data.get("defaults", {})
         self.families = {**FAMILY_DEFAULTS, **data.get("families", {})}
-        self.devices = data.get("devices", {})
+        # devEUIs are lowercased on the wire (Uplink lowercases them), so the
+        # lookup keys must be lowercase too or an uppercase key never matches
+        self.devices = {str(k).lower(): v for k, v in data.get("devices", {}).items()}
+        self._warn_unknown("defaults", self.defaults)
+        for fam, fvals in data.get("families", {}).items():
+            self._warn_unknown(f"families.{fam}", fvals)
+        for eui, entry in data.get("devices", {}).items():
+            self._warn_unknown(f"devices.{eui}", entry)
+
+    @staticmethod
+    def _warn_unknown(where: str, section: dict[str, Any]) -> None:
+        for key in section:
+            if key not in _FIELD_TYPES:
+                log.warning("config %s: unknown key %r ignored (typo?)", where, key)
 
     @classmethod
     def load(cls, path: str | Path) -> "Config":
         return cls(json.loads(Path(path).read_text()))
 
     def for_event(self, dev_eui: str, device_name: str = "", family: str = "") -> DeviceConfig:
-        entry = self.devices.get(dev_eui) or self.devices.get(device_name) or {}
+        dev_eui = dev_eui.lower()
+        entry = self.devices.get(dev_eui) or self.devices.get(device_name.lower()) or {}
         merged = {**self.defaults, **self.families.get(family, {}), **entry}
         fields = set(DeviceConfig.__dataclass_fields__) - {"dev_eui", "name", "family"}
-        return DeviceConfig(
-            dev_eui=dev_eui,
-            name=device_name or merged.get("name", ""),
-            family=family,
-            **{k: v for k, v in merged.items() if k in fields},
-        )
+        kwargs: dict[str, Any] = {}
+        for k, v in merged.items():
+            if k not in fields:
+                continue
+            expected = _FIELD_TYPES.get(k)
+            if expected and not isinstance(v, expected):
+                log.warning("config for %s: key %r should be %s, got %r; keeping it anyway",
+                            dev_eui, k, expected, v)
+            kwargs[k] = v
+        # the configured name is the most specific source and wins over the
+        # ChirpStack deviceName; fall back to deviceName, then the devEUI
+        name = merged.get("name") or device_name or dev_eui
+        return DeviceConfig(dev_eui=dev_eui, name=name, family=family, **kwargs)

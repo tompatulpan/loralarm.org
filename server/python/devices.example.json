@@ -3,26 +3,39 @@
     "kind": "sensor",
     "tilt_sense_g": 0.3,
     "watchdog_hours": 24,
-    "ntfy_topic": "loralarm"
-  },
-  "families": {
-    "RAK3172": {
-      "tk_correction_c": 0.0,
-      "temp_alarm_limit_c": 0.0,
-      "batt_full_v": 3.1,
-      "batt_warn_v": 2.9,
-      "batt_empty_v": 2.8
+    "ntfy_topic": "loralarm",
+    "notify_title": "loralarm {name}",
+    "notify_fire": {
+      "temp": "{label} på {name}: {detail}",
+      "battery_low": "{label} på {name}: {detail}",
+      "battery_empty": "{label} på {name}: {detail}",
+      "motion": "{label} på {name}",
+      "circuit": "{label} på {name}: {detail}",
+      "tilt": "{label} på {name}: {detail}",
+      "stale": "{label} på {name}: {detail}"
     },
-    "RAK4631": {
-      "tk_correction_c": 8.0,
-      "temp_alarm_limit_c": 2.0,
-      "batt_full_v": 4.2,
-      "batt_warn_v": 3.5,
-      "batt_empty_v": 3.2
+    "notify_clear": {
+      "temp": "{label} kvitterad på {name}",
+      "battery_low": "{label} kvitterad på {name}",
+      "battery_empty": "{label} kvitterad på {name}",
+      "motion": "{label} kvitterad på {name}",
+      "circuit": "{label} kvitterad på {name}",
+      "tilt": "{label} kvitterad på {name}",
+      "stale": "{label} kvitterad på {name}"
     }
   },
   "devices": {
-    "ac1f09fffe1003ae": { "name": "sensor3" },
-    "ac1f09fffe12da63": { "name": "sensor16", "ntfy_topic": "sensor16" }
+    "ac1f09fffe1003ae": {
+      "name": "sensor3",
+      "ntfy_topic": "sensor3",
+      "pushover_user": "${LORALARM_PUSHOVER_USER}",
+      "pushover_token": "${LORALARM_PUSHOVER_TOKEN}"
+    },
+    "ac1f09fffe12da63": {
+      "name": "sensor16",
+      "ntfy_topic": "sensor16",
+      "pushover_user": "${LORALARM_PUSHOVER_USER}",
+      "pushover_token": "${LORALARM_PUSHOVER_TOKEN}"
+    }
   }
 }
