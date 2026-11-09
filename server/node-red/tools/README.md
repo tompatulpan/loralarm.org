@@ -15,7 +15,7 @@ Node-RED flow with its own dashboard tab.
 python3 nodered_copy_flow.py ../components/flow_sensor_rui.json flow_sensor2_rui.json --to 2
 
 # new sensor 3 with deployment overrides
-python3 nodered_copy_flow.py ../components/flow_sensor_android_rak4631.json \
+python3 nodered_copy_flow.py ../components/flow_sensor_arduino_rak4631.json \
     flow_sensor3_android.json --to 3 \
     --broker 192.168.2.26 --broker-port 1883 \
     --ntfy-base 127.0.0.1:8075 \

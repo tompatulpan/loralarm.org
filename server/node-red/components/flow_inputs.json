@@ -13,8 +13,8 @@
         "z": "73fec5176ff2b148",
         "name": "CHIRPSTACK SETTINGS - IMPORTANT: Read this!",
         "info": "=== WHERE TO EDIT CHIRPSTACK CONFIG ===\n\nThe global-config node is NOT visible on this canvas!\nIt does not matter how much you scroll - you will not find it here.\n\nHOW TO FIND IT:\n  1. Menu (\u2630, top right corner of Node-RED)\n  2. Click 'Configuration Nodes'\n  3. Double-click 'global-config' (id: dcd6abce8967b75f)\n  4. Edit LORALARM_CS_API and LORALARM_CS_API_TOKEN\n  5. Click 'Deploy'\n\nWHAT TO SET:\n  LORALARM_CS_API       = 192.168.2.26:8080 (your ChirpStack server, NOT localhost!)\n  LORALARM_CS_API_TOKEN = your JWT API token from ChirpStack (API Keys page)\n\nWARNING:\n  Every flow import (sensor flows etc.) OVERWRITES these values!\n  After ANY flow import, re-check:\n  Menu -> Configuration Nodes -> global-config\n\nDownlink fails with 'Enqueue error' if these are wrong.\nClick 'Test ChirpStack' button below to verify after editing.",
-        "x": 250,
-        "y": 20,
+        "x": 230,
+        "y": 40,
         "wires": []
     },
     {
@@ -39,7 +39,7 @@
         "payload": "",
         "payloadType": "date",
         "x": 140,
-        "y": 60,
+        "y": 80,
         "wires": [
             [
                 "cs_build_test"
@@ -54,8 +54,8 @@
         "func": "var s = env.get(\"LORALARM_CS_API\");\nvar t = env.get(\"LORALARM_CS_API_TOKEN\");\nif (!s || s === \"localhost:8080\" || !t || t === \"CHANGE_ME_TO_YOUR_CHIRPSTACK_API_TOKEN\") {\n    node.error(\"ChirpStack not configured! Fix: Menu -> Configuration Nodes -> global-config. Set LORALARM_CS_API and LORALARM_CS_API_TOKEN.\");\n    return null;\n}\nvar p = (s.startsWith(\"http\") ? \"\" : \"http://\") + s;\nvar h1 = {payload:{}, url:p + \"/api/health\", method:\"GET\", headers:{}};\nvar h2 = {payload:{}, url:p + \"/api/applications\", method:\"GET\", headers:{\"Authorization\": \"Bearer \" + t}};\nreturn [h1, h2];",
         "outputs": 2,
         "noerr": 0,
-        "x": 380,
-        "y": 60,
+        "x": 370,
+        "y": 80,
         "wires": [
             [
                 "cs_http_health"
@@ -74,8 +74,8 @@
         "ret": "obj",
         "url": "",
         "tls": "",
-        "x": 620,
-        "y": 40,
+        "x": 610,
+        "y": 60,
         "wires": [
             [
                 "cs_result_health"
@@ -90,8 +90,8 @@
         "func": "if (msg.statusCode === 200) {\n    node.log(\"[OK] ChirpStack health check passed - server reachable\");\n    msg.payload = \"Server: OK\";\n} else {\n    node.error(\"[FAIL] ChirpStack health check failed: \" + msg.statusCode + \" - check server address\");\n    msg.payload = \"Server: FAIL (\" + msg.statusCode + \")\";\n}\nmsg.topic = \"health\";\nreturn msg;",
         "outputs": 1,
         "noerr": 0,
-        "x": 800,
-        "y": 40,
+        "x": 790,
+        "y": 60,
         "wires": [
             [
                 "cs_status"
@@ -144,8 +144,8 @@
         "targetType": "msg",
         "statusVal": "",
         "statusType": "auto",
-        "x": 980,
-        "y": 70,
+        "x": 1030,
+        "y": 80,
         "wires": []
     },
     {
@@ -156,7 +156,7 @@
         "func": "var s = env.get(\"LORALARM_CS_API\");\nvar t = env.get(\"LORALARM_CS_API_TOKEN\");\nif (!s || s === \"localhost:8080\") {\n    node.warn(\"[STARTUP] ChirpStack server WRONG! Currently: '\" + (s || 'empty') + \"'. Fix: Menu -> Configuration Nodes -> global-config -> LORALARM_CS_API = your-server:8080\");\n}\nif (!t || t === \"\" || t === \"CHANGE_ME_TO_YOUR_CHIRPSTACK_API_TOKEN\") {\n    node.warn(\"[STARTUP] ChirpStack API token NOT SET! Fix: Menu -> Configuration Nodes -> global-config -> LORALARM_CS_API_TOKEN = your JWT token. This causes 'Enqueue error'.\");\n}\nreturn null;",
         "outputs": 1,
         "noerr": 0,
-        "x": 340,
+        "x": 400,
         "y": 140,
         "wires": []
     },
@@ -171,7 +171,7 @@
         "once": true,
         "onceDelay": "1",
         "topic": "",
-        "x": 140,
+        "x": 170,
         "y": 140,
         "wires": [
             [
@@ -199,7 +199,7 @@
         "to": "",
         "reg": false,
         "x": 350,
-        "y": 220,
+        "y": 340,
         "wires": [
             []
         ]
@@ -223,8 +223,8 @@
         "from": "",
         "to": "",
         "reg": false,
-        "x": 340,
-        "y": 120,
+        "x": 320,
+        "y": 260,
         "wires": [
             []
         ]
@@ -247,7 +247,7 @@
         "payload": "true",
         "payloadType": "bool",
         "x": 110,
-        "y": 120,
+        "y": 260,
         "wires": [
             [
                 "5aeac6c84ecdfd58",
@@ -263,7 +263,7 @@
         "name": "application id",
         "info": "",
         "x": 290,
-        "y": 80,
+        "y": 220,
         "wires": []
     },
     {
@@ -272,8 +272,8 @@
         "z": "73fec5176ff2b148",
         "name": "SensorConfig",
         "info": "",
-        "x": 280,
-        "y": 180,
+        "x": 290,
+        "y": 300,
         "wires": []
     },
     {
@@ -283,7 +283,7 @@
         "name": "<<< outer key (ID) is used for global settings",
         "info": "",
         "x": 690,
-        "y": 220,
+        "y": 340,
         "wires": []
     },
     {
@@ -292,8 +292,8 @@
         "z": "73fec5176ff2b148",
         "name": "Resend 3-axis sensor config on sensor join/restart",
         "info": "Saves threshold/frequency/duration in persistent global context (localfilesystem store).\nOn sensor rejoin (e.g. battery loss), resends last known settings as downlinks.",
-        "x": 230,
-        "y": 440,
+        "x": 240,
+        "y": 500,
         "wires": []
     },
     {
@@ -309,7 +309,7 @@
         "finalize": "",
         "libs": [],
         "x": 340,
-        "y": 280,
+        "y": 400,
         "wires": [
             []
         ]
@@ -327,8 +327,8 @@
         "rap": true,
         "rh": 0,
         "inputs": 0,
-        "x": 120,
-        "y": 480,
+        "x": 130,
+        "y": 540,
         "wires": [
             [
                 "d81ed8da1d62b5d8"
@@ -347,8 +347,8 @@
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 340,
-        "y": 480,
+        "x": 350,
+        "y": 540,
         "wires": [
             [
                 "e60b917cc5b4561d"
@@ -364,8 +364,8 @@
         "useTls": false,
         "apiToken": "${LORALARM_CS_API_TOKEN}",
         "encoding": "base64",
-        "x": 580,
-        "y": 480,
+        "x": 590,
+        "y": 540,
         "wires": [
             []
         ]
@@ -377,7 +377,7 @@
         "name": "Monthly TX log deletion (1st of each month at midnight)",
         "info": "",
         "x": 240,
-        "y": 580,
+        "y": 740,
         "wires": []
     },
     {
@@ -391,8 +391,8 @@
         "once": false,
         "onceDelay": 0.1,
         "topic": "",
-        "x": 180,
-        "y": 620,
+        "x": 160,
+        "y": 780,
         "wires": [
             [
                 "e4025b2259c7b312"
@@ -411,8 +411,8 @@
         "winHide": false,
         "oldrc": false,
         "name": "delete TX log",
-        "x": 410,
-        "y": 620,
+        "x": 390,
+        "y": 780,
         "wires": [
             [],
             [],
@@ -430,8 +430,8 @@
         "once": false,
         "onceDelay": 0.1,
         "topic": "",
-        "x": 180,
-        "y": 680,
+        "x": 160,
+        "y": 840,
         "wires": [
             [
                 "b03c53c6f124aded"
@@ -450,8 +450,8 @@
         "winHide": false,
         "oldrc": false,
         "name": "delete log_alarms.csv",
-        "x": 440,
-        "y": 680,
+        "x": 420,
+        "y": 840,
         "wires": [
             [],
             [],
@@ -464,8 +464,8 @@
         "z": "73fec5176ff2b148",
         "name": "Download log files",
         "info": "HTTP endpoints: GET /download/log_tx.csv and GET /download/log_alarms.csv\nFlow: http in (/download/:filename) -> 'validate filename' (whitelist; builds\nmsg.filename from the LORALARM_LOG_TX / LORALARM_LOG_ALARMS env vars; unknown names -> 404 straight to http\nresponse) -> file in (reads msg.filename) -> 'set download headers' (200 with\ntext/csv and Content-Disposition attachment, or 404 when the file is missing)\n-> http response.\nThe monthly job above deletes the same files, so download them before month end.",
-        "x": 200,
-        "y": 760,
+        "x": 160,
+        "y": 960,
         "wires": []
     },
     {
@@ -477,8 +477,8 @@
         "method": "get",
         "upload": false,
         "swaggerDoc": "",
-        "x": 180,
-        "y": 800,
+        "x": 140,
+        "y": 1000,
         "wires": [
             [
                 "a7c1e8d94b0f3215"
@@ -497,8 +497,8 @@
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 400,
-        "y": 800,
+        "x": 360,
+        "y": 1000,
         "wires": [
             [
                 "6dc068df9cea7bf7"
@@ -520,8 +520,8 @@
         "sendError": true,
         "encoding": "none",
         "allProps": false,
-        "x": 600,
-        "y": 800,
+        "x": 560,
+        "y": 1000,
         "wires": [
             [
                 "0989b5d3112523d9"
@@ -540,8 +540,8 @@
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 800,
-        "y": 800,
+        "x": 760,
+        "y": 1000,
         "wires": [
             [
                 "32cb39d380699191"
@@ -555,8 +555,8 @@
         "name": "",
         "statusCode": "",
         "headers": {},
-        "x": 990,
-        "y": 800,
+        "x": 950,
+        "y": 1000,
         "wires": []
     },
     {
@@ -565,8 +565,8 @@
         "z": "73fec5176ff2b148",
         "name": "Create log directory at startup",
         "info": "mkdir -p on the directories of LORALARM_LOG_ALARMS / LORALARM_LOG_TX,\nso the sensor flows' `file` nodes (createDir off) can append from the\nfirst message. mkdir -p is a no-op when the directory already exists.\nRuns once 0.1 s after deploy. The Node-RED user needs write access to\nthe parent directory (e.g. /var/log); if Node-RED runs as an\nunprivileged system user, create it once instead:\n  sudo mkdir -p /var/log/loralarm\n  sudo chown node-red:node-red /var/log/loralarm",
-        "x": 230,
-        "y": 880,
+        "x": 180,
+        "y": 640,
         "wires": []
     },
     {
@@ -580,8 +580,8 @@
         "once": true,
         "onceDelay": "0.1",
         "topic": "",
-        "x": 110,
-        "y": 920,
+        "x": 130,
+        "y": 680,
         "wires": [
             [
                 "7c1e9b0a4d2f1003"
@@ -600,8 +600,8 @@
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 340,
-        "y": 920,
+        "x": 350,
+        "y": 680,
         "wires": [
             [
                 "7c1e9b0a4d2f1004"
@@ -620,8 +620,8 @@
         "winHide": false,
         "oldrc": false,
         "name": "create log dir",
-        "x": 560,
-        "y": 920,
+        "x": 550,
+        "y": 680,
         "wires": [
             [],
             [],

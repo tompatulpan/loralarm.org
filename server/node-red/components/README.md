@@ -10,7 +10,7 @@ Node-RED flow components for the LoRaLarm server.
   `127.0.0.1:8075/sensor1`, group names `Sensorer` / `Statuspanel`.
   Includes pushover (`pushover-keys` node holds no secrets in this file)
   and the self-hosted ntfy node `ntfy local`.
-- **flow_sensor_android_rak4631.json** — dashboard + alarm flow template
+- **flow_sensor_arduino_rak4631.json** — dashboard + alarm flow template
   for an Android sensor on RAK4631 hardware
   (`devices/android_rak4631`). Also normalized to **sensor 1**; the
   per-sensor values live in the `Sensor (RAK4631)` subflow env
@@ -110,7 +110,7 @@ the subflow definition for new defaults):
   properties themselves are flow config and survive restarts, unlike
   `sensorSettings` no context store is involved.
   Defaults equal the previous RAK4631 values.
-- The old `flow_sensor_rui.json` and `flow_sensor_android_rak4631.json`
+- The old `flow_sensor_rui.json` and `flow_sensor_arduino_rak4631.json`
   are kept unchanged.
 
 ## Persisting sensor settings across restarts (context storage)
