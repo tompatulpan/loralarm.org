@@ -117,6 +117,55 @@ class ConfigReloadTest(unittest.TestCase):
             engine.on_uplink(make_uplink(obj=sensor_obj()))
             self.assertEqual(engine.devices[DEV_EUI][0].ntfy_topic, "two")
 
+    def _write(self, path: Path, text: str, bump_s: int) -> None:
+        path.write_text(text)
+        os.utime(path, ns=(path.stat().st_atime_ns, path.stat().st_mtime_ns + bump_s * 10**9))
+
+    def test_broken_config_keeps_previous_config_and_still_processes_uplinks(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "devices.json"
+            good = '{"devices": {"%s": {"name": "sensor3", "ntfy_topic": "one"}}}' % DEV_EUI
+            path.write_text(good)
+            notifier = RecordingNotifier()
+            engine = Engine(Config.load(path), notifier=notifier, config_path=path)
+            self._write(path, "{ broken", 1)
+            with self.assertLogs("loralarm.service", level="ERROR"):
+                engine.on_uplink(make_uplink(obj=sensor_obj(motion_alert=1)))
+            self.assertEqual(len(notifier.calls), 1)                 # alarm still raised
+            self.assertEqual(engine.devices[DEV_EUI][0].ntfy_topic, "one")
+            # reported once, not on every uplink
+            with self.assertNoLogs("loralarm.service", level="ERROR"):
+                engine.on_uplink(make_uplink(obj=sensor_obj(motion_alert=1), f_cnt=2))
+            # fixing the file recovers
+            self._write(path, good.replace("one", "three"), 2)
+            engine.on_uplink(make_uplink(obj=sensor_obj(), f_cnt=3))
+            self.assertEqual(engine.devices[DEV_EUI][0].ntfy_topic, "three")
+
+    def test_watchdog_tick_uses_reloaded_config(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "devices.json"
+            path.write_text('{"devices": {"%s": {"name": "sensor3", "watchdog_hours": 24}}}' % DEV_EUI)
+            log = EventLog(None)
+            log.log(utc_now() - timedelta(hours=5), DEV_EUI, "sensor3", "temp", True)
+            engine = Engine(Config.load(path), event_log=log, notifier=RecordingNotifier(),
+                            config_path=path)
+            engine.seed()
+            self.assertEqual(engine.watchdog_tick(), [])
+            self._write(path, '{"devices": {"%s": {"name": "sensor3", "watchdog_hours": 1}}}' % DEV_EUI, 1)
+            self.assertEqual(engine.watchdog_tick(), [DEV_EUI])
+
+
+class CorruptSnapshotTest(unittest.TestCase):
+    def test_unknown_alarm_kind_in_snapshot_starts_fresh(self):
+        log = EventLog(None)
+        log.save_state(DEV_EUI, {"active": ["no_such_kind"], "last_seen": T0.isoformat()})
+        engine = Engine(make_config(), event_log=log)
+        with self.assertLogs("loralarm.service", level="ERROR"):
+            engine.seed()
+        _, state = engine.devices[DEV_EUI]
+        self.assertEqual(state.active, set())
+        self.assertIsNotNone(state.last_seen)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -25,3 +25,7 @@ devices.json
 .env
 # SQLite events log lives here at runtime
 *.db
+
+# editor swap files
+*.kate-swp
+.*.swp

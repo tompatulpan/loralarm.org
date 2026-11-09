@@ -49,6 +49,14 @@ class LayeringTest(unittest.TestCase):
             cfg.for_event(DEV_EUI, "", "")
         self.assertTrue(any("watchdog_hours" in line for line in cm.output))
 
+    def test_wrong_type_falls_back_to_lower_layer(self):
+        cfg = make_config(devices={DEV_EUI: {"temp_alarm_limit_c": "cold", "watchdog_hours": True}},
+                          families={"RAK4631": {"temp_alarm_limit_c": 2.0}})
+        with self.assertLogs("loralarm.config", level="WARNING"):
+            dc = cfg.for_event(DEV_EUI, "", "RAK4631")
+        self.assertEqual(dc.temp_alarm_limit_c, 2.0)   # family value, not the bad string
+        self.assertEqual(dc.watchdog_hours, 24.0)      # bool is not a number
+
 
 class EnvExpansionTest(unittest.TestCase):
     def test_env_var_expanded(self):

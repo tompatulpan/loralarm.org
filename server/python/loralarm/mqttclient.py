@@ -19,22 +19,31 @@ TOPIC_UP = "application/+/device/+/event/up"
 def make_client(host: str, port: int, user: str | None, password: str | None,
                 on_uplink: Callable[[object], None], *,
                 tls: bool = False,
+                client_id: str = "", persistent: bool = False,
                 on_connect: Callable[[object], None] | None = None,
                 on_disconnect: Callable[[object], None] | None = None):
     """Build a paho client subscribed to TOPIC_UP.
 
     `on_uplink(msg)` receives every uplink message; it is wrapped in
     try/except so a malformed payload can never kill the network thread.
+
+    `persistent=True` (needs a fixed `client_id`) keeps the broker-side session
+    and subscribes at QoS 1, so uplinks published at QoS>=1 while the service
+    was down are delivered on reconnect. Two clients with the same id kick each
+    other off, so only the service uses it.
     """
     import paho.mqtt.client as mqtt
 
-    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+    if persistent and not client_id:
+        raise ValueError("a persistent MQTT session needs a fixed client_id")
+    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=client_id,
+                         clean_session=not persistent)
     if user:
         client.username_pw_set(user, password)
 
     def _on_connect(client, _userdata, _flags, reason_code, _properties):
         if reason_code == 0:
-            client.subscribe(TOPIC_UP)
+            client.subscribe(TOPIC_UP, qos=1 if persistent else 0)
             log.info("subscribed to %s on %s:%s", TOPIC_UP, host, port)
         else:
             log.error("connection refused by %s:%s: %s", host, port, reason_code)

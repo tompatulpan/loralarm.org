@@ -87,6 +87,17 @@ _FIELD_TYPES: dict[str, tuple[type, ...]] = {
 }
 
 
+def _valid_type(key: str, value: Any) -> bool:
+    expected = _FIELD_TYPES[key]
+    if isinstance(value, bool) and bool not in expected:
+        return False  # True/False must not pass as a number
+    return isinstance(value, expected)
+
+
+def _type_names(types: tuple[type, ...]) -> str:
+    return "/".join(t.__name__ for t in types)
+
+
 class Config:
     def __init__(self, data: dict[str, Any]):
         data = _expand(data, "config")
@@ -114,17 +125,18 @@ class Config:
     def for_event(self, dev_eui: str, device_name: str = "", family: str = "") -> DeviceConfig:
         dev_eui = dev_eui.lower()
         entry = self.devices.get(dev_eui) or self.devices.get(device_name.lower()) or {}
-        merged = {**self.defaults, **self.families.get(family, {}), **entry}
+        merged: dict[str, Any] = {}
+        for layer in (self.defaults, self.families.get(family, {}), entry):
+            for k, v in layer.items():
+                if k in _FIELD_TYPES and not _valid_type(k, v):
+                    # an invalid value must not reach the alarm code (TypeError on
+                    # every uplink); keep the value from the lower layer instead
+                    log.warning("config for %s: key %r should be %s, got %r; ignoring it",
+                                dev_eui, k, _type_names(_FIELD_TYPES[k]), v)
+                    continue
+                merged[k] = v
         fields = set(DeviceConfig.__dataclass_fields__) - {"dev_eui", "name", "family"}
-        kwargs: dict[str, Any] = {}
-        for k, v in merged.items():
-            if k not in fields:
-                continue
-            expected = _FIELD_TYPES.get(k)
-            if expected and not isinstance(v, expected):
-                log.warning("config for %s: key %r should be %s, got %r; keeping it anyway",
-                            dev_eui, k, expected, v)
-            kwargs[k] = v
+        kwargs = {k: v for k, v in merged.items() if k in fields}
         # the configured name is the most specific source and wins over the
         # ChirpStack deviceName; fall back to deviceName, then the devEUI
         name = merged.get("name") or device_name or dev_eui

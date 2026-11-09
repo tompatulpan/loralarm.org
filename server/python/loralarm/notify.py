@@ -12,6 +12,7 @@ from __future__ import annotations
 import logging
 import queue
 import threading
+import time
 import urllib.parse
 import urllib.request
 from email.header import Header
@@ -49,19 +50,35 @@ DEFAULT_TEXT: dict[str, tuple[str, str]] = {
 EXAMPLE_TEXT = DEFAULT_TEXT
 
 
+def _safe_format(template: str, what: str, **fields: str) -> str | None:
+    """str.format that returns None (and logs) on a bad template instead of raising."""
+    try:
+        return template.format(**fields)
+    except (KeyError, IndexError, ValueError) as e:
+        log.error("bad notification %s %r (%s: %s); using built-in text",
+                  what, template, type(e).__name__, e)
+        return None
+
+
 def message_text(kind: str, name: str, active: bool, detail: str,
                  fire: dict | None = None, clear: dict | None = None) -> str:
-    """Config templates (per kind) win over the DEFAULT_TEXT built-ins.
+    """Config templates (per kind) win over the DEFAULT_TEXT built-ins; a broken
+    template falls back to the built-in so an alarm is never lost to a typo.
     Available substitutions: {name} {detail} {label}."""
+    label = LABELS.get(kind, kind)
+    fields = dict(name=name, detail=detail, label=label)
     templates = (fire or {}) if active else (clear or {})
     template = templates.get(kind)
-    if not template:
-        fire_tpl, clear_tpl = DEFAULT_TEXT.get(kind, ("", ""))
-        template = fire_tpl if active else clear_tpl
-    if not template:
-        state = "LARM" if active else "kvitterad"
-        return f"{name}: {LABELS.get(kind, kind)} {state} — {detail}"
-    return template.format(name=name, detail=detail, label=LABELS.get(kind, kind))
+    if template:
+        text = _safe_format(template, f"template for {kind}", **fields)
+        if text is not None:
+            return text
+    fire_tpl, clear_tpl = DEFAULT_TEXT.get(kind, ("", ""))
+    template = fire_tpl if active else clear_tpl
+    if template:
+        return template.format(**fields)
+    state = "LARM" if active else "kvitterad"
+    return f"{name}: {label} {state} — {detail}"
 
 
 def encode_header(value: str) -> str:
@@ -79,11 +96,13 @@ class Notifier:
 
     def __init__(self, ntfy_url: str, dry_run: bool = False,
                  timeout: float = 10.0, retries: int = 3,
-                 ntfy_token: str | None = None):
+                 ntfy_token: str | None = None,
+                 backoff: tuple[float, ...] = (1.0, 5.0, 30.0)):
         self.ntfy_url = ntfy_url.rstrip("/")
         self.dry_run = dry_run
         self.timeout = timeout
         self.retries = retries
+        self.backoff = backoff  # seconds to wait before retry 2, 3, ...
         self.ntfy_token = ntfy_token  # Bearer token for self-hosted ntfy with auth
         self._queue: queue.Queue = queue.Queue()
         self._worker: threading.Thread | None = None
@@ -95,12 +114,12 @@ class Notifier:
                                             daemon=True)
             self._worker.start()
 
-    def close(self, drain: bool = True) -> None:
-        """Stop the worker; with drain=True, deliver everything still queued."""
+    def close(self) -> None:
+        """Stop the worker after it has delivered everything still queued."""
         self._closed = True
         if self._worker is not None:
             self._queue.put(None)
-            self._worker.join(timeout=self.timeout * (self.retries + 1) + 5)
+            self._worker.join(timeout=2 * (self.timeout * self.retries + sum(self.backoff)) + 5)
             self._worker = None
 
     def notify(self, cfg: DeviceConfig, kind: str, active: bool, detail: str) -> None:
@@ -126,8 +145,9 @@ class Notifier:
         name = cfg.name or cfg.dev_eui
         message = message_text(kind, name, active, detail,
                                cfg.notify_fire, cfg.notify_clear)
-        title = cfg.notify_title.format(name=name, kind=kind, detail=detail,
-                                        label=LABELS.get(kind, kind))
+        title = _safe_format(cfg.notify_title, "title", name=name, kind=kind,
+                             detail=detail, label=LABELS.get(kind, kind)) \
+            or f"loralarm {name}"
 
         if self.dry_run:
             log.info("[dry-run] ntfy %s: %s | %s", cfg.ntfy_topic, title, message)
@@ -141,6 +161,10 @@ class Notifier:
             self._send(self._pushover, cfg.pushover_token, cfg.pushover_user,
                        title, message, active, label="pushover", target=name)
 
+    @staticmethod
+    def _sleep(seconds: float) -> None:
+        time.sleep(seconds)
+
     def _send(self, fn, *args, label: str, target: str) -> bool:
         """One channel with retry; returns True on success. Never raises."""
         for attempt in range(1, self.retries + 1):
@@ -151,6 +175,8 @@ class Notifier:
             except Exception as e:  # OSError, http.client.HTTPException, UnicodeEncodeError, ...
                 log.warning("%s attempt %d/%d to %s failed: %s", label, attempt,
                             self.retries, target, e)
+                if attempt < self.retries and self.backoff:
+                    self._sleep(self.backoff[min(attempt - 1, len(self.backoff) - 1)])
         log.error("%s FAILED after %d attempts to %s — alarm not delivered",
                   label, self.retries, target)
         return False

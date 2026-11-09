@@ -52,6 +52,17 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt   # paho-mqtt
 Expected replay output: the two `* alarm` logs each raise one `Rörelselarm`
 (motion_alert=1); sensor3 shows `temp=24.0 °C` (raw 32 − Tk 8) and battery 37.8 %.
 
+## Delivery and reliability notes
+
+- Notifications are queued and sent by one worker with retries (1 s / 5 s backoff);
+  a broken `notify_*` template or title falls back to the built-in text.
+- `devices.json` is hot-reloaded; a broken edit is logged and the previous config
+  stays active. Values of the wrong type are ignored in favour of the lower layer.
+- The service uses a fixed MQTT client id (`--client-id`, default `loralarm-service`)
+  with a persistent session and QoS 1, so the broker can queue uplinks while the
+  service is down — this only helps if ChirpStack publishes at QoS ≥ 1
+  (`[integration.mqtt] qos`). Run one service instance per client id.
+
 ## Tests
 
 ```bash

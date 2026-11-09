@@ -72,10 +72,18 @@ class Engine:
             mtime = self.config_path.stat().st_mtime
         except OSError:
             return
-        if mtime != self._config_mtime:
+        if mtime == self._config_mtime:
+            return
+        # remember the mtime even on failure so a broken file is reported once,
+        # not on every uplink; the previous good config stays active
+        self._config_mtime = mtime
+        try:
             self.config = Config.load(self.config_path)
-            self._config_mtime = mtime
-            log.info("reloaded config from %s", self.config_path)
+        except Exception as e:  # bad JSON, wrong shape, unreadable file
+            log.error("config reload from %s failed (%s: %s); keeping previous config",
+                      self.config_path, type(e).__name__, e)
+            return
+        log.info("reloaded config from %s", self.config_path)
 
     def seed(self, now: datetime | None = None) -> None:
         """Create state for every configured device, seeded from the persisted
@@ -89,9 +97,13 @@ class Engine:
                 cfg = self.config.for_event(dev_eui)
                 state = AlarmState()
                 if self.event_log:
-                    snap = self.event_log.load_state(dev_eui)
-                    if snap:
-                        state.restore(snap)
+                    try:
+                        snap = self.event_log.load_state(dev_eui)
+                        if snap:
+                            state.restore(snap)
+                    except (sqlite3.Error, ValueError, TypeError, KeyError, AttributeError):
+                        log.exception("unreadable state snapshot for %s; starting fresh", dev_eui)
+                        state = AlarmState()
                     if state.last_seen is None:
                         state.last_seen = self.event_log.last_seen(dev_eui)
                 if state.last_seen is None:
@@ -139,7 +151,12 @@ class Engine:
         alarmed: list[str] = []
         with self._lock:
             now = utc_now()
-            for dev_eui, (cfg, state) in list(self.devices.items()):
+            self._maybe_reload_config()
+            for dev_eui, (old_cfg, state) in list(self.devices.items()):
+                # re-resolve so reloaded thresholds apply and seeded devices
+                # pick up their family defaults once the profile is known
+                cfg = self.config.for_event(dev_eui, old_cfg.name, old_cfg.family)
+                self.devices[dev_eui] = (cfg, state)
                 for t in state.watchdog(cfg, now):
                     print(f"{now:%Y-%m-%d %H:%M:%S} {cfg.name:<10} watchdog "
                           f">>> {LABELS[t.kind.value]}: {'LARM' if t.active else 'kvitterad'} — {t.detail}",
@@ -202,6 +219,9 @@ def main() -> int:
                     help="Mosquitto host (subscribes application/+/device/+/event/up)")
     ap.add_argument("--port", type=int, default=1883, help="MQTT port (default 1883)")
     ap.add_argument("--tls", action="store_true", help="use TLS for the MQTT connection")
+    ap.add_argument("--client-id", default="loralarm-service",
+                    help="fixed MQTT client id; with a persistent session the broker queues "
+                         "QoS>=1 uplinks while the service is down (must be unique per broker)")
     ap.add_argument("--user", default=os.environ.get("LORALARM_MQTT_USER"),
                     help="Mosquitto username (or env LORALARM_MQTT_USER)")
     ap.add_argument("--pass", dest="password", default=None,
@@ -248,6 +268,7 @@ def main() -> int:
         args.mqtt, args.port, args.user, password,
         on_uplink=lambda msg: engine.on_uplink(Uplink.from_json(msg.payload)),
         tls=args.tls,
+        client_id=args.client_id, persistent=True,
     )
     mqttclient.connect_loop(client, args.mqtt, args.port)
     client.loop_start()
