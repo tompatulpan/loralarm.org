@@ -102,20 +102,26 @@ class Engine:
             for dev_eui in known:
                 if dev_eui in self.devices:
                     continue
-                cfg = self.config.for_event(dev_eui)
                 state = AlarmState()
+                name = family = ""
                 if self.event_log:
                     try:
                         snap = self.event_log.load_state(dev_eui)
                         if snap:
                             state.restore(snap)
+                            # identity from the last uplink, so alarms for a device that
+                            # stays silent after a restart still read "Door1", not the devEUI
+                            name = str(snap.get("name") or "")
+                            family = str(snap.get("family") or "")
                     except (sqlite3.Error, ValueError, TypeError, KeyError, AttributeError):
                         log.exception("unreadable state snapshot for %s; starting fresh", dev_eui)
                         state = AlarmState()
+                        name = family = ""
                     if state.last_seen is None:
                         state.last_seen = self.event_log.last_seen(dev_eui)
                 if state.last_seen is None:
                     state.last_seen = now
+                cfg = self.config.for_event(dev_eui, name, family)
                 self.devices[dev_eui] = (cfg, state)
                 log.info("seeded %s (%s), last_seen=%s, active=%s",
                          dev_eui, cfg.name, state.last_seen,
@@ -196,7 +202,10 @@ class Engine:
     def _persist(self, dev_eui: str, state: AlarmState) -> None:
         if self.event_log:
             try:
-                self.event_log.save_state(dev_eui, state.snapshot())
+                snap = state.snapshot()
+                cfg = self.devices[dev_eui][0]
+                snap["name"], snap["family"] = cfg.name, cfg.family
+                self.event_log.save_state(dev_eui, snap)
             except sqlite3.Error:
                 log.exception("state persist failed for %s", dev_eui)
 

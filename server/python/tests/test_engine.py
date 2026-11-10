@@ -83,6 +83,17 @@ class SeedTest(unittest.TestCase):
         self.assertIn(OTHER_EUI, engine.devices)
         self.assertEqual(engine.watchdog_tick(), [OTHER_EUI])
 
+    def test_seed_restores_name_and_family_of_unconfigured_device(self):
+        log = EventLog(None)
+        engine = Engine(make_config(), event_log=log, notifier=RecordingNotifier())
+        engine.on_uplink(make_uplink(dev_eui=OTHER_EUI, device_name="Door1", profile="RAK3172",
+                                     obj=sensor_obj(), time=utc_now() - timedelta(hours=30)))
+        restarted = Engine(make_config(), event_log=log, notifier=RecordingNotifier())
+        restarted.seed()
+        cfg, _ = restarted.devices[OTHER_EUI]
+        self.assertEqual((cfg.name, cfg.family), ("Door1", "RAK3172"))
+        self.assertEqual(restarted.watchdog_tick(), [OTHER_EUI])
+
     def test_seeded_stale_device_alarms_on_first_tick(self):
         log = EventLog(None)
         log.log(utc_now() - timedelta(hours=48), DEV_EUI, "sensor3", "temp", True)
