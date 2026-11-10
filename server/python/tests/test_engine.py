@@ -27,7 +27,7 @@ class RecordingNotifier:
 
 class NonSensorFrameTest(unittest.TestCase):
     def test_settings_frame_does_not_clear_alarms_but_updates_last_seen(self):
-        engine = Engine(make_config())
+        engine = Engine(make_config(defaults={"motion_mode": "level"}))
         engine.on_uplink(make_uplink(obj=sensor_obj(motion_alert=1)))
         _, state = engine.devices[DEV_EUI]
         self.assertIn(AlarmKind.MOTION, state.active)
@@ -39,7 +39,7 @@ class NonSensorFrameTest(unittest.TestCase):
         self.assertEqual(state.last_seen, later)             # watchdog stays quiet
 
     def test_empty_object_frame_is_not_evaluated(self):
-        engine = Engine(make_config())
+        engine = Engine(make_config(defaults={"motion_mode": "level"}))
         engine.on_uplink(make_uplink(obj=sensor_obj(motion_alert=1)))
         engine.on_uplink(make_uplink(obj={}))  # codec failure -> empty object
         _, state = engine.devices[DEV_EUI]
@@ -127,7 +127,7 @@ class ErrorIsolationTest(unittest.TestCase):
         engine = Engine(make_config(), notifier=BadNotifier())
         engine.on_uplink(make_uplink(obj=sensor_obj(motion_alert=1)))  # must not raise
         _, state = engine.devices[DEV_EUI]
-        self.assertIn(AlarmKind.MOTION, state.active)
+        self.assertEqual(len(state.motion_events), 1)  # detection was recorded (event mode)
 
 
 class ConfigReloadTest(unittest.TestCase):

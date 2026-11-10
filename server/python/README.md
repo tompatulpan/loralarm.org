@@ -71,8 +71,20 @@ Expected replay output: the two `* alarm` logs each raise one `Rörelselarm`
   frame (timer, ACC alarm) has the bit clear. So each pulse is a fire-only alarm
   (pulses within `circuit_hold_s`, default 30 s, count as one) and no "kvitterad" is
   sent. Override per family or device in `devices.json` with `circuit_mode`.
-- `motion` on the RAK4631 is a pulse too (ACC frame only) but still clears on the
-  next frame, which is what Node-RED's "acknowledged" semantics roughly match.
+## Motion alarm (`motion_mode`)
+
+- The firmware sends `motion_alert=1` in **one** frame per accelerometer interrupt
+  and never in heartbeats, so the bit is a pulse, not a level.
+- `event` (**default**): every detection is reported — each pulse fires a
+  fire-only `Rörelselarm` (no "kvitterad"), so shaking a device shows every
+  detection. Detections are counted in a sliding `motion_window_s` (default 30 s)
+  window and included in the alarm detail ("3 detekteringar inom 30 s").
+- `motion_min_detections` (default 1) sets how many detections within
+  `motion_window_s` trigger the alarm: 1 = every detection (transparent, current
+  behaviour); set it to 3 to alarm only on "3 detections within 30 s".
+- `level`: the old fire-once/clear-once behaviour (fires on the first pulse, clears
+  on the next frame without the bit, re-arms after that). Override per family or
+  device in `devices.json` with `motion_mode`.
 
 ## Tests
 

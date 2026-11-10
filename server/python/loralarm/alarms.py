@@ -3,6 +3,9 @@
 `evaluate()` derives readings and currently-firing alarm kinds from one decoded
 uplink. `AlarmState` adds fire-once / clear-once semantics per device, so
 notifications are emitted only on transitions, plus a watchdog for stale devices.
+Pulse-style inputs (motion, event-mode circuit) are the exception: every pulse is
+reported fire-only, and motion detections are counted in a sliding window so a
+"N detections within M seconds" rule is a config change, not a code change.
 
 Only full sensor frames (fPort 2 with a non-empty decoded object) are evaluated;
 settings frames and codec failures just refresh `last_seen` via `touch()`, so they
@@ -166,6 +169,8 @@ class AlarmState:
     last_detail: dict[AlarmKind, str] = field(default_factory=dict)  # fired detail, for the event log
     tilt_streak: int = 0                                            # consecutive tilted samples
     last_circuit_event: datetime | None = None                      # event-mode circuit dedup
+    motion_events: list[datetime] = field(default_factory=list)     # event-mode motion: detections within the window
+    motion_burst_active: bool = False                               # event mode, min>1: already alarmed for this burst
 
     def touch(self, up: Uplink) -> None:
         """Non-sensor frame (settings fPort 4-7, codec failure, ...): only refresh
@@ -196,12 +201,21 @@ class AlarmState:
                 for k, v in acc.items():
                     self.accel_baseline[k] = float(v) if k not in self.accel_baseline else 0.7 * self.accel_baseline[k] + 0.3 * float(v)
 
+        transitions_pre: list[Transition] = []
         if cfg.circuit_mode == "event":
             fired = [t for t in fired if t.kind is not AlarmKind.CIRCUIT]
             circuit = self._circuit_event(cfg, up)
-            transitions_pre = [circuit] if circuit else []
-        else:
-            transitions_pre = []
+            if circuit:
+                transitions_pre.append(circuit)
+        if cfg.motion_mode == "event":
+            # motion_alert is a one-shot pulse (one frame per interrupt): report
+            # every detection, never clear on other frames
+            motion_fired = [t for t in fired if t.kind is AlarmKind.MOTION]
+            fired = [t for t in fired if t.kind is not AlarmKind.MOTION]
+            if motion_fired:  # heartbeats without the bit are not detections
+                motion = self._motion_event(cfg, up)
+                if motion:
+                    transitions_pre.append(motion)
 
         now_active = {t.kind for t in fired}
         # STALE is owned by the watchdog: an uplink keeps it active here and the
@@ -225,6 +239,33 @@ class AlarmState:
             self.last_detail.pop(kind, None)
         self.active = now_active
         return reading, transitions
+
+    def _motion_event(self, cfg: DeviceConfig, up: Uplink) -> Transition | None:
+        """Event-mode motion: the firmware sends motion_alert=1 in one frame per
+        accelerometer interrupt, so every frame with the bit is one detection.
+        Detections are counted in a sliding motion_window_s window; with
+        motion_min_detections=1 (default) each detection alarms immediately
+        (transparent). Set e.g. motion_min_detections=3, motion_window_s=30 to
+        alarm only when 3 detections fall within 30 s. Fire-only: no clear."""
+        now = up.time if up.time.tzinfo else up.time.replace(tzinfo=timezone.utc)
+        cutoff = now - timedelta(seconds=cfg.motion_window_s)
+        self.motion_events = [t for t in self.motion_events
+                              if (t if t.tzinfo else t.replace(tzinfo=timezone.utc)) > cutoff]
+        self.motion_events.append(now)
+        n = len(self.motion_events)
+        window = f"{cfg.motion_window_s:.0f} s"
+        if cfg.motion_min_detections <= 1:
+            return Transition(AlarmKind.MOTION, True,
+                              f"rörelse upptäckt — {n} detektering{'ar' if n != 1 else ''} inom {window}")
+        if n < cfg.motion_min_detections:
+            self.motion_burst_active = False  # burst left the window: the next one can alarm again
+            return None
+        if self.motion_burst_active:
+            return None
+        self.motion_burst_active = True
+        return Transition(AlarmKind.MOTION, True,
+                          f"rörelse upptäckt — {n} detekteringar inom {window} "
+                          f"(gräns {cfg.motion_min_detections})")
 
     def _circuit_event(self, cfg: DeviceConfig, up: Uplink) -> Transition | None:
         """Event-mode circuit (RAK4631): the firmware sends bit 0 in one uplink when
@@ -265,6 +306,8 @@ class AlarmState:
             "last_detail": {k.value: v for k, v in self.last_detail.items()},
             "tilt_streak": self.tilt_streak,
             "last_circuit_event": self.last_circuit_event.isoformat() if self.last_circuit_event else None,
+            "motion_events": [t.isoformat() for t in self.motion_events],
+            "motion_burst_active": self.motion_burst_active,
         }
 
     def restore(self, snap: dict[str, Any]) -> None:
@@ -276,3 +319,5 @@ class AlarmState:
         self.tilt_streak = int(snap.get("tilt_streak", 0))
         lc = snap.get("last_circuit_event")
         self.last_circuit_event = datetime.fromisoformat(lc) if lc else None
+        self.motion_events = [datetime.fromisoformat(s) for s in snap.get("motion_events", [])]
+        self.motion_burst_active = bool(snap.get("motion_burst_active", False))

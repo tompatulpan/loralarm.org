@@ -3,6 +3,9 @@
     "kind": "sensor",
     "tilt_sense_g": 0.3,
     "watchdog_hours": 0.5,
+    "motion_mode": "event",
+    "motion_window_s": 30,
+    "motion_min_detections": 1,
     "ntfy_topic": "loralarm",
     "notify_title": "loralarm {name}",
     "notify_fire": {

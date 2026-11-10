@@ -61,6 +61,14 @@ class DeviceConfig:
     # (RAK4631) -> every pulse is a fire-only alarm, other frames never clear it.
     circuit_mode: str = "level"
     circuit_hold_s: float = 30.0        # event mode: pulses closer than this count as one
+    # motion: the firmware sends motion_alert=1 in one frame per accelerometer
+    # interrupt (never in heartbeats). event (default) -> every detection alarms,
+    # other frames never clear it. level -> old fire-once/clear-once semantics.
+    motion_mode: str = "event"
+    motion_window_s: float = 30.0       # event mode: sliding window for counting detections
+    motion_min_detections: int = 1      # event mode: alarm when this many detections fall
+                                        # within motion_window_s (1 = every detection;
+                                        # 3 = "3 detections within 30 s")
     watchdog_hours: float = 0.5        # stale if no uplink within this
     ntfy_topic: str = "loralarm"
     pushover_user: str = ""
@@ -89,6 +97,7 @@ _FIELD_TYPES: dict[str, tuple[type, ...]] = {
     "batt_full_v": (int, float), "batt_warn_v": (int, float),
     "batt_empty_v": (int, float), "tilt_sense_g": (int, float),
     "circuit_mode": (str,), "circuit_hold_s": (int, float),
+    "motion_mode": (str,), "motion_window_s": (int, float), "motion_min_detections": (int,),
     "watchdog_hours": (int, float), "ntfy_topic": (str,),
     "pushover_user": (str,), "pushover_token": (str,),
     "notify_title": (str,), "notify_fire": (dict,), "notify_clear": (dict,),

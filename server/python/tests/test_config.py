@@ -70,6 +70,23 @@ class LayeringTest(unittest.TestCase):
         cfg = make_config(devices={DEV_EUI: {"circuit_mode": "level"}})
         self.assertEqual(cfg.for_event(DEV_EUI, "s", "RAK4631").circuit_mode, "level")
 
+    def test_motion_defaults_and_device_override(self):
+        dc = make_config().for_event(DEV_EUI, "s", "RAK4631")
+        self.assertEqual((dc.motion_mode, dc.motion_window_s, dc.motion_min_detections),
+                         ("event", 30.0, 1))
+        cfg = make_config(devices={DEV_EUI: {"motion_mode": "level",
+                                             "motion_min_detections": 3,
+                                             "motion_window_s": 30}})
+        dc = cfg.for_event(DEV_EUI, "s", "RAK4631")
+        self.assertEqual((dc.motion_mode, dc.motion_window_s, dc.motion_min_detections),
+                         ("level", 30.0, 3))
+
+    def test_wrong_type_motion_key_falls_back(self):
+        cfg = make_config(devices={DEV_EUI: {"motion_min_detections": True}})
+        with self.assertLogs("loralarm.config", level="WARNING"):
+            dc = cfg.for_event(DEV_EUI, "", "")
+        self.assertEqual(dc.motion_min_detections, DeviceConfig.motion_min_detections)  # bool rejected
+
 
 class EnvExpansionTest(unittest.TestCase):
     def test_env_var_expanded(self):

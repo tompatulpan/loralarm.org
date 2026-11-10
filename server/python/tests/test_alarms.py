@@ -40,7 +40,7 @@ class EvaluateTest(unittest.TestCase):
 
 class AlarmStateTest(unittest.TestCase):
     def test_fire_once_clear_once(self):
-        cfg = make_cfg()
+        cfg = make_cfg(motion_mode="level")  # level mode keeps fire-once/clear-once
         st = AlarmState()
         _, t1 = st.update(cfg, make_uplink(obj=sensor_obj(motion_alert=1)))
         _, t2 = st.update(cfg, make_uplink(obj=sensor_obj(motion_alert=1)))  # still active: no repeat
@@ -91,7 +91,7 @@ class AlarmStateTest(unittest.TestCase):
                          [(AlarmKind.BATTERY_LOW, False)])
 
     def test_touch_only_updates_last_seen(self):
-        cfg = make_cfg()
+        cfg = make_cfg(motion_mode="level")
         st = AlarmState()
         st.update(cfg, make_uplink(obj=sensor_obj(motion_alert=1)))
         later = T0.replace(hour=18)
@@ -140,7 +140,7 @@ class AlarmStateTest(unittest.TestCase):
         self.assertEqual(st.accel_baseline["x"], 0.9)       # new orientation is the reference
 
     def test_snapshot_restore_roundtrip(self):
-        cfg = make_cfg()
+        cfg = make_cfg(motion_mode="level")
         st = AlarmState()
         st.update(cfg, make_uplink(obj=sensor_obj(motion_alert=1)))
         snap = st.snapshot()
@@ -166,7 +166,7 @@ class CircuitModeTest(unittest.TestCase):
         self.assertEqual(self._kinds(t2), [(AlarmKind.CIRCUIT, False)])
 
     def test_event_mode_other_frames_never_clear(self):
-        cfg = make_cfg(circuit_mode="event")
+        cfg = make_cfg(circuit_mode="event", motion_mode="level")
         st = AlarmState()
         _, t1 = st.update(cfg, make_uplink(obj=sensor_obj(motion_switch=1)))
         # ACC-alarm frame (status 0x02) and a timer frame both have motion_switch=0
@@ -197,6 +197,83 @@ class CircuitModeTest(unittest.TestCase):
         _, t = restored.update(cfg, make_uplink(obj=sensor_obj(motion_switch=1),
                                                 time=T0 + timedelta(seconds=5)))
         self.assertEqual(t, [])  # retransmit right after a restart is still deduplicated
+
+
+class MotionModeTest(unittest.TestCase):
+    """Default motion_mode="event": the firmware sends motion_alert=1 in one frame
+    per accelerometer interrupt, so every detection must be reported (transparent),
+    and no other frame ever clears it."""
+
+    def _kinds(self, transitions):
+        return [(t.kind, t.active) for t in transitions]
+
+    def test_event_mode_every_detection_alarms_and_never_clears(self):
+        cfg = make_cfg()  # motion_mode defaults to "event"
+        st = AlarmState()
+        fired = []
+        for secs in (0, 5, 10):  # continuous shaking: back-to-back detections
+            _, t = st.update(cfg, make_uplink(obj=sensor_obj(motion_alert=1),
+                                              time=T0 + timedelta(seconds=secs)))
+            fired.append(self._kinds(t))
+        self.assertEqual(fired, [[(AlarmKind.MOTION, True)]] * 3)  # every detection visible
+        _, t = st.update(cfg, make_uplink(obj=sensor_obj(), time=T0 + timedelta(minutes=5)))
+        self.assertEqual(t, [])                    # heartbeat does not clear
+        self.assertNotIn(AlarmKind.MOTION, st.active)
+        _, t = st.update(cfg, make_uplink(obj=sensor_obj(motion_alert=1),
+                                          time=T0 + timedelta(minutes=6)))
+        self.assertEqual(self._kinds(t), [(AlarmKind.MOTION, True)])  # re-armed trivially: next pulse alarms
+
+    def test_event_mode_detail_counts_detections_in_window(self):
+        cfg = make_cfg(motion_window_s=30)
+        st = AlarmState()
+        _, t3 = st.update(cfg, make_uplink(obj=sensor_obj(motion_alert=1),
+                                           time=T0 + timedelta(seconds=20)))
+        for _ in range(2):
+            _, t3 = st.update(cfg, make_uplink(obj=sensor_obj(motion_alert=1),
+                                               time=T0 + timedelta(seconds=25)))
+        self.assertIn("3 detekteringar inom 30 s", t3[0].detail)
+
+    def test_window_expiry_resets_the_count(self):
+        cfg = make_cfg(motion_window_s=30)
+        st = AlarmState()
+        st.update(cfg, make_uplink(obj=sensor_obj(motion_alert=1), time=T0))
+        _, t = st.update(cfg, make_uplink(obj=sensor_obj(motion_alert=1),
+                                          time=T0 + timedelta(seconds=31)))
+        self.assertIn("1 detektering inom 30 s", t[0].detail)  # old one fell out of the window
+
+    def test_min_detections_alarms_only_on_the_nth_within_window(self):
+        cfg = make_cfg(motion_mode="event", motion_min_detections=3, motion_window_s=30)
+        st = AlarmState()
+        fired = []
+        details = []
+        for secs in (0, 5, 10, 12, 40, 45, 50):  # 3rd within window alarms, 4th is same burst
+            _, t = st.update(cfg, make_uplink(obj=sensor_obj(motion_alert=1),
+                                              time=T0 + timedelta(seconds=secs)))
+            fired.append(self._kinds(t))
+            details.extend(x.detail for x in t)
+        self.assertEqual(fired, [[], [], [(AlarmKind.MOTION, True)], [], [], [], [(AlarmKind.MOTION, True)]])
+        self.assertTrue(any("gräns 3" in d for d in details))
+
+    def test_event_state_survives_snapshot(self):
+        cfg = make_cfg(motion_mode="event", motion_min_detections=3, motion_window_s=30)
+        st = AlarmState()
+        st.update(cfg, make_uplink(obj=sensor_obj(motion_alert=1), time=T0))
+        st.update(cfg, make_uplink(obj=sensor_obj(motion_alert=1), time=T0 + timedelta(seconds=5)))
+        restored = AlarmState()
+        restored.restore(st.snapshot())
+        _, t = restored.update(cfg, make_uplink(obj=sensor_obj(motion_alert=1),
+                                                time=T0 + timedelta(seconds=10)))
+        self.assertEqual(self._kinds(t), [(AlarmKind.MOTION, True)])  # 3rd detection after restart still alarms
+
+    def test_level_mode_still_fire_once_clear_once(self):
+        cfg = make_cfg(motion_mode="level")
+        st = AlarmState()
+        _, t1 = st.update(cfg, make_uplink(obj=sensor_obj(motion_alert=1)))
+        _, t2 = st.update(cfg, make_uplink(obj=sensor_obj(motion_alert=1)))
+        _, t3 = st.update(cfg, make_uplink(obj=sensor_obj(motion_alert=0)))
+        self.assertEqual(self._kinds(t1), [(AlarmKind.MOTION, True)])
+        self.assertEqual(t2, [])
+        self.assertEqual(self._kinds(t3), [(AlarmKind.MOTION, False)])
 
 
 class FormatDurationTest(unittest.TestCase):
