@@ -160,6 +160,13 @@ name, e.g. `RAK4631`/`RAK3172`) on the device entry so the CLI can translate
 `frequency` without `--family`; the live service takes the family from each
 uplink's device profile instead.
 
+Console status on each sensor uplink (integers without `.0`, frequency in Hz
+with the wire code/index in parens):
+
+```
+    acc settings: threshold=2 want 8 -> sending, frequency=100 Hz (code 95) want 10 Hz (code 47) -> sending, duration=1 ok
+```
+
 Read-back: every settings downlink sent by the service (auto, config-reload,
 MQTT command)
 is remembered until a sensor uplink reports that value in `acc_threshold` /

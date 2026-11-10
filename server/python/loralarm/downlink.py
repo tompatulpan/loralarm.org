@@ -172,6 +172,28 @@ def parse_frequency(value: int | str, family: str = "") -> int:
                      "use code:31/47/63/79/95 or index:1-7 for an explicit wire value")
 
 
+def wire_to_hz(value: int | str, family: str = "") -> float | None:
+    """Wire value (RAK4631 register code or RUI3 ODR index) -> Hz, else None.
+    With an unknown family both encodings are accepted."""
+    fam = (family or "").strip().lower()
+    try:
+        f = float(value)          # JSON numbers arrive as floats (95.0)
+        if not f.is_integer():
+            return None
+        v = int(f)
+    except (TypeError, ValueError):
+        return None
+    if fam in RAK4631_FAMILIES:
+        hz = REG_TO_HZ.get(v)
+    elif fam in RUI3_FAMILIES:
+        hz = next((h for h, i in HZ_TO_RUI3_INDEX.items() if i == v), None)
+    else:
+        hz = REG_TO_HZ.get(v)
+        if hz is None:
+            hz = next((h for h, i in HZ_TO_RUI3_INDEX.items() if i == v), None)
+    return float(hz) if hz is not None else None
+
+
 def _int(s: str, what: str) -> int:
     try:
         return int(s, 10)
@@ -215,7 +237,9 @@ def settings_frame(key: str, value: int | str, family: str = "",
                              confirmed, f"command={v}")
     if k == "frequency":
         v = parse_frequency(value, family)
-        return DownlinkFrame(PORT_FREQUENCY, ascii3(v), confirmed, f"frequency wire={v}")
+        hz = wire_to_hz(v, family)
+        note = f"frequency wire={v}" + (f" ({hz:g} Hz)" if hz is not None else "")
+        return DownlinkFrame(PORT_FREQUENCY, ascii3(v), confirmed, note)
     if k == "port":
         raise ValueError("key 'port' needs the 'value' key too; use parse_command_message")
     raise ValueError(f"unknown downlink key {key!r} "

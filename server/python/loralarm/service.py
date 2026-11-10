@@ -32,8 +32,9 @@ from typing import Any
 from . import mqttclient
 from .alarms import LABELS, AlarmState
 from .config import Config, DeviceConfig
-from .downlink import (DEFAULT_DL_TOPIC, DL_OBJ_FIELD, DL_PORT_KEY, Downlink,
-                       DownlinkSender, desired_frames, parse_command_message)
+from .downlink import (DEFAULT_DL_TOPIC, DL_OBJ_FIELD, DL_PORT_KEY, RAK4631_FAMILIES,
+                       Downlink, DownlinkSender, desired_frames, parse_command_message,
+                       wire_to_hz)
 from .event import Uplink
 from .events import EventLog, utc_now
 from .notify import Notifier
@@ -51,6 +52,22 @@ TOPIC_UP = mqttclient.TOPIC_UP
 # re-sent within DL_RESEND_S, and given up on after DL_MAX_ATTEMPTS
 DL_RESEND_S = 3600.0
 DL_MAX_ATTEMPTS = 5
+
+
+def _fmt_num(v) -> str:
+    """The codec reports integers as JSON floats (95.0) — print them as 95."""
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return str(v)
+    return str(int(f)) if f.is_integer() else f"{f:g}"
+
+
+def _freq_str(wire: int, family: str) -> str:
+    """Human display for a frequency wire value: Hz first, wire code/index after."""
+    hz = wire_to_hz(wire, family)
+    label = "code" if (family or "").strip().lower() in RAK4631_FAMILIES else "index"
+    return f"{hz:g} Hz ({label} {wire})" if hz is not None else str(wire)
 
 
 @dataclass
@@ -315,16 +332,22 @@ class Engine:
                 status.append(f"{name}=? (not reported)")
                 continue  # this frame didn't carry the field — don't guess
             try:
-                if int(reported) == want:
-                    self._dl_sent.pop(key, None)  # applied
-                    status.append(f"{name}={reported} ok")
-                    continue
+                rep_wire = int(reported)
             except (TypeError, ValueError):
                 continue
-            if self._resend_blocked(key, f.data, now, cfg):
-                status.append(f"{name}={reported} want {want} (sent, waiting for device)")
+            # frequency is shown in Hz (wire code/index in parens), the rest as ints
+            if name == "frequency":
+                rep_s, want_s = _freq_str(rep_wire, cfg.family), _freq_str(want, cfg.family)
+            else:
+                rep_s, want_s = _fmt_num(reported), _fmt_num(want)
+            if rep_wire == want:
+                self._dl_sent.pop(key, None)  # applied
+                status.append(f"{name}={rep_s} ok")
                 continue
-            status.append(f"{name}={reported} want {want} -> sending")
+            if self._resend_blocked(key, f.data, now, cfg):
+                status.append(f"{name}={rep_s} want {want_s} (sent, waiting for device)")
+                continue
+            status.append(f"{name}={rep_s} want {want_s} -> sending")
             pending.append(f)
         if status:
             print(f"    acc settings: {', '.join(status)}", flush=True)
@@ -356,7 +379,7 @@ class Engine:
                 continue
             del self._dl_sent[(dev_eui, port)]
             took = (ts - rec.sent_first).total_seconds()
-            detail = (f"fPort={port} {DL_PORT_KEY[port]} wire={reported} confirmed by device "
+            detail = (f"fPort={port} {DL_PORT_KEY[port]} wire={_fmt_num(reported)} confirmed by device "
                       f"after {rec.attempts} send(s), {took:.0f} s")
             print(f"{ts:%Y-%m-%d %H:%M:%S} {cfg.name:<10} downlink OK  <<< {detail}", flush=True)
             self._log_event(ts, dev_eui, cfg.name, "downlink_ok", False, detail)

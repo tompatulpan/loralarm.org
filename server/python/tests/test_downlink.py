@@ -19,7 +19,7 @@ from loralarm.config import Config
 from loralarm.downlink import (
     Downlink, DownlinkSender, ascii3, build_message, desired_frames,
     parse_command_message, parse_frequency, resolve_dev_eui, settings_frame,
-    main as dl_main,
+    wire_to_hz, main as dl_main,
     PORT_COMMAND, PORT_DURATION, PORT_FREQUENCY, PORT_THRESHOLD,
 )
 from loralarm.events import EventLog, utc_now
@@ -299,6 +299,66 @@ class EngineDownlinkTest(unittest.TestCase):
         self.assertEqual(len(rows), 1)
         self.assertFalse(rows[0][3])  # active=0
         self.assertIn("error", rows[0][4])
+
+
+class WireToHzTest(unittest.TestCase):
+    def test_codes_and_indices(self):
+        self.assertEqual(wire_to_hz(95, "RAK4631"), 100.0)
+        self.assertEqual(wire_to_hz(31, "RAK4631"), 1.0)
+        self.assertEqual(wire_to_hz(2, "RAK3172"), 10.0)
+        self.assertEqual(wire_to_hz(7, "RAK3172"), 400.0)
+        self.assertEqual(wire_to_hz(95.0, ""), 100.0)     # float from JSON, unknown family
+        self.assertIsNone(wire_to_hz(99, "RAK4631"))
+        self.assertIsNone(wire_to_hz("abc", "RAK4631"))
+
+    def test_frequency_note_includes_hz(self):
+        f = settings_frame("frequency", 10, family="RAK4631")
+        self.assertEqual(f.note, "frequency wire=47 (10 Hz)")
+
+
+class StatusLineFormatTest(unittest.TestCase):
+    """The `acc settings:` console line: integers without .0, frequency in Hz."""
+
+    def _run(self, devices_entry, obj, profile="RAK4631"):
+        sent = []
+
+        class FakeSender:
+            def send(self, app_id, dl):
+                sent.append(dl)
+
+        engine = Engine(make_config(devices={DEV_EUI: devices_entry}), EventLog(None),
+                        downlink_sender=FakeSender(), dl_topic="loralarm/down/+")
+        up = make_uplink(profile=profile, obj=obj, time=utc_now())
+        up.application_id = APP_ID
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            engine.on_uplink(up)
+        return buf.getvalue(), sent
+
+    def test_ints_not_floats_and_frequency_in_hz(self):
+        out, sent = self._run(
+            {"name": "sensor3", "threshold": 8, "frequency": 10, "duration": 1},
+            sensor_obj(acc_threshold=2.0, acc_frequency=95.0, acc_duration=1.0))
+        line = next(l for l in out.splitlines() if "acc settings:" in l)
+        self.assertIn("threshold=2 want 8 -> sending", line)
+        self.assertIn("frequency=100 Hz (code 95) want 10 Hz (code 47) -> sending", line)
+        self.assertIn("duration=1 ok", line)
+        self.assertNotIn(".0", line)
+        self.assertEqual([(d.f_port, d.data) for d in sent],
+                         [(PORT_THRESHOLD, b"008"), (PORT_FREQUENCY, b"047")])
+
+    def test_rui3_frequency_shown_as_index(self):
+        out, _ = self._run({"name": "sensor16", "frequency": 10},
+                           sensor_obj(acc_frequency=5.0), profile="RAK3172")
+        line = next(l for l in out.splitlines() if "acc settings:" in l)
+        self.assertIn("frequency=100 Hz (index 5) want 10 Hz (index 2) -> sending", line)
+
+    def test_ok_values_print_as_ints(self):
+        out, sent = self._run({"name": "sensor3", "threshold": 8},
+                              sensor_obj(acc_threshold=8.0))
+        line = next(l for l in out.splitlines() if "acc settings:" in l)
+        self.assertIn("threshold=8 ok", line)
+        self.assertEqual(sent, [])
 
 
 class CliTest(unittest.TestCase):
