@@ -20,6 +20,7 @@ Verify on the lora box with `mosquitto_sub -h localhost -t 'application/+/device
 | `loralarm/mqttclient.py` | Shared paho-mqtt client builder used by service and replay (guarded callbacks, connect retry) |
 | `loralarm/notify.py` | ntfy + Pushover delivery on a worker queue with retries; RFC 2047-encoded titles |
 | `loralarm/events.py` | SQLite event log + per-device state snapshots (fixed-width UTC timestamps) |
+| `loralarm/downlink.py` | Per-device downlinks: ChirpStack MQTT `command/down`, ports 4–7 ASCII-decimal, frequency translation, CLI (`python3 -m loralarm.downlink`) |
 | `loralarm/replay.py` | Test app CLI: replay captured events or subscribe live MQTT |
 | `devices.example.json` | Tracked config template — placeholders only, no secrets |
 | `tests/` | `python3 -m unittest discover -s tests -t .` (stdlib only) |
@@ -94,10 +95,94 @@ python3 -m unittest discover -s tests -t .        # stdlib only
 # or: pytest                                       # if installed
 ```
 
+## Downlinks (per device, spec §7.4)
+
+Path (confirmed against the ChirpStack v4 MQTT integration docs): publish to
+`application/<APPLICATION_ID>/device/<DEV_EUI>/command/down` with
+`{"devEui": "...", "confirmed": false, "fPort": N, "data": "<base64>"}` — raw
+`data` bypasses the device-profile codec (`object` would go through
+`encodeDownlink`). The ChirpStack **application is a property of each device
+registration, not of its profile/family** — RAK4631 sensors can sit in `larm`
+and in `sublarm` at the same time. The live service therefore learns the
+application ID per device from uplink events (`deviceInfo.applicationId`,
+cached in `Engine.app_ids`) and that value always wins; no config needed once
+a device has sent one uplink. For the CLI / devices that have not uplinked
+yet, set `application_id` **per device** in `devices.json`
+(`devices.<devEui>.application_id`, e.g. `"${LORALARM_CS_APP_LARM}"` — one env
+var per application, referenced from whichever devices live there). Putting
+`application_id` in `defaults`/`families` is only correct when that whole
+layer shares one application; `config.py` logs a warning when it sees it
+there. CLI precedence: `--app-id` > `LORALARM_CS_APP_ID` env > config
+(device > family > defaults). A wrong app UUID would publish the downlink to
+an application the device is not in, so unknown = clean error, never a guess.
+
+Device-side protocol, both families (3-digit zero-padded ASCII decimal, 0–255):
+
+| fPort | meaning | RAK4631 | RUI3 |
+|---|---|---|---|
+| 4 | command (test alarm etc.) | yes | ignored by firmware |
+| 5 | interrupt threshold 1–127 | `"016"` | `"016"` |
+| 6 | ODR frequency | register code 31/47/63/79/95 | index 1–7 (`"002"` = 10 Hz) |
+| 7 | interrupt duration 0–127 | `"001"` | `"001"` |
+
+Frequency translation (spec §7.4): 31/47/63/79/95 = 1/10/25/50/100 Hz ↔ RUI3
+index 1–5. Accepts Hz, register codes, RUI3 indices, or explicit
+`hz:`/`code:`/`index:` prefixes; translated per the device's family
+(`--family` / `family` in config / profile learned from uplinks). RUI3-only
+rates 200/400 Hz (index 6/7) have no RAK4631 code and are rejected.
+
+### 1. Desired settings in `devices.json` (recommended, automatic)
+
+Declare the settings once per device — the service pushes them as downlinks
+whenever the device's own report (every fPort-2 uplink carries
+`acc_threshold` / `acc_frequency` / `acc_duration`) differs, and immediately
+when `devices.json` is edited and hot-reloaded (ChirpStack queues the downlink
+until the device's next uplink, so sleeping Class A devices are fine):
+
+```json
+"devices": {
+  "ac1f09fffe1003ae": {
+    "name": "sensor3",
+    "threshold": 8,
+    "frequency": 10,
+    "duration": 1
+  }
+}
+```
+
+Keys: `threshold` (1–127), `duration` (0–127), `frequency` (Hz / code / index,
+see above). `command` (port 4) is one-shot only — not from the config. Unknown
+keys (e.g. a `threshol` typo) are ignored with a warning at load. Keys can also
+go in `defaults` / `families` to apply fleet-wide. Set `family` (device profile
+name, e.g. `RAK4631`/`RAK3172`) on the device entry so the CLI can translate
+`frequency` without `--family`; the live service takes the family from each
+uplink's device profile instead.
+
+### 2. One-shot per device (CLI or MQTT)
+
+Both log one `kind="downlink"` row per frame to the events table:
+
+```bash
+# CLI, one-shot (resolves --dev by devEUI or configured name); with no --set/--raw
+# it pushes the device's configured threshold/frequency/duration:
+.venv/bin/python3 -m loralarm.downlink --mqtt <lora-box> --config devices.json \
+    --dev sensor3                       # push what devices.json says, now
+.venv/bin/python3 -m loralarm.downlink --mqtt <lora-box> --config devices.json \
+    --dev sensor16 --set frequency=50 --set threshold=16 [--confirmed] [--dry-run]
+# raw frame:
+.venv/bin/python3 -m loralarm.downlink --mqtt <lora-box> --config devices.json \
+    --dev ac1f09fffe12da63 --raw --fport 6 --value 002
+
+# live service: subscribes loralarm/down/<devEui-or-name> (--dl-topic),
+# payload {"threshold":16,"frequency":50} or {"port":6,"value":"002"}:
+mosquitto_pub -h <lora-box> -t 'loralarm/down/sensor16' -m '{"frequency": 50}'
+```
+
 ## Next steps toward fleet dashboards (spec §7/§9)
 
 1. ChirpStack REST registry cache (devEUI → name/profile) at startup + interval refresh.
-2. Downlinks via ChirpStack MQTT downlink topic (ports 4–7, ASCII decimal).
-3. Status page (FastAPI, spec §9) reading the events SQLite log.
+2. ~~Downlinks via ChirpStack MQTT downlink topic~~ — done, see above (`loralarm/downlink.py`).
+3. Status page (FastAPI, spec §9) reading the events SQLite log; trigger
+   downlinks over `loralarm/down/<device>`.
 4. Optional: hysteresis/debounce on temp and battery thresholds to avoid flapping
    at the boundary.

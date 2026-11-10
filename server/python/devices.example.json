@@ -30,13 +30,20 @@
   "devices": {
     "ac1f09fffe1003ae": {
       "name": "sensor3",
+      "family": "RAK4631",
+      "application_id": "${LORALARM_CS_APP_LARM}",
       "ntfy_topic": "sensor3",
       "watchdog_hours": 0.5,
+      "threshold": 8,
+      "frequency": 10,
+      "duration": 1,
       "pushover_user": "${LORALARM_PUSHOVER_USER}",
       "pushover_token": "${LORALARM_PUSHOVER_TOKEN}"
     },
     "ac1f09fffe12da63": {
       "name": "sensor16",
+      "family": "RAK3172",
+      "application_id": "${LORALARM_CS_APP_SUBLARM}",
       "ntfy_topic": "sensor16",
       "watchdog_hours": 0.5,
       "pushover_user": "${LORALARM_PUSHOVER_USER}",

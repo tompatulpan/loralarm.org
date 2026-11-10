@@ -27,6 +27,7 @@ class Uplink:
     obj: dict[str, Any]          # decoded by the ChirpStack device-profile codec
     rssi: int | None
     snr: float | None
+    application_id: str = ""     # deviceInfo.applicationId; needed for the downlink topic
 
     @property
     def is_sensor_data(self) -> bool:
@@ -55,6 +56,7 @@ class Uplink:
             obj=ev.get("object") or {},
             rssi=rx[0].get("rssi") if rx else None,
             snr=rx[0].get("snr") if rx else None,
+            application_id=info.get("applicationId", ""),
         )
 
     @classmethod

@@ -70,6 +70,17 @@ class DeviceConfig:
                                         # within motion_window_s (1 = every detection;
                                         # 3 = "3 detections within 30 s")
     watchdog_hours: float = 24        # stale if no uplink within this
+    application_id: str = ""            # ChirpStack application UUID; needed for the downlink
+                                        # topic (the live service also learns it from uplinks)
+    # desired ACC settings, auto-pushed as downlinks (ports 5-7) whenever the
+    # device-reported acc_threshold / acc_frequency / acc_duration in the uplink
+    # object differ (see service.Engine._enforce_downlinks). `frequency` takes
+    # Hz (1/10/25/50/100/200/400), a RAK4631 register code or a RUI3 index —
+    # see downlink.parse_frequency. `command` (port 4) is one-shot only: use the
+    # CLI or the loralarm/down MQTT topic, not the config.
+    threshold: int | None = None
+    frequency: int | str | None = None
+    duration: int | None = None
     ntfy_topic: str = "loralarm"
     pushover_user: str = ""
     pushover_token: str = ""
@@ -98,7 +109,9 @@ _FIELD_TYPES: dict[str, tuple[type, ...]] = {
     "batt_empty_v": (int, float), "tilt_sense_g": (int, float),
     "circuit_mode": (str,), "circuit_hold_s": (int, float),
     "motion_mode": (str,), "motion_window_s": (int, float), "motion_min_detections": (int,),
-    "watchdog_hours": (int, float), "ntfy_topic": (str,),
+    "watchdog_hours": (int, float), "application_id": (str,),
+    "threshold": (int,), "frequency": (int, str), "duration": (int,),
+    "ntfy_topic": (str,),
     "pushover_user": (str,), "pushover_token": (str,),
     "notify_title": (str,), "notify_fire": (dict,), "notify_clear": (dict,),
 }
@@ -131,6 +144,15 @@ class Config:
             self._warn_unknown(f"families.{fam}", fvals)
         for eui, entry in data.get("devices", {}).items():
             self._warn_unknown(f"devices.{eui}", entry)
+        # the ChirpStack application is a property of each device registration,
+        # not of its profile — a family/defaults-wide application_id is only
+        # correct when every device in that layer really lives in one application
+        for where, section in [("defaults", self.defaults)] + [
+                (f"families.{fam}", fvals) for fam, fvals in data.get("families", {}).items()]:
+            if "application_id" in section:
+                log.warning("config %s: application_id applies to every device in that layer; "
+                            "with devices spread over several ChirpStack applications, set it "
+                            "per device instead (devices.<devEui>.application_id)", where)
 
     @staticmethod
     def _warn_unknown(where: str, section: dict[str, Any]) -> None:

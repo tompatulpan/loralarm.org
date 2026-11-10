@@ -11,18 +11,19 @@ from .common import DEV_EUI, T0
 
 class TimestampFormatTest(unittest.TestCase):
     def test_fixed_width_utc_with_microseconds(self):
-        log = EventLog(None)
-        log.log(T0, DEV_EUI, "sensor3", "temp", True, "1.0 °C")
-        rows = log.recent(hours=24)
-        ts = rows[0][0]
+        ts = EventLog._utc(T0)
         self.assertTrue(ts.endswith("+00:00"), ts)
         # always 6-digit microseconds -> text ordering is consistent
         self.assertRegex(ts, r"\.\d{6}\+00:00$")
         self.assertTrue(ts.startswith("2026-11-09T15:33:14.527766"))
+        # and it round-trips through the table (wide window: T0 is a fixed past ts)
+        log = EventLog(None)
+        log.log(T0, DEV_EUI, "sensor3", "temp", True, "1.0 °C")
+        self.assertEqual(log.recent(hours=24 * 3650)[0][0], ts)
 
     def test_naive_ts_treated_as_utc(self):
         log = EventLog(None)
-        log.log(datetime(2026, 11, 9, 15, 33, 14), DEV_EUI, "sensor3", "temp", True)
+        log.log(datetime.now(timezone.utc).replace(tzinfo=None), DEV_EUI, "sensor3", "temp", True)
         ts = log.recent(hours=24)[0][0]
         self.assertTrue(ts.endswith("+00:00"), ts)
 

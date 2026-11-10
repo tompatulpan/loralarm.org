@@ -15,8 +15,10 @@ LORALARM_MQTT_PASSWORD environment variable.
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import os
+import re
 import signal
 import sqlite3
 import sys
@@ -28,7 +30,9 @@ from typing import Any
 
 from . import mqttclient
 from .alarms import LABELS, AlarmState
-from .config import Config
+from .config import Config, DeviceConfig
+from .downlink import (DEFAULT_DL_TOPIC, DL_OBJ_FIELD, DL_PORT_KEY, Downlink,
+                       DownlinkSender, desired_frames, parse_command_message)
 from .event import Uplink
 from .events import EventLog, utc_now
 from .notify import Notifier
@@ -52,7 +56,8 @@ class Engine:
     """
 
     def __init__(self, config: Config, event_log: EventLog | None = None,
-                 notifier: Notifier | None = None, config_path: str | Path | None = None):
+                 notifier: Notifier | None = None, config_path: str | Path | None = None,
+                 downlink_sender: DownlinkSender | None = None, dl_topic: str = ""):
         self.config = config
         self.event_log = event_log
         self.notifier = notifier
@@ -62,6 +67,15 @@ class Engine:
             self._config_mtime = self.config_path.stat().st_mtime
         # dev_eui -> (config, state)
         self.devices: dict[str, tuple[Any, AlarmState]] = {}
+        # dev_eui -> ChirpStack application id, learned from uplink events
+        # (deviceInfo.applicationId); the downlink topic needs it
+        self.app_ids: dict[str, str] = {}
+        self.downlink_sender = downlink_sender
+        self.dl_topic = dl_topic
+        # devices whose auto-downlink is disabled after a config/send error,
+        # so one bad device does not spam the log on every uplink; cleared on
+        # each successful config reload
+        self._dl_bad: set[str] = set()
         self._lock = threading.Lock()
 
     def _maybe_reload_config(self) -> None:
@@ -84,6 +98,8 @@ class Engine:
                       self.config_path, type(e).__name__, e)
             return
         log.info("reloaded config from %s", self.config_path)
+        self._dl_bad.clear()
+        self._push_changed_downlinks()
 
     def seed(self, now: datetime | None = None) -> None:
         """Create state for every configured device, seeded from the persisted
@@ -138,9 +154,12 @@ class Engine:
             cfg = self.config.for_event(up.dev_eui, up.device_name, up.device_profile_name)
             _, state = self.devices.setdefault(up.dev_eui, (cfg, AlarmState()))
             self.devices[up.dev_eui] = (cfg, state)
+            if up.application_id:
+                self.app_ids[up.dev_eui] = up.application_id
 
             if up.is_sensor_data and up.obj:
                 reading, transitions = state.update(cfg, up)
+                self._enforce_downlinks(up.dev_eui, cfg, up.obj)
             else:
                 # settings frame (fPort 4-7) or codec failure: only refresh
                 # last_seen, never evaluate and never clear active alarms
@@ -185,6 +204,138 @@ class Engine:
                         alarmed.append(dev_eui)
                 self._persist(dev_eui, state)
         return alarmed
+
+    # ---- downlinks (spec §7.4) ----
+
+    _EUI_RE = re.compile(r"^[0-9a-f]{16}$")
+
+    def resolve_device(self, identifier: str) -> tuple[str, DeviceConfig]:
+        """devEUI + config for a devEUI or a device name, from live state first
+        (so a name maps to the real devEUI), then from config devEUI keys."""
+        ident = identifier.strip().lower()
+        with self._lock:
+            if ident in self.devices:
+                dev_eui, (cfg, _state) = ident, self.devices[ident]
+                return dev_eui, cfg
+            for eui, (cfg, _state) in self.devices.items():
+                if cfg.name.lower() == ident:
+                    return eui, cfg
+            if self._EUI_RE.match(ident) and ident in self.config.devices:
+                cfg = self.config.for_event(ident, "", "")
+                return cfg.dev_eui, cfg
+        raise KeyError(f"unknown device {identifier!r}: never seen on MQTT and not a "
+                       f"devEUI key in the config")
+
+    def send_downlinks(self, identifier: str, frames: list, source: str = "") -> list[Downlink]:
+        """Send downlink frames to one device (by devEUI or name) and log each
+        to the events table (kind='downlink'). Returns the sent Downlinks."""
+        dev_eui, cfg = self.resolve_device(identifier)
+        with self._lock:
+            return self._send_downlinks_locked(dev_eui, cfg, frames, source)
+
+    def _send_downlinks_locked(self, dev_eui: str, cfg: DeviceConfig, frames: list,
+                                source: str = "") -> list[Downlink]:
+        """send_downlinks without resolving/locking — call with the lock held."""
+        if self.downlink_sender is None:
+            raise RuntimeError("downlink sender not configured (start the service with --dl-topic)")
+        app_id = self.app_ids.get(dev_eui) or cfg.application_id
+        if not app_id:
+            raise ValueError(f"no ChirpStack application id known for {cfg.name} ({dev_eui}); "
+                             f"set \"application_id\" in the config or wait for an uplink")
+        now = utc_now()
+        sent: list[Downlink] = []
+        for frame in frames:
+            dl = Downlink.from_frame(dev_eui, frame)
+            self.downlink_sender.send(app_id, dl)
+            sent.append(dl)
+            text = dl.data.decode("ascii", "replace")
+            detail = f"fPort={dl.f_port} data={text!r} {dl.note}".strip()
+            if source:
+                detail = f"{source} {detail}".strip()
+            self._log_event(now, dev_eui, cfg.name, "downlink", True, detail)
+            print(f"{now:%Y-%m-%d %H:%M:%S} {cfg.name:<10} downlink >>> "
+                  f"fPort={dl.f_port} data={text!r} {dl.note}".rstrip(), flush=True)
+        return sent
+
+    def _enforce_downlinks(self, dev_eui: str, cfg: DeviceConfig, obj: dict) -> None:
+        """Auto-downlink: compare the ACC settings the device reports in the
+        uplink object (acc_threshold / acc_frequency / acc_duration) with the
+        desired `threshold` / `frequency` / `duration` from the config and send
+        the mismatched ones. Call with the lock held, on sensor-data uplinks."""
+        if self.downlink_sender is None or dev_eui in self._dl_bad:
+            return
+        try:
+            frames = desired_frames(cfg)
+        except ValueError as e:
+            self._dl_bad.add(dev_eui)
+            log.error("device %s (%s): invalid downlink settings in config, auto-downlink "
+                      "disabled until the next config reload: %s", dev_eui, cfg.name, e)
+            return
+        pending = []
+        for f in frames:
+            reported = obj.get(DL_OBJ_FIELD[DL_PORT_KEY[f.f_port]])
+            if reported is None:
+                continue  # this frame didn't carry the field — don't guess
+            try:
+                if int(reported) != int(f.data.decode("ascii")):
+                    pending.append(f)
+            except (TypeError, ValueError):
+                continue
+        if not pending:
+            return
+        try:
+            self._send_downlinks_locked(dev_eui, cfg, pending, source="auto")
+        except (RuntimeError, ValueError) as e:
+            # e.g. no application id known yet — log once, not on every uplink
+            self._dl_bad.add(dev_eui)
+            log.error("auto-downlink for %s (%s) failed, disabled until the next "
+                      "config reload: %s", dev_eui, cfg.name, e)
+
+    def _push_changed_downlinks(self) -> None:
+        """After a config reload: re-send the desired settings that changed
+        (ChirpStack queues a downlink until the device's next uplink, so this
+        is safe even for sleeping Class A devices). Call with the lock held."""
+        if self.downlink_sender is None:
+            return
+        for dev_eui, (old_cfg, state) in list(self.devices.items()):
+            new_cfg = self.config.for_event(dev_eui, old_cfg.name, old_cfg.family)
+            self.devices[dev_eui] = (new_cfg, state)
+            try:
+                old = {(f.f_port, f.data) for f in desired_frames(old_cfg)}
+                new_frames = desired_frames(new_cfg)
+            except ValueError:
+                continue  # invalid new values: keep the old ones until fixed
+            changed = [f for f in new_frames if (f.f_port, f.data) not in old]
+            if not changed:
+                continue
+            try:
+                self._send_downlinks_locked(dev_eui, new_cfg, changed, source="config-reload")
+            except (RuntimeError, ValueError) as e:
+                log.warning("config-reload downlink for %s (%s) not sent: %s",
+                            dev_eui, new_cfg.name, e)
+
+    def on_dl_command(self, msg) -> None:
+        """MQTT command handler: topic `<dl_topic minus /+>/<devEui-or-name>`,
+        payload a JSON object, e.g. {"threshold": 16, "frequency": 50} or
+        {"port": 6, "value": "002"}. This is the per-device DL entry point
+        the status page will use."""
+        prefix = self.dl_topic[:-2] if self.dl_topic.endswith("/+") else self.dl_topic
+        identifier = msg.topic[len(prefix):].lstrip("/") if msg.topic.startswith(prefix) else msg.topic
+        try:
+            payload = json.loads(msg.payload)
+            dev_eui, cfg = self.resolve_device(identifier)
+            frames = parse_command_message(payload, cfg.family)
+            sent = self.send_downlinks(dev_eui, frames, source=f"mqtt {msg.topic}")
+            log.info("downlink command on %s: sent %d frame(s) to %s (%s)",
+                     msg.topic, len(sent), cfg.name, dev_eui)
+        except Exception as e:
+            log.error("downlink command on %s failed: %s: %s", msg.topic, type(e).__name__, e)
+            print(f"downlink command on {msg.topic} FAILED: {e}", flush=True)
+            try:
+                self._log_event(utc_now(), identifier.lower(), identifier, "downlink",
+                                False, f"error on {msg.topic}: {e}")
+            except Exception:
+                log.exception("could not log the failed downlink command")
 
     def _emit(self, cfg, ts: datetime, t) -> None:
         # each step isolated: a DB failure must never suppress the notification
@@ -260,6 +411,11 @@ def main() -> int:
                     help="Bearer token for a self-hosted ntfy that requires auth")
     ap.add_argument("--watchdog-interval", type=float, default=300.0,
                     help="seconds between watchdog checks (default 300)")
+    ap.add_argument("--dl-topic", default=os.environ.get("LORALARM_DL_TOPIC", DEFAULT_DL_TOPIC),
+                    help="MQTT topic for per-device downlink commands, subscribed as "
+                         "'<topic>/<devEui-or-name>' with a JSON payload "
+                         '({"threshold":16,"frequency":50} or {"port":6,"value":"002"}); '
+                         "default loralarm/down/+; pass '' to disable downlinks")
     ap.add_argument("--dry-run", action="store_true",
                     help="log notifications instead of sending ntfy/Pushover")
     args = ap.parse_args()
@@ -282,7 +438,8 @@ def main() -> int:
     event_log = EventLog(args.db)
     notifier = Notifier(ntfy_url=args.ntfy_url, dry_run=args.dry_run,
                         ntfy_token=args.ntfy_token)
-    engine = Engine(config, event_log, notifier, config_path=args.config)
+    dl_topic = args.dl_topic or ""
+    engine = Engine(config, event_log, notifier, config_path=args.config, dl_topic=dl_topic)
     engine.seed()
     notifier.start()
 
@@ -291,7 +448,11 @@ def main() -> int:
         on_uplink=lambda msg: engine.on_uplink(Uplink.from_json(msg.payload)),
         tls=args.tls,
         client_id=args.client_id, persistent=True,
+        extra_subscriptions=[(dl_topic, engine.on_dl_command)] if dl_topic else (),
     )
+    if dl_topic:
+        # the engine publishes downlinks through the same broker connection
+        engine.downlink_sender = DownlinkSender(client)
     mqttclient.connect_loop(client, args.mqtt, args.port)
     client.loop_start()
 
