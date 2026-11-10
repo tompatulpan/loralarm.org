@@ -160,6 +160,15 @@ name, e.g. `RAK4631`/`RAK3172`) on the device entry so the CLI can translate
 `frequency` without `--family`; the live service takes the family from each
 uplink's device profile instead.
 
+Read-back: every settings downlink sent by the service (auto, config-reload,
+MQTT command)
+is remembered until a sensor uplink reports that value in `acc_threshold` /
+`acc_frequency` / `acc_duration`; the service then logs `downlink OK <<<` and
+a `kind="downlink_ok"` row. A `downlink` row without a later `downlink_ok`
+means the device has not applied it (frame not delivered, or rejected by the
+firmware). Query: `select ts, device_name, kind, detail from events where
+kind like 'downlink%' order by ts desc`.
+
 Resend limits: a queued downlink is only delivered after the device's next
 uplink, which still reports the old value, so the same value is not re-sent
 within `DL_RESEND_S` (1 h) and is given up on after `DL_MAX_ATTEMPTS` (5) sends

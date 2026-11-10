@@ -523,6 +523,25 @@ class AutoEnforceTest(unittest.TestCase):
         self._uplink(engine, sensor_obj(acc_threshold=2))  # drifted again: sent again
         self.assertEqual(len(sent), 2)
 
+    def test_readback_logs_downlink_ok(self):
+        engine, event_log, _ = self._engine({"name": "sensor3", "threshold": 8})
+        self._uplink(engine, sensor_obj(acc_threshold=2))   # mismatch -> sent
+        self._uplink(engine, sensor_obj(acc_threshold=2))   # not applied yet: no ok row
+        self.assertEqual([r for r in event_log.recent() if r[2] == "downlink_ok"], [])
+        self._uplink(engine, sensor_obj(acc_threshold=8))   # device reports the new value
+        rows = [r for r in event_log.recent() if r[2] == "downlink_ok"]
+        self.assertEqual(len(rows), 1)
+        self.assertIn("threshold", rows[0][4])
+        self._uplink(engine, sensor_obj(acc_threshold=8))   # logged once only
+        self.assertEqual(len([r for r in event_log.recent() if r[2] == "downlink_ok"]), 1)
+
+    def test_readback_confirms_manual_downlink(self):
+        engine, event_log, _ = self._engine({"name": "sensor3"})
+        self._uplink(engine, sensor_obj())
+        engine.send_downlinks(DEV_EUI, parse_command_message({"threshold": 16}, "RAK4631"))
+        self._uplink(engine, sensor_obj(acc_threshold=16))
+        self.assertEqual(len([r for r in event_log.recent() if r[2] == "downlink_ok"]), 1)
+
     def test_publish_failure_does_not_lose_alarm_notification(self):
         notified = []
 

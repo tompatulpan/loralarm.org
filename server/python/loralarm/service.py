@@ -57,8 +57,13 @@ DL_MAX_ATTEMPTS = 5
 class _DlSent:
     data: bytes
     at: datetime
+    sent_first: datetime | None = None
     attempts: int = 1
     gave_up_logged: bool = False
+
+    def __post_init__(self) -> None:
+        if self.sent_first is None:
+            self.sent_first = self.at
 
 
 class Engine:
@@ -204,6 +209,7 @@ class Engine:
             self._persist(up.dev_eui, state)
             # last: a downlink problem must never cost an alarm notification
             if enforce:
+                self._confirm_downlinks(up.dev_eui, cfg, up.obj, utc_now())
                 self._enforce_downlinks(up.dev_eui, cfg, up.obj)
 
     def watchdog_tick(self) -> list[str]:
@@ -256,9 +262,10 @@ class Engine:
             return self._send_downlinks_locked(dev_eui, cfg, frames, source)
 
     def _send_downlinks_locked(self, dev_eui: str, cfg: DeviceConfig, frames: list,
-                                source: str = "", track: bool = False) -> list[Downlink]:
+                                source: str = "") -> list[Downlink]:
         """send_downlinks without resolving/locking — call with the lock held.
-        track=True records each sent frame for the auto-downlink resend limit."""
+        Settings frames (ports 5-7) are remembered until the device reports the
+        value back (see _confirm_downlinks) and for the auto-resend limit."""
         if self.downlink_sender is None:
             raise RuntimeError("downlink sender not configured (start the service with --dl-topic)")
         app_id = self.app_ids.get(dev_eui) or cfg.application_id
@@ -271,7 +278,7 @@ class Engine:
             dl = Downlink.from_frame(dev_eui, frame)
             self.downlink_sender.send(app_id, dl)
             sent.append(dl)
-            if track:
+            if dl.f_port in DL_PORT_KEY:
                 self._note_sent(dev_eui, dl, now)
             text = dl.data.decode("ascii", "replace")
             detail = f"fPort={dl.f_port} data={text!r} {dl.note}".strip()
@@ -298,24 +305,33 @@ class Engine:
             return
         now = utc_now()
         pending = []
+        status = []  # console summary: what the device reports vs. the config
         for f in frames:
             key = (dev_eui, f.f_port)
-            reported = obj.get(DL_OBJ_FIELD[DL_PORT_KEY[f.f_port]])
+            name = DL_PORT_KEY[f.f_port]
+            want = int(f.data.decode("ascii"))
+            reported = obj.get(DL_OBJ_FIELD[name])
             if reported is None:
+                status.append(f"{name}=? (not reported)")
                 continue  # this frame didn't carry the field — don't guess
             try:
-                if int(reported) == int(f.data.decode("ascii")):
+                if int(reported) == want:
                     self._dl_sent.pop(key, None)  # applied
+                    status.append(f"{name}={reported} ok")
                     continue
             except (TypeError, ValueError):
                 continue
             if self._resend_blocked(key, f.data, now, cfg):
+                status.append(f"{name}={reported} want {want} (sent, waiting for device)")
                 continue
+            status.append(f"{name}={reported} want {want} -> sending")
             pending.append(f)
+        if status:
+            print(f"    acc settings: {', '.join(status)}", flush=True)
         if not pending:
             return
         try:
-            self._send_downlinks_locked(dev_eui, cfg, pending, source="auto", track=True)
+            self._send_downlinks_locked(dev_eui, cfg, pending, source="auto")
         except (RuntimeError, ValueError) as e:
             # e.g. no application id known yet — log once, not on every uplink
             self._dl_bad.add(dev_eui)
@@ -324,6 +340,26 @@ class Engine:
         except Exception:
             # e.g. broker publish failure: transient, retried on the next uplink
             log.exception("auto-downlink for %s (%s) failed", dev_eui, cfg.name)
+
+    def _confirm_downlinks(self, dev_eui: str, cfg: DeviceConfig, obj: dict, ts: datetime) -> None:
+        """Read-back: when the device's uplink reports the value of a downlink we
+        sent, log it as applied. Call with the lock held, on sensor-data uplinks."""
+        for port in DL_PORT_KEY:
+            rec = self._dl_sent.get((dev_eui, port))
+            if rec is None:
+                continue
+            reported = obj.get(DL_OBJ_FIELD[DL_PORT_KEY[port]])
+            try:
+                if reported is None or int(reported) != int(rec.data.decode("ascii")):
+                    continue
+            except (TypeError, ValueError):
+                continue
+            del self._dl_sent[(dev_eui, port)]
+            took = (ts - rec.sent_first).total_seconds()
+            detail = (f"fPort={port} {DL_PORT_KEY[port]} wire={reported} confirmed by device "
+                      f"after {rec.attempts} send(s), {took:.0f} s")
+            print(f"{ts:%Y-%m-%d %H:%M:%S} {cfg.name:<10} downlink OK  <<< {detail}", flush=True)
+            self._log_event(ts, dev_eui, cfg.name, "downlink_ok", False, detail)
 
     def _note_sent(self, dev_eui: str, dl: Downlink, now: datetime) -> None:
         key = (dev_eui, dl.f_port)
@@ -368,8 +404,7 @@ class Engine:
             if not changed:
                 continue
             try:
-                self._send_downlinks_locked(dev_eui, new_cfg, changed,
-                                            source="config-reload", track=True)
+                self._send_downlinks_locked(dev_eui, new_cfg, changed, source="config-reload")
             except (RuntimeError, ValueError) as e:
                 log.warning("config-reload downlink for %s (%s) not sent: %s",
                             dev_eui, new_cfg.name, e)
