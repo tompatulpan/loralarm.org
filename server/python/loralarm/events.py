@@ -95,6 +95,14 @@ class EventLog:
                 (dev_eui, json.dumps(snapshot), self._utc(utc_now())))
             self._conn.commit()
 
+    def last_name(self, dev_eui: str) -> str:
+        """Most recent non-empty device name logged for a device, or ''."""
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT device_name FROM events WHERE dev_eui = ? AND device_name != '' "
+                "ORDER BY id DESC LIMIT 1", (dev_eui,)).fetchone()
+        return row[0] if row else ""
+
     def known_devices(self) -> list[str]:
         """devEUIs that have a saved state snapshot (seen by an earlier run)."""
         with self._lock:

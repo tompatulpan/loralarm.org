@@ -94,6 +94,14 @@ class SeedTest(unittest.TestCase):
         self.assertEqual((cfg.name, cfg.family), ("Door1", "RAK3172"))
         self.assertEqual(restarted.watchdog_tick(), [OTHER_EUI])
 
+    def test_seed_falls_back_to_name_from_event_history(self):
+        log = EventLog(None)
+        log.log(utc_now() - timedelta(hours=30), OTHER_EUI, "Door1", "stale", True, "x")
+        log.save_state(OTHER_EUI, {"active": [], "last_seen": (utc_now() - timedelta(hours=30)).isoformat()})
+        engine = Engine(make_config(), event_log=log)
+        engine.seed()
+        self.assertEqual(engine.devices[OTHER_EUI][0].name, "Door1")
+
     def test_seeded_stale_device_alarms_on_first_tick(self):
         log = EventLog(None)
         log.log(utc_now() - timedelta(hours=48), DEV_EUI, "sensor3", "temp", True)

@@ -117,6 +117,11 @@ class Engine:
                         log.exception("unreadable state snapshot for %s; starting fresh", dev_eui)
                         state = AlarmState()
                         name = family = ""
+                    if not name or name == dev_eui:
+                        try:
+                            name = self.event_log.last_name(dev_eui)
+                        except sqlite3.Error:
+                            name = ""
                     if state.last_seen is None:
                         state.last_seen = self.event_log.last_seen(dev_eui)
                 if state.last_seen is None:
