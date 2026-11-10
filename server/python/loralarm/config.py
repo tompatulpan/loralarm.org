@@ -69,7 +69,7 @@ class DeviceConfig:
     motion_min_detections: int = 1      # event mode: alarm when this many detections fall
                                         # within motion_window_s (1 = every detection;
                                         # 3 = "3 detections within 30 s")
-    watchdog_hours: float = 0.5        # stale if no uplink within this
+    watchdog_hours: float = 24        # stale if no uplink within this
     ntfy_topic: str = "loralarm"
     pushover_user: str = ""
     pushover_token: str = ""

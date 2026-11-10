@@ -43,7 +43,7 @@ DEFAULT_TEXT: dict[str, tuple[str, str]] = {
     "tilt":         ("📐 TILTLARM: {name} — {detail}",
                      "✔️ Tilt kvitterad: {name} — {detail}"),
     "stale":         ("📵 INGEN KONTAKT: {name} — {detail}",
-                      "✔️ Kontakt åter: {name} — {detail}"),
+                      "✔️ Kommunikationen med {name} är återupptagen"),
 }
 
 # backwards-compatible alias; the texts are the live defaults, not an example

@@ -2,7 +2,7 @@
   "defaults": {
     "kind": "sensor",
     "tilt_sense_g": 0.3,
-    "watchdog_hours": 0.5,
+    "watchdog_hours": 24,
     "motion_mode": "event",
     "motion_window_s": 30,
     "motion_min_detections": 1,
@@ -24,19 +24,21 @@
       "motion": "{label} kvitterad på {name}",
       "circuit": "{label} kvitterad på {name}",
       "tilt": "{label} kvitterad på {name}",
-      "stale": "{label} kvitterad på {name}"
+      "stale": "Kommunikationen med {name} är återupptagen"
     }
   },
   "devices": {
     "ac1f09fffe1003ae": {
       "name": "sensor3",
       "ntfy_topic": "sensor3",
+      "watchdog_hours": 0.5,
       "pushover_user": "${LORALARM_PUSHOVER_USER}",
       "pushover_token": "${LORALARM_PUSHOVER_TOKEN}"
     },
     "ac1f09fffe12da63": {
       "name": "sensor16",
       "ntfy_topic": "sensor16",
+      "watchdog_hours": 0.5,
       "pushover_user": "${LORALARM_PUSHOVER_USER}",
       "pushover_token": "${LORALARM_PUSHOVER_TOKEN}"
     }
