@@ -8,8 +8,9 @@ Path (confirmed against the ChirpStack v4 MQTT integration docs): publish to
 `data` is the raw frame (base64) and bypasses the device-profile codec;
 providing `object` instead would go through the codec's `encodeDownlink`.
 
-Device-side protocol (both families, see server/chirpstack/README.md and the
-firmware RX callbacks): 3-digit zero-padded ASCII decimal, value 0-255, on
+Device-side protocol (per device family, see profiles.py, server/chirpstack/
+README.md and the firmware RX callbacks; both current families speak 3-digit
+zero-padded ASCII decimal, value 0-255, on):
 
     port 4  command (RAK4631: e.g. test alarm; RUI3 ignores it)
     port 5  accelerometer interrupt threshold, 1-127
@@ -45,50 +46,33 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from .profiles import (PORT_COMMAND, PORT_DURATION, PORT_FREQUENCY, PORT_THRESHOLD,  # noqa: F401
+                       get_profile)
+
 log = logging.getLogger(__name__)
 
-# settings/command ports (both families speak 3-digit ASCII decimal here)
-PORT_COMMAND = 4      # RAK4631 command byte (high/low, test alarm)
-PORT_THRESHOLD = 5    # interrupt threshold 1-127
-PORT_FREQUENCY = 6    # ODR: RAK4631 register code / RUI3 index
-PORT_DURATION = 7     # interrupt duration 0-127
-SETTINGS_PORTS = (PORT_COMMAND, PORT_THRESHOLD, PORT_FREQUENCY, PORT_DURATION)
-
 MAX_VALUE = 255       # firmware: DOWNLINK_MAX_VALUE, 3 ASCII digits
-THRESHOLD_RANGE = (1, 127)
-DURATION_RANGE = (0, 127)
 
 DEFAULT_DL_TOPIC = "loralarm/down/+"   # <prefix>/<devEui-or-name>
-
-# RUI3 (LIS3DH) ODR index -> Hz; index 6/7 (200/400 Hz) exist only on RUI3
-HZ_TO_RUI3_INDEX = {1: 1, 10: 2, 25: 3, 50: 4, 100: 5, 200: 6, 400: 7}
-# RAK4631 LIS3DH register code -> Hz (payload_codec_rak4631.js REG)
-REG_TO_HZ = {31: 1, 47: 10, 63: 25, 79: 50, 95: 100}
-HZ_TO_REG = {hz: code for code, hz in REG_TO_HZ.items()}
-# dashboard/register code -> RUI3 ODR index (payload_codec_rui3.js REG_TO_RUI3)
-REG_TO_RUI3_INDEX = {0: 0, 31: 1, 47: 2, 63: 3, 79: 4, 95: 5}
-
-RUI3_FAMILIES = {"rak3172", "rui3", "cayenne"}
-RAK4631_FAMILIES = {"rak4631", "android", "custom"}
-
-# desired-setting config key -> codec `object` field with the device-reported
-# wire value (both codecs emit acc_threshold / acc_duration / acc_frequency)
-DL_OBJ_FIELD = {"threshold": "acc_threshold", "frequency": "acc_frequency",
-                "duration": "acc_duration"}
-DL_PORT_KEY = {PORT_THRESHOLD: "threshold", PORT_FREQUENCY: "frequency",
-               PORT_DURATION: "duration"}
 
 
 def desired_frames(cfg) -> list[DownlinkFrame]:
     """Frames for the per-device desired settings from the config
-    (cfg.threshold / cfg.frequency / cfg.duration); empty when none are set.
-    Raises ValueError on out-of-range values — callers log and skip."""
-    frames: list[DownlinkFrame] = []
+    (cfg.threshold / cfg.frequency / cfg.duration, or cfg.params[key] for
+    profile-specific settings); empty when none are set or the device kind
+    takes no settings. Raises ValueError on out-of-range values — callers
+    log and skip."""
     family = getattr(cfg, "family", "")
-    for key in ("threshold", "frequency", "duration"):
-        value = getattr(cfg, key, None)
+    profile = get_profile(family)
+    if getattr(cfg, "kind", "sensor") not in profile.settings_kinds:
+        return []
+    frames: list[DownlinkFrame] = []
+    for spec in profile.auto_settings():
+        value = getattr(cfg, spec.key, None)
+        if value is None:
+            value = (getattr(cfg, "params", None) or {}).get(spec.key)
         if value is not None:
-            frames.append(settings_frame(key, value, family))
+            frames.append(settings_frame(spec.key, value, family))
     return frames
 
 _EUI_RE = re.compile(r"^[0-9a-f]{16}$")
@@ -113,69 +97,17 @@ def ascii3(value: int | str) -> bytes:
 def parse_frequency(value: int | str, family: str = "") -> int:
     """Translate a frequency request to the wire value for `family`.
 
-    Accepted inputs: Hz (1/10/25/50/100/200/400), RAK4631 register code
-    (31/47/63/79/95), RUI3 index (1-7), or explicit `hz:`/`code:`/`index:`
-    prefixes. With a known family the result is that family's wire value
-    (RUI3: index 1-7, RAK4631: register code). With an unknown family the
-    value is passed through unchanged (codes/indices only; Hz needs a family).
+    Accepted inputs: Hz, a wire value (RAK4631 register code, RUI3 index) or
+    explicit `hz:`/`code:`/`index:` prefixes. With a known family the result is
+    that family's wire value; with an unknown family wire values pass through
+    unchanged and Hz is an error. See profiles.DeviceProfile.frequency_to_wire.
     """
-    fam = (family or "").strip().lower()
-    s = str(value).strip().lower()
-    hz: int | None = None
-    code: int | None = None
-    index: int | None = None
-    if s.startswith("hz:"):
-        hz = _int(s[3:], "hz")
-    elif s.startswith("code:"):
-        code = _int(s[5:], "code")
-    elif s.startswith("index:"):
-        index = _int(s[6:], "index")
-    else:
-        v = _int(s, "frequency")
-        if v in REG_TO_HZ:
-            code = v
-        elif v in HZ_TO_RUI3_INDEX:
-            hz = v
-        elif 1 <= v <= 7:
-            index = v
-        else:
-            raise ValueError(f"unknown frequency {value!r} (Hz 1/10/25/50/100/200/400, "
-                             f"register code 31/47/63/79/95, or RUI3 index 1-7)")
-    if hz is not None and hz not in HZ_TO_RUI3_INDEX:
-        raise ValueError(f"unknown frequency {hz} Hz")
-    if code is not None and code not in REG_TO_HZ:
-        raise ValueError(f"unknown register code {code} (31/47/63/79/95)")
-    if index is not None and not 1 <= index <= 7:
-        raise ValueError(f"RUI3 ODR index out of range [1-7]: {index}")
-
-    if fam in RUI3_FAMILIES:
-        if index is not None:
-            return index
-        if code is not None:
-            return REG_TO_RUI3_INDEX[code]
-        return HZ_TO_RUI3_INDEX[hz]
-    if fam in RAK4631_FAMILIES:
-        if code is not None:
-            return code
-        if index is not None:
-            hz = next(h for h, i in HZ_TO_RUI3_INDEX.items() if i == index)
-        if hz not in HZ_TO_REG:
-            raise ValueError(f"{hz} Hz has no RAK4631 register code (max 100 Hz)")
-        return HZ_TO_REG[hz]
-    # family unknown: pass the wire value through unchanged
-    if index is not None:
-        return index
-    if code is not None:
-        return code
-    raise ValueError("frequency in Hz needs a known device family "
-                     "(set `family` in the config or pass --family); "
-                     "use code:31/47/63/79/95 or index:1-7 for an explicit wire value")
+    return get_profile(family).frequency_to_wire(value)
 
 
 def wire_to_hz(value: int | str, family: str = "") -> float | None:
-    """Wire value (RAK4631 register code or RUI3 ODR index) -> Hz, else None.
-    With an unknown family both encodings are accepted."""
-    fam = (family or "").strip().lower()
+    """Wire value (e.g. RAK4631 register code or RUI3 ODR index) -> Hz, else None.
+    With an unknown family every registered encoding is accepted."""
     try:
         f = float(value)          # JSON numbers arrive as floats (95.0)
         if not f.is_integer():
@@ -183,14 +115,7 @@ def wire_to_hz(value: int | str, family: str = "") -> float | None:
         v = int(f)
     except (TypeError, ValueError):
         return None
-    if fam in RAK4631_FAMILIES:
-        hz = REG_TO_HZ.get(v)
-    elif fam in RUI3_FAMILIES:
-        hz = next((h for h, i in HZ_TO_RUI3_INDEX.items() if i == v), None)
-    else:
-        hz = REG_TO_HZ.get(v)
-        if hz is None:
-            hz = next((h for h, i in HZ_TO_RUI3_INDEX.items() if i == v), None)
+    hz = get_profile(family).wire_to_hz(v)
     return float(hz) if hz is not None else None
 
 
@@ -218,32 +143,27 @@ class DownlinkFrame:
 
 def settings_frame(key: str, value: int | str, family: str = "",
                    confirmed: bool = False) -> DownlinkFrame:
-    """Build one settings/command frame.
+    """Build one settings/command frame for the device family's profile.
 
-    key: threshold | frequency | duration | command | port (with value).
+    key: a setting of the profile (standard: threshold | frequency | duration |
+    command); raw frames go through parse_command_message (port + value).
     """
     k = str(key).strip().lower()
-    if k == "threshold":
-        v = _int(str(value), "threshold")
-        return DownlinkFrame(PORT_THRESHOLD, ascii3(_check_range("threshold", v, *THRESHOLD_RANGE)),
-                             confirmed, f"threshold={v}")
-    if k == "duration":
-        v = _int(str(value), "duration")
-        return DownlinkFrame(PORT_DURATION, ascii3(_check_range("duration", v, *DURATION_RANGE)),
-                             confirmed, f"duration={v}")
-    if k == "command":
-        v = _int(str(value), "command")
-        return DownlinkFrame(PORT_COMMAND, ascii3(_check_range("command", v, 0, MAX_VALUE)),
-                             confirmed, f"command={v}")
-    if k == "frequency":
-        v = parse_frequency(value, family)
+    profile = get_profile(family)
+    spec = profile.setting(k)
+    if spec is None:
+        if k == "port":
+            raise ValueError("key 'port' needs the 'value' key too; use parse_command_message")
+        keys = " | ".join(s.key for s in profile.settings)
+        raise ValueError(f"unknown downlink key {key!r} ({keys} | port+value)")
+    if spec.kind == "frequency":
+        v = profile.frequency_to_wire(value)
         hz = wire_to_hz(v, family)
         note = f"frequency wire={v}" + (f" ({hz:g} Hz)" if hz is not None else "")
-        return DownlinkFrame(PORT_FREQUENCY, ascii3(v), confirmed, note)
-    if k == "port":
-        raise ValueError("key 'port' needs the 'value' key too; use parse_command_message")
-    raise ValueError(f"unknown downlink key {key!r} "
-                     f"(threshold | frequency | duration | command | port+value)")
+        return DownlinkFrame(spec.port, ascii3(v), confirmed, note)
+    v = _int(str(value), k)
+    return DownlinkFrame(spec.port, ascii3(_check_range(k, v, spec.lo, spec.hi)),
+                         confirmed, f"{k}={v}")
 
 
 def parse_command_message(payload: Any, family: str = "",
@@ -270,15 +190,15 @@ def parse_command_message(payload: Any, family: str = "",
         if rest:
             raise ValueError(f"cannot mix raw port/value with settings keys: {sorted(rest)}")
         return frames
-    for key in ("threshold", "frequency", "duration", "command"):
+    keys = [spec.key for spec in get_profile(family).settings]
+    for key in keys:
         if key in payload:
             frames.append(settings_frame(key, payload[key], family, conf))
-    unknown = sorted(set(payload) - {"threshold", "frequency", "duration", "command", "confirmed"})
+    unknown = sorted(set(payload) - set(keys) - {"confirmed"})
     if unknown:
         raise ValueError(f"unknown downlink keys: {unknown}")
     if not frames:
-        raise ValueError("empty downlink command: set threshold/frequency/duration/command "
-                         "or port+value")
+        raise ValueError(f"empty downlink command: set {'/'.join(keys)} or port+value")
     return frames
 
 

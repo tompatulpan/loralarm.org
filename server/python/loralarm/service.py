@@ -30,14 +30,14 @@ from pathlib import Path
 from typing import Any
 
 from . import mqttclient
-from .alarms import LABELS, AlarmState
+from .alarms import AlarmState, label_for
 from .config import Config, DeviceConfig
-from .downlink import (DEFAULT_DL_TOPIC, DL_OBJ_FIELD, DL_PORT_KEY, RAK4631_FAMILIES,
-                       Downlink, DownlinkSender, desired_frames, parse_command_message,
-                       wire_to_hz)
+from .downlink import (DEFAULT_DL_TOPIC, Downlink, DownlinkSender, desired_frames,
+                       parse_command_message, wire_to_hz)
 from .event import Uplink
 from .events import EventLog, utc_now
 from .notify import Notifier
+from .profiles import get_profile
 
 log = logging.getLogger(__name__)
 
@@ -66,7 +66,7 @@ def _fmt_num(v) -> str:
 def _freq_str(wire: int, family: str) -> str:
     """Human display for a frequency wire value: Hz first, wire code/index after."""
     hz = wire_to_hz(wire, family)
-    label = "code" if (family or "").strip().lower() in RAK4631_FAMILIES else "index"
+    label = get_profile(family).freq_label
     return f"{hz:g} Hz ({label} {wire})" if hz is not None else str(wire)
 
 
@@ -220,7 +220,7 @@ class Engine:
                 self._log_event(up.time, up.dev_eui, up.device_name,
                                 f"settings_f{up.f_port}", False, text)
             for t in transitions:
-                print(f"    >>> {LABELS[t.kind.value]}: {'LARM' if t.active else 'kvitterad'} — {t.detail}",
+                print(f"    >>> {label_for(t.kind)}: {'LARM' if t.active else 'kvitterad'} — {t.detail}",
                       flush=True)
                 self._emit(cfg, up.time, t)
             self._persist(up.dev_eui, state)
@@ -242,7 +242,7 @@ class Engine:
                 self.devices[dev_eui] = (cfg, state)
                 for t in state.watchdog(cfg, now):
                     print(f"{now:%Y-%m-%d %H:%M:%S} {cfg.name:<10} watchdog "
-                          f">>> {LABELS[t.kind.value]}: {'LARM' if t.active else 'kvitterad'} — {t.detail}",
+                          f">>> {label_for(t.kind)}: {'LARM' if t.active else 'kvitterad'} — {t.detail}",
                           flush=True)
                     self._emit(cfg, now, t)
                     if t.active:
@@ -295,7 +295,8 @@ class Engine:
             dl = Downlink.from_frame(dev_eui, frame)
             self.downlink_sender.send(app_id, dl)
             sent.append(dl)
-            if dl.f_port in DL_PORT_KEY:
+            spec = get_profile(cfg.family).setting_for_port(dl.f_port)
+            if spec is not None and spec.obj_field is not None:
                 self._note_sent(dev_eui, dl, now)
             text = dl.data.decode("ascii", "replace")
             detail = f"fPort={dl.f_port} data={text!r} {dl.note}".strip()
@@ -321,13 +322,15 @@ class Engine:
                       "disabled until the next config reload: %s", dev_eui, cfg.name, e)
             return
         now = utc_now()
+        profile = get_profile(cfg.family)
         pending = []
         status = []  # console summary: what the device reports vs. the config
         for f in frames:
             key = (dev_eui, f.f_port)
-            name = DL_PORT_KEY[f.f_port]
+            spec = profile.setting_for_port(f.f_port)
+            name = spec.key
             want = int(f.data.decode("ascii"))
-            reported = obj.get(DL_OBJ_FIELD[name])
+            reported = obj.get(spec.obj_field)
             if reported is None:
                 status.append(f"{name}=? (not reported)")
                 continue  # this frame didn't carry the field — don't guess
@@ -336,7 +339,7 @@ class Engine:
             except (TypeError, ValueError):
                 continue
             # frequency is shown in Hz (wire code/index in parens), the rest as ints
-            if name == "frequency":
+            if spec.kind == "frequency":
                 rep_s, want_s = _freq_str(rep_wire, cfg.family), _freq_str(want, cfg.family)
             else:
                 rep_s, want_s = _fmt_num(reported), _fmt_num(want)
@@ -367,11 +370,12 @@ class Engine:
     def _confirm_downlinks(self, dev_eui: str, cfg: DeviceConfig, obj: dict, ts: datetime) -> None:
         """Read-back: when the device's uplink reports the value of a downlink we
         sent, log it as applied. Call with the lock held, on sensor-data uplinks."""
-        for port in DL_PORT_KEY:
+        for spec in get_profile(cfg.family).auto_settings():
+            port = spec.port
             rec = self._dl_sent.get((dev_eui, port))
             if rec is None:
                 continue
-            reported = obj.get(DL_OBJ_FIELD[DL_PORT_KEY[port]])
+            reported = obj.get(spec.obj_field)
             try:
                 if reported is None or int(reported) != int(rec.data.decode("ascii")):
                     continue
@@ -379,7 +383,7 @@ class Engine:
                 continue
             del self._dl_sent[(dev_eui, port)]
             took = (ts - rec.sent_first).total_seconds()
-            detail = (f"fPort={port} {DL_PORT_KEY[port]} wire={_fmt_num(reported)} confirmed by device "
+            detail = (f"fPort={port} {spec.key} wire={_fmt_num(reported)} confirmed by device "
                       f"after {rec.attempts} send(s), {took:.0f} s")
             print(f"{ts:%Y-%m-%d %H:%M:%S} {cfg.name:<10} downlink OK  <<< {detail}", flush=True)
             self._log_event(ts, dev_eui, cfg.name, "downlink_ok", False, detail)

@@ -1,8 +1,8 @@
 """Per-device configuration, keyed by devEUI (fallback: device name).
 
 Layering (most specific wins): `defaults` <- `families[<device profile>]` <- `devices[<devEUI>]`.
-Family defaults encode the two sensor families from the migration spec §4;
-per-device values (Tk, battery thresholds, ntfy topic, ...) never live in codecs.
+Family defaults come from the device-profile registry (profiles.py, migration
+spec §4); per-device values (Tk, battery thresholds, ntfy topic, ...) never live in codecs.
 JSON keeps the test app dependency-free; PyYAML can replace the loader later.
 
 Secrets never live in the tracked files: any string of the form "${VAR}" is
@@ -19,6 +19,8 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+from .profiles import profiles
 
 log = logging.getLogger(__name__)
 
@@ -49,7 +51,8 @@ class DeviceConfig:
     dev_eui: str
     name: str = ""
     family: str = ""                    # ChirpStack device-profile name, e.g. RAK3172 / RAK4631
-    kind: str = "sensor"                # sensor | door | water
+    kind: str = "sensor"                # sensor | door | water | any kind an alarm rule names;
+                                        # selects which alarm rules and auto-downlink settings apply
     tk_correction_c: float = 0.0        # subtracted from raw temperature
     temp_alarm_limit_c: float = 0.0     # alarm at or below this temperature
     batt_full_v: float = 3.1
@@ -81,6 +84,9 @@ class DeviceConfig:
     threshold: int | None = None
     frequency: int | str | None = None
     duration: int | None = None
+    # free-form parameters for alarm rules / profile settings that have no field of
+    # their own (e.g. {"humidity_max": 80}); merged key-by-key across the layers
+    params: dict[str, Any] = field(default_factory=dict)
     ntfy_topic: str = "loralarm"
     pushover_user: str = ""
     pushover_token: str = ""
@@ -90,16 +96,6 @@ class DeviceConfig:
     notify_fire: dict[str, str] = field(default_factory=dict)
     notify_clear: dict[str, str] = field(default_factory=dict)
 
-
-# Migration spec §4: RAK3172 = 3 V cell (0 °C Tk, alarm limit 0 °C), RAK4631 Android = LiPo (8 °C Tk, limit 2 °C).
-FAMILY_DEFAULTS: dict[str, dict[str, Any]] = {
-    "RAK3172": dict(tk_correction_c=0.0, temp_alarm_limit_c=0.0,
-                    batt_full_v=3.1, batt_warn_v=2.9, batt_empty_v=2.8,
-                    circuit_mode="level"),
-    "RAK4631": dict(tk_correction_c=8.0, temp_alarm_limit_c=2.0,
-                    batt_full_v=4.2, batt_warn_v=3.5, batt_empty_v=3.2,
-                    circuit_mode="event"),
-}
 
 # expected type per DeviceConfig field, for config validation
 _FIELD_TYPES: dict[str, tuple[type, ...]] = {
@@ -114,6 +110,7 @@ _FIELD_TYPES: dict[str, tuple[type, ...]] = {
     "ntfy_topic": (str,),
     "pushover_user": (str,), "pushover_token": (str,),
     "notify_title": (str,), "notify_fire": (dict,), "notify_clear": (dict,),
+    "params": (dict,),
 }
 
 
@@ -134,8 +131,9 @@ class Config:
         self.defaults = data.get("defaults", {})
         # merge per family so a partial override keeps the built-in keys
         user_families = data.get("families", {})
-        self.families = {name: {**FAMILY_DEFAULTS.get(name, {}), **user_families.get(name, {})}
-                         for name in {**FAMILY_DEFAULTS, **user_families}}
+        family_defaults = {p.name: p.defaults for p in profiles() if p.name}
+        self.families = {name: {**family_defaults.get(name, {}), **user_families.get(name, {})}
+                         for name in {**family_defaults, **user_families}}
         # devEUIs are lowercased on the wire (Uplink lowercases them), so the
         # lookup keys must be lowercase too or an uppercase key never matches
         self.devices = {str(k).lower(): v for k, v in data.get("devices", {}).items()}
@@ -175,6 +173,9 @@ class Config:
                     # every uplink); keep the value from the lower layer instead
                     log.warning("config for %s: key %r should be %s, got %r; ignoring it",
                                 dev_eui, k, _type_names(_FIELD_TYPES[k]), v)
+                    continue
+                if k == "params":
+                    merged[k] = {**merged.get(k, {}), **v}
                     continue
                 merged[k] = v
         fields = set(DeviceConfig.__dataclass_fields__) - {"dev_eui", "name", "family"}

@@ -17,7 +17,7 @@ import urllib.parse
 import urllib.request
 from email.header import Header
 
-from .alarms import LABELS
+from .alarms import label_for, rule_for
 from .config import DeviceConfig
 
 log = logging.getLogger(__name__)
@@ -27,7 +27,8 @@ PUSHOVER_API = "https://api.pushover.net/1/messages.json"
 # Built-in notification texts per alarm kind, fire / clear: {name}, {detail}
 # and {label} are substituted (detail carries the measured values, e.g.
 # "3.57 V ≤ varningsgräns 3.5 V"). Config templates win over these built-ins.
-# Keep in sync with alarms.LABELS when adding a kind; tuned during cutover
+# A new kind needs no entry here: alarms.AlarmRule can carry notify_fire /
+# notify_clear, else a generic text is used. Tuned during cutover
 # (checklist step 9) until the phone shows the same as Node-RED did.
 DEFAULT_TEXT: dict[str, tuple[str, str]] = {
     "temp":          ("❄️ TEMPERATURALARM: {name} — {detail}",
@@ -65,7 +66,7 @@ def message_text(kind: str, name: str, active: bool, detail: str,
     """Config templates (per kind) win over the DEFAULT_TEXT built-ins; a broken
     template falls back to the built-in so an alarm is never lost to a typo.
     Available substitutions: {name} {detail} {label}."""
-    label = LABELS.get(kind, kind)
+    label = label_for(kind)
     fields = dict(name=name, detail=detail, label=label)
     templates = (fire or {}) if active else (clear or {})
     template = templates.get(kind)
@@ -77,6 +78,12 @@ def message_text(kind: str, name: str, active: bool, detail: str,
     template = fire_tpl if active else clear_tpl
     if template:
         return template.format(**fields)
+    rule = rule_for(kind)       # a registered rule may carry its own texts
+    template = (rule.notify_fire if active else rule.notify_clear) if rule else ""
+    if template:
+        text = _safe_format(template, f"rule text for {kind}", **fields)
+        if text is not None:
+            return text
     state = "LARM" if active else "kvitterad"
     return f"{name}: {label} {state} — {detail}"
 
@@ -146,7 +153,7 @@ class Notifier:
         message = message_text(kind, name, active, detail,
                                cfg.notify_fire, cfg.notify_clear)
         title = _safe_format(cfg.notify_title, "title", name=name, kind=kind,
-                             detail=detail, label=LABELS.get(kind, kind)) \
+                             detail=detail, label=label_for(kind)) \
             or f"loralarm {name}"
 
         if self.dry_run:

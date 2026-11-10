@@ -14,8 +14,9 @@ Verify on the lora box with `mosquitto_sub -h localhost -t 'application/+/device
 | File | Role |
 |---|---|
 | `loralarm/event.py` | Parse a ChirpStack up event → `Uplink` (devEUI, fPort, `object`, rssi/snr; fPort 4–7 ASCII settings frames parsed here, not by the codec) |
-| `loralarm/config.py` | Per-device config, JSON keyed by devEUI; layering `defaults` < `families[profile]` < `devices[devEUI]`; family defaults = spec §4 (RAK3172 vs RAK4631 Tk/battery); `${ENV_VAR}` strings in the JSON are expanded from the environment |
-| `loralarm/alarms.py` | Pure port of the Node-RED alarm subflows: temp (after Tk), battery %/status, motion, circuit, tilt (baseline ± tilt_sense per axis), watchdog; fire-once/clear-once via `AlarmState` |
+| `loralarm/profiles.py` | Device-profile registry: per family the config defaults (spec §4: RAK3172 vs RAK4631 Tk/battery), downlink settings (key, fPort, range, read-back field), frequency table and which device `kind`s take settings. Unknown families get `GENERIC`. See "Adding a device" |
+| `loralarm/config.py` | Per-device config, JSON keyed by devEUI; layering `defaults` < `families[profile]` < `devices[devEUI]` (family defaults come from `profiles.py`); `kind` selects the alarm rules, `params` carries rule-specific thresholds; `${ENV_VAR}` strings in the JSON are expanded from the environment |
+| `loralarm/alarms.py` | Rule-driven port of the Node-RED alarm subflows: an `AlarmRule` registry (temp after Tk, battery low/empty, motion, circuit; each limited to device kinds) plus stateful detectors in `AlarmState` (tilt baseline ± tilt_sense per axis, pulse-style motion/circuit, watchdog); fire-once/clear-once |
 | `loralarm/service.py` | The live service (`python3 -m loralarm`): Engine + watchdog tick + MQTT wiring + state persistence |
 | `loralarm/mqttclient.py` | Shared paho-mqtt client builder used by service and replay (guarded callbacks, connect retry) |
 | `loralarm/notify.py` | ntfy + Pushover delivery on a worker queue with retries; RFC 2047-encoded titles |
@@ -27,6 +28,70 @@ Verify on the lora box with `mosquitto_sub -h localhost -t 'application/+/device
 
 Codecs stay in ChirpStack (`../chirpstack/payload_codec_*.js`); this package never
 decodes fPort 2 itself — it trusts `object`.
+
+### Canonical codec fields
+
+The codec is the device boundary: whatever the wire format, it must emit these
+`object` field names (omit a field the device does not have):
+
+| field | type | used by |
+|---|---|---|
+| `temperature` | °C, raw (family `tk_correction_c` is subtracted here) | `temp` rule |
+| `battery_voltage` | V | `battery_low` / `battery_empty` rules, % in console |
+| `accelerometer` | `{x,y,z}` in g | tilt detector |
+| `motion_alert` | 0/1 | `motion` rule / event-mode pulse detector |
+| `motion_switch` | 0/1 | `circuit` rule / event-mode pulse detector |
+| `acc_threshold`, `acc_duration`, `acc_frequency` | device-reported wire values | downlink read-back (`SettingSpec.obj_field`) |
+| `acc_frequency_hz` | Hz | informational |
+| anything else (`humidity`, `leak`, ...) | any | read by your own `AlarmRule` via `obj` |
+
+## Adding a device or sensor
+
+No change to `alarms.py`, `downlink.py` or `service.py` is needed:
+
+1. **Codec** in ChirpStack emitting the fields above (new sensor types: pick a
+   field name and use it in the rule below).
+2. **Profile** (if the device family has its own wire format, defaults or
+   settings) — one call, e.g. in `loralarm/profiles.py` or your own module
+   imported at startup:
+
+   ```python
+   register_profile(DeviceProfile(
+       name="RAK1234", aliases=("rak1234",),
+       defaults=dict(kind="water", batt_full_v=3.1, batt_warn_v=2.9, batt_empty_v=2.8),
+       settings=(SettingSpec("interval", 10, 1, 60, obj_field="report_interval"),),
+       settings_kinds=frozenset({"water"})))
+   ```
+
+   `settings=()` for a device without downlinks; omit the profile entirely and
+   the family behaves as `GENERIC` (standard ACC settings, wire values passed
+   through). Profile-specific desired values go in the device's `params`
+   (`"params": {"interval": 30}`) and are pushed/read back like `threshold`.
+3. **Alarm rule** for each new condition:
+
+   ```python
+   register_rule(AlarmRule(
+       AlarmKind("leak"), "Vattenläcka",
+       check=lambda cfg, r, obj: "vatten upptäckt" if obj.get("leak") else None,
+       clear=lambda cfg, r: "torrt",
+       device_kinds=frozenset({"water"}),
+       notify_fire="💧 {label}: {name} — {detail}",   # optional; else generic text
+       notify_clear="✔️ {name} torrt"))
+   ```
+
+   `check` returns the fire detail while the condition holds (fire-once /
+   clear-once handled for you); thresholds come from `cfg.params`
+   (`"params": {"humidity_max": 80}`, merged key-by-key across defaults <
+   family < device). Use `group=` to make two severities of one quantity an
+   escalation instead of a clear.
+4. **Config**: set `"kind"` (and `"family"`) on the device. `kind` selects which
+   rules run — `sensor` (everything, the default), `door` (temp, battery,
+   circuit), `water`/others (temp, battery, plus rules naming that kind) — and
+   whether the auto-downlink settings apply (`settings_kinds`). An unknown
+   `kind` logs a warning once.
+
+Stateful detectors (like tilt) still belong in `AlarmState`; register them
+label-only with `AlarmRule(kind, label, check=None, ...)`.
 
 ## Secrets
 
@@ -153,7 +218,10 @@ until the device's next uplink, so sleeping Class A devices are fine):
 ```
 
 Keys: `threshold` (1–127), `duration` (0–127), `frequency` (Hz / code / index,
-see above). `command` (port 4) is one-shot only — not from the config. Unknown
+see above) — the settings of the standard (`GENERIC`/RAK) profile; a profile
+registered with other `SettingSpec`s defines its own keys. `command` (port 4) is
+one-shot only — not from the config. Devices whose `kind` is not in the
+profile's `settings_kinds` (e.g. `door`) are never auto-pushed. Unknown
 keys (e.g. a `threshol` typo) are ignored with a warning at load. Keys can also
 go in `defaults` / `families` to apply fleet-wide. Set `family` (device profile
 name, e.g. `RAK4631`/`RAK3172`) on the device entry so the CLI can translate
