@@ -364,9 +364,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--config", default=str(Path(__file__).resolve().parent.parent / "devices.example.json"),
                     help="per-device config JSON (default: devices.example.json next to the package)")
     ap.add_argument("--dev", required=True, help="devEUI or configured device name")
-    ap.add_argument("--app-id", default=os.environ.get("LORALARM_CS_APP_ID"),
-                    help="ChirpStack application ID (or env LORALARM_CS_APP_ID, or "
-                         "`application_id` in the config; the live service learns it from uplinks)")
+    ap.add_argument("--app-id", default=None,
+                    help="ChirpStack application ID; overrides the device's `application_id` "
+                         "in the config, which in turn wins over env LORALARM_CS_APP_ID "
+                         "(the live service learns it from uplinks)")
     ap.add_argument("--family", default=None,
                     help="device profile name (RAK3172/RAK4631) for frequency translation; "
                          "defaults to the `family` key of the device config entry")
@@ -389,7 +390,7 @@ def main(argv: list[str] | None = None) -> int:
     entry = config.devices.get(dev_eui) or {}
     family = args.family or (str(entry.get("family", "")) if isinstance(entry, dict) else "")
     cfg = config.for_event(dev_eui, str(entry.get("name", "")) if isinstance(entry, dict) else "", family)
-    app_id = args.app_id or cfg.application_id
+    app_id = args.app_id or cfg.application_id or os.environ.get("LORALARM_CS_APP_ID", "")
     if not app_id and not args.dry_run:
         ap.error("no ChirpStack application id: pass --app-id, set LORALARM_CS_APP_ID, "
                  "or add \"application_id\" to the config")

@@ -112,8 +112,10 @@ yet, set `application_id` **per device** in `devices.json`
 var per application, referenced from whichever devices live there). Putting
 `application_id` in `defaults`/`families` is only correct when that whole
 layer shares one application; `config.py` logs a warning when it sees it
-there. CLI precedence: `--app-id` > `LORALARM_CS_APP_ID` env > config
-(device > family > defaults). A wrong app UUID would publish the downlink to
+there. CLI precedence: `--app-id` > the device's `application_id` in the config
+(device > family > defaults) > `LORALARM_CS_APP_ID` env (a last-resort fallback,
+so one global env var cannot override a device that lives in another application).
+A wrong app UUID would publish the downlink to
 an application the device is not in, so unknown = clean error, never a guess.
 
 Device-side protocol, both families (3-digit zero-padded ASCII decimal, 0–255):
@@ -157,6 +159,13 @@ go in `defaults` / `families` to apply fleet-wide. Set `family` (device profile
 name, e.g. `RAK4631`/`RAK3172`) on the device entry so the CLI can translate
 `frequency` without `--family`; the live service takes the family from each
 uplink's device profile instead.
+
+Resend limits: a queued downlink is only delivered after the device's next
+uplink, which still reports the old value, so the same value is not re-sent
+within `DL_RESEND_S` (1 h) and is given up on after `DL_MAX_ATTEMPTS` (5) sends
+without the device reporting it back (e.g. firmware rejects the value). A
+config reload resets both. A failed publish is logged and retried on the next
+uplink; it never suppresses alarm notifications.
 
 ### 2. One-shot per device (CLI or MQTT)
 

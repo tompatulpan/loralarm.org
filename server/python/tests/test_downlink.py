@@ -4,10 +4,14 @@ desired settings and Engine wiring."""
 from __future__ import annotations
 
 import base64
+import contextlib
+import io
 import json
 import os
 import tempfile
 import unittest
+from unittest import mock
+from datetime import timedelta
 from pathlib import Path
 
 from loralarm import mqttclient
@@ -19,6 +23,7 @@ from loralarm.downlink import (
     PORT_COMMAND, PORT_DURATION, PORT_FREQUENCY, PORT_THRESHOLD,
 )
 from loralarm.events import EventLog, utc_now
+from loralarm import service
 from loralarm.service import Engine
 
 from .common import DEV_EUI, OTHER_EUI, make_config, make_cfg, make_uplink, sensor_obj
@@ -310,6 +315,15 @@ class CliTest(unittest.TestCase):
                       "--config", "devices.example.json", "--dry-run"])
         self.assertEqual(rc, 0)
 
+    def test_device_application_id_beats_env_default(self):
+        buf = io.StringIO()
+        with mock.patch.dict(os.environ, {"LORALARM_CS_APP_ID": "env-app"}), \
+                mock.patch.dict(os.environ, {"LORALARM_CS_APP_LARM": "cfg-app"}), \
+                contextlib.redirect_stdout(buf):
+            dl_main(["--dev", "sensor3", "--set", "threshold=8",
+                     "--config", "devices.example.json", "--dry-run"])
+        self.assertIn("application/cfg-app/", buf.getvalue())
+
     def test_bad_value_is_a_clean_error_not_a_traceback(self):
         with self.assertRaises(SystemExit) as cm:
             dl_main(["--dev", "sensor3", "--set", "threshold=999",
@@ -485,6 +499,51 @@ class AutoEnforceTest(unittest.TestCase):
             os.utime(path, ns=(path.stat().st_atime_ns, path.stat().st_mtime_ns + 10**9))
             engine.watchdog_tick()  # triggers the reload + push
             self.assertEqual([(d.f_port, d.data) for _, d in sent], [(PORT_THRESHOLD, b"009")])
+
+
+    def test_same_value_not_requeued_on_every_uplink(self):
+        engine, _, sent = self._engine({"name": "sensor3", "threshold": 8})
+        for _ in range(3):
+            self._uplink(engine, sensor_obj(acc_threshold=2))
+        self.assertEqual(len(sent), 1)
+
+    def test_resend_after_cooldown_then_gives_up(self):
+        engine, _, sent = self._engine({"name": "sensor3", "threshold": 8})
+        for _ in range(service.DL_MAX_ATTEMPTS + 3):
+            self._uplink(engine, sensor_obj(acc_threshold=2))
+            for rec in engine._dl_sent.values():
+                rec.at -= timedelta(seconds=service.DL_RESEND_S + 1)
+        self.assertEqual(len(sent), service.DL_MAX_ATTEMPTS)
+
+    def test_applied_value_clears_the_resend_record(self):
+        engine, _, sent = self._engine({"name": "sensor3", "threshold": 8})
+        self._uplink(engine, sensor_obj(acc_threshold=2))
+        self._uplink(engine, sensor_obj(acc_threshold=8))
+        self.assertEqual(engine._dl_sent, {})
+        self._uplink(engine, sensor_obj(acc_threshold=2))  # drifted again: sent again
+        self.assertEqual(len(sent), 2)
+
+    def test_publish_failure_does_not_lose_alarm_notification(self):
+        notified = []
+
+        class Notifier:
+            def notify(self, cfg, kind, active, detail):
+                notified.append((kind, active))
+
+        class BrokenSender:
+            def send(self, app_id, dl):
+                raise ConnectionError("broker down")
+
+        engine = Engine(make_config(devices={DEV_EUI: {"name": "sensor3", "threshold": 8}}),
+                        EventLog(None), Notifier(), downlink_sender=BrokenSender(),
+                        dl_topic="loralarm/down/+")
+        up = make_uplink(profile="RAK4631", time=utc_now(),
+                         obj=sensor_obj(temperature=-50, acc_threshold=2))
+        up.application_id = APP_ID
+        with self.assertLogs("loralarm.service", level="ERROR"):
+            engine.on_uplink(up)  # must not raise
+        self.assertIn(("temp", True), notified)
+        self.assertNotIn(DEV_EUI, engine._dl_bad)  # transient: retried next uplink
 
 
 if __name__ == "__main__":
