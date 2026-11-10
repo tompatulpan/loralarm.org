@@ -5,7 +5,7 @@ import os
 import unittest
 from unittest import mock
 
-from loralarm.config import Config
+from loralarm.config import Config, DeviceConfig
 
 from .common import DEV_EUI, OTHER_EUI, make_config
 
@@ -55,7 +55,7 @@ class LayeringTest(unittest.TestCase):
         with self.assertLogs("loralarm.config", level="WARNING"):
             dc = cfg.for_event(DEV_EUI, "", "RAK4631")
         self.assertEqual(dc.temp_alarm_limit_c, 2.0)   # family value, not the bad string
-        self.assertEqual(dc.watchdog_hours, 24.0)      # bool is not a number
+        self.assertEqual(dc.watchdog_hours, DeviceConfig.watchdog_hours)  # bool is not a number
 
     def test_circuit_mode_by_family_and_partial_family_override(self):
         cfg = make_config(devices={DEV_EUI: {}},

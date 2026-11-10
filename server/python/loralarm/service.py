@@ -91,7 +91,15 @@ class Engine:
         restart still gets its watchdog alarm."""
         now = now or utc_now()
         with self._lock:
-            for dev_eui in self.config.devices:
+            # configured devices plus every device an earlier run has seen, so an
+            # unconfigured sensor that went silent before a restart is still watched
+            known = list(self.config.devices)
+            if self.event_log:
+                try:
+                    known += [d for d in self.event_log.known_devices() if d not in self.config.devices]
+                except sqlite3.Error:
+                    log.exception("could not list saved devices")
+            for dev_eui in known:
                 if dev_eui in self.devices:
                     continue
                 cfg = self.config.for_event(dev_eui)

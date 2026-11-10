@@ -95,6 +95,11 @@ class EventLog:
                 (dev_eui, json.dumps(snapshot), self._utc(utc_now())))
             self._conn.commit()
 
+    def known_devices(self) -> list[str]:
+        """devEUIs that have a saved state snapshot (seen by an earlier run)."""
+        with self._lock:
+            return [r[0] for r in self._conn.execute("SELECT dev_eui FROM device_state")]
+
     def load_state(self, dev_eui: str) -> dict[str, Any] | None:
         with self._lock:
             row = self._conn.execute(

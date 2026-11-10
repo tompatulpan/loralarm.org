@@ -75,6 +75,14 @@ class SeedTest(unittest.TestCase):
         _, state = engine.devices[DEV_EUI]
         self.assertEqual(state.active, {AlarmKind.MOTION})
 
+    def test_seed_includes_unconfigured_devices_from_saved_state(self):
+        log = EventLog(None)
+        log.save_state(OTHER_EUI, {"active": [], "last_seen": (utc_now() - timedelta(hours=30)).isoformat()})
+        engine = Engine(make_config(), event_log=log, notifier=RecordingNotifier())
+        engine.seed()
+        self.assertIn(OTHER_EUI, engine.devices)
+        self.assertEqual(engine.watchdog_tick(), [OTHER_EUI])
+
     def test_seeded_stale_device_alarms_on_first_tick(self):
         log = EventLog(None)
         log.log(utc_now() - timedelta(hours=48), DEV_EUI, "sensor3", "temp", True)
