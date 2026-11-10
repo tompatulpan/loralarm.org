@@ -57,6 +57,19 @@ class LayeringTest(unittest.TestCase):
         self.assertEqual(dc.temp_alarm_limit_c, 2.0)   # family value, not the bad string
         self.assertEqual(dc.watchdog_hours, 24.0)      # bool is not a number
 
+    def test_circuit_mode_by_family_and_partial_family_override(self):
+        cfg = make_config(devices={DEV_EUI: {}},
+                          families={"RAK4631": {"batt_warn_v": 3.6}})
+        rak = cfg.for_event(DEV_EUI, "s", "RAK4631")
+        self.assertEqual(rak.circuit_mode, "event")
+        self.assertEqual(rak.batt_warn_v, 3.6)
+        self.assertEqual(rak.tk_correction_c, 8.0)  # built-in family key survives
+        self.assertEqual(cfg.for_event(DEV_EUI, "s", "RAK3172").circuit_mode, "level")
+
+    def test_device_can_override_circuit_mode(self):
+        cfg = make_config(devices={DEV_EUI: {"circuit_mode": "level"}})
+        self.assertEqual(cfg.for_event(DEV_EUI, "s", "RAK4631").circuit_mode, "level")
+
 
 class EnvExpansionTest(unittest.TestCase):
     def test_env_var_expanded(self):

@@ -151,6 +151,54 @@ class AlarmStateTest(unittest.TestCase):
         self.assertEqual(st2.last_detail, st.last_detail)
 
 
+class CircuitModeTest(unittest.TestCase):
+    """RAK4631 sends bit 0 only in the frame when the contact opens (nothing on close)."""
+
+    def _kinds(self, transitions):
+        return [(t.kind, t.active) for t in transitions]
+
+    def test_level_mode_clears_when_bit_gone(self):
+        cfg = make_cfg(circuit_mode="level")
+        st = AlarmState()
+        _, t1 = st.update(cfg, make_uplink(obj=sensor_obj(motion_switch=1)))
+        _, t2 = st.update(cfg, make_uplink(obj=sensor_obj(), time=T0 + timedelta(minutes=5)))
+        self.assertEqual(self._kinds(t1), [(AlarmKind.CIRCUIT, True)])
+        self.assertEqual(self._kinds(t2), [(AlarmKind.CIRCUIT, False)])
+
+    def test_event_mode_other_frames_never_clear(self):
+        cfg = make_cfg(circuit_mode="event")
+        st = AlarmState()
+        _, t1 = st.update(cfg, make_uplink(obj=sensor_obj(motion_switch=1)))
+        # ACC-alarm frame (status 0x02) and a timer frame both have motion_switch=0
+        _, t2 = st.update(cfg, make_uplink(obj=sensor_obj(motion_alert=1),
+                                           time=T0 + timedelta(seconds=5)))
+        _, t3 = st.update(cfg, make_uplink(obj=sensor_obj(), time=T0 + timedelta(minutes=5)))
+        self.assertEqual(self._kinds(t1), [(AlarmKind.CIRCUIT, True)])
+        self.assertEqual(self._kinds(t2), [(AlarmKind.MOTION, True)])
+        self.assertEqual(self._kinds(t3), [(AlarmKind.MOTION, False)])
+        self.assertNotIn(AlarmKind.CIRCUIT, st.active)
+
+    def test_event_mode_each_pulse_alarms_again(self):
+        cfg = make_cfg(circuit_mode="event", circuit_hold_s=30)
+        st = AlarmState()
+        counts = []
+        for secs in (0, 10, 120, 125):  # 10 s and 125 s are within the hold of the previous alarm
+            _, t = st.update(cfg, make_uplink(obj=sensor_obj(motion_switch=1),
+                                              time=T0 + timedelta(seconds=secs)))
+            counts.append(len(t))
+        self.assertEqual(counts, [1, 0, 1, 0])
+
+    def test_event_state_survives_snapshot(self):
+        cfg = make_cfg(circuit_mode="event")
+        st = AlarmState()
+        st.update(cfg, make_uplink(obj=sensor_obj(motion_switch=1)))
+        restored = AlarmState()
+        restored.restore(st.snapshot())
+        _, t = restored.update(cfg, make_uplink(obj=sensor_obj(motion_switch=1),
+                                                time=T0 + timedelta(seconds=5)))
+        self.assertEqual(t, [])  # retransmit right after a restart is still deduplicated
+
+
 class FormatDurationTest(unittest.TestCase):
     def test_no_microseconds_swedish_days(self):
         td = timedelta(days=1, hours=2, minutes=3, seconds=4, microseconds=123456)

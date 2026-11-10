@@ -63,6 +63,17 @@ Expected replay output: the two `* alarm` logs each raise one `Rörelselarm`
   service is down — this only helps if ChirpStack publishes at QoS ≥ 1
   (`[integration.mqtt] qos`). Run one service instance per client id.
 
+## Circuit alarm (`circuit_mode`)
+
+- `level` (RAK3172/RUI3): the switch state is in every heartbeat → fire on open, clear on close.
+- `event` (RAK4631, default for that family): the firmware sends the circuit bit in
+  **one** frame when the contact opens and nothing when it closes, and every other
+  frame (timer, ACC alarm) has the bit clear. So each pulse is a fire-only alarm
+  (pulses within `circuit_hold_s`, default 30 s, count as one) and no "kvitterad" is
+  sent. Override per family or device in `devices.json` with `circuit_mode`.
+- `motion` on the RAK4631 is a pulse too (ACC frame only) but still clears on the
+  next frame, which is what Node-RED's "acknowledged" semantics roughly match.
+
 ## Tests
 
 ```bash

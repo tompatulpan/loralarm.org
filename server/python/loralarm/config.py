@@ -56,7 +56,12 @@ class DeviceConfig:
     batt_warn_v: float = 2.9
     batt_empty_v: float = 2.8
     tilt_sense_g: float = 0.3
-    watchdog_hours: float = 24.0        # stale if no uplink within this
+    # level: the device reports the contact state in every frame (RUI3) -> fire/clear.
+    # event: the device sends one frame when the contact opens and nothing on close
+    # (RAK4631) -> every pulse is a fire-only alarm, other frames never clear it.
+    circuit_mode: str = "level"
+    circuit_hold_s: float = 30.0        # event mode: pulses closer than this count as one
+    watchdog_hours: float = 0.5        # stale if no uplink within this
     ntfy_topic: str = "loralarm"
     pushover_user: str = ""
     pushover_token: str = ""
@@ -70,9 +75,11 @@ class DeviceConfig:
 # Migration spec §4: RAK3172 = 3 V cell (0 °C Tk, alarm limit 0 °C), RAK4631 Android = LiPo (8 °C Tk, limit 2 °C).
 FAMILY_DEFAULTS: dict[str, dict[str, Any]] = {
     "RAK3172": dict(tk_correction_c=0.0, temp_alarm_limit_c=0.0,
-                    batt_full_v=3.1, batt_warn_v=2.9, batt_empty_v=2.8),
+                    batt_full_v=3.1, batt_warn_v=2.9, batt_empty_v=2.8,
+                    circuit_mode="level"),
     "RAK4631": dict(tk_correction_c=8.0, temp_alarm_limit_c=2.0,
-                    batt_full_v=4.2, batt_warn_v=3.5, batt_empty_v=3.2),
+                    batt_full_v=4.2, batt_warn_v=3.5, batt_empty_v=3.2,
+                    circuit_mode="event"),
 }
 
 # expected type per DeviceConfig field, for config validation
@@ -81,6 +88,7 @@ _FIELD_TYPES: dict[str, tuple[type, ...]] = {
     "tk_correction_c": (int, float), "temp_alarm_limit_c": (int, float),
     "batt_full_v": (int, float), "batt_warn_v": (int, float),
     "batt_empty_v": (int, float), "tilt_sense_g": (int, float),
+    "circuit_mode": (str,), "circuit_hold_s": (int, float),
     "watchdog_hours": (int, float), "ntfy_topic": (str,),
     "pushover_user": (str,), "pushover_token": (str,),
     "notify_title": (str,), "notify_fire": (dict,), "notify_clear": (dict,),
@@ -102,7 +110,10 @@ class Config:
     def __init__(self, data: dict[str, Any]):
         data = _expand(data, "config")
         self.defaults = data.get("defaults", {})
-        self.families = {**FAMILY_DEFAULTS, **data.get("families", {})}
+        # merge per family so a partial override keeps the built-in keys
+        user_families = data.get("families", {})
+        self.families = {name: {**FAMILY_DEFAULTS.get(name, {}), **user_families.get(name, {})}
+                         for name in {**FAMILY_DEFAULTS, **user_families}}
         # devEUIs are lowercased on the wire (Uplink lowercases them), so the
         # lookup keys must be lowercase too or an uppercase key never matches
         self.devices = {str(k).lower(): v for k, v in data.get("devices", {}).items()}

@@ -165,6 +165,7 @@ class AlarmState:
     accel_baseline: dict[str, float] = field(default_factory=dict)  # EMA per axis, from non-alarming samples
     last_detail: dict[AlarmKind, str] = field(default_factory=dict)  # fired detail, for the event log
     tilt_streak: int = 0                                            # consecutive tilted samples
+    last_circuit_event: datetime | None = None                      # event-mode circuit dedup
 
     def touch(self, up: Uplink) -> None:
         """Non-sensor frame (settings fPort 4-7, codec failure, ...): only refresh
@@ -195,13 +196,20 @@ class AlarmState:
                 for k, v in acc.items():
                     self.accel_baseline[k] = float(v) if k not in self.accel_baseline else 0.7 * self.accel_baseline[k] + 0.3 * float(v)
 
+        if cfg.circuit_mode == "event":
+            fired = [t for t in fired if t.kind is not AlarmKind.CIRCUIT]
+            circuit = self._circuit_event(cfg, up)
+            transitions_pre = [circuit] if circuit else []
+        else:
+            transitions_pre = []
+
         now_active = {t.kind for t in fired}
         # STALE is owned by the watchdog: an uplink keeps it active here and the
         # next watchdog tick clears it with "uplink mottagen"
         if AlarmKind.STALE in self.active:
             now_active.add(AlarmKind.STALE)
 
-        transitions: list[Transition] = []
+        transitions: list[Transition] = list(transitions_pre)
         for t in fired:
             if t.kind not in self.active:
                 transitions.append(t)
@@ -217,6 +225,19 @@ class AlarmState:
             self.last_detail.pop(kind, None)
         self.active = now_active
         return reading, transitions
+
+    def _circuit_event(self, cfg: DeviceConfig, up: Uplink) -> Transition | None:
+        """Event-mode circuit (RAK4631): the firmware sends bit 0 in one uplink when
+        the contact opens and nothing when it closes, so a frame without the bit
+        says nothing about the circuit. Each pulse is a fire-only alarm; pulses
+        within circuit_hold_s (retransmits, contact bounce) count as one."""
+        if not up.obj.get("motion_switch"):
+            return None
+        last = self.last_circuit_event
+        if last is not None and abs((up.time - last).total_seconds()) < cfg.circuit_hold_s:
+            return None
+        self.last_circuit_event = up.time
+        return Transition(AlarmKind.CIRCUIT, True, "krets öppen")
 
     def watchdog(self, cfg: DeviceConfig, now: datetime) -> list[Transition]:
         if self.last_seen is None or cfg.watchdog_hours <= 0:
@@ -243,6 +264,7 @@ class AlarmState:
             "accel_baseline": self.accel_baseline,
             "last_detail": {k.value: v for k, v in self.last_detail.items()},
             "tilt_streak": self.tilt_streak,
+            "last_circuit_event": self.last_circuit_event.isoformat() if self.last_circuit_event else None,
         }
 
     def restore(self, snap: dict[str, Any]) -> None:
@@ -252,3 +274,5 @@ class AlarmState:
         self.accel_baseline = {k: float(v) for k, v in snap.get("accel_baseline", {}).items()}
         self.last_detail = {AlarmKind(k): v for k, v in snap.get("last_detail", {}).items()}
         self.tilt_streak = int(snap.get("tilt_streak", 0))
+        lc = snap.get("last_circuit_event")
+        self.last_circuit_event = datetime.fromisoformat(lc) if lc else None
