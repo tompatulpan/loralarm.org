@@ -14,6 +14,7 @@ Highlights:
 
 - **Battery-first firmware** — LoRaWAN OTAA, deep sleep between events (~24 µA idle on RAK3172), immediate uplink on switch change or motion, periodic heartbeats, AT-command configuration and downlink support
 - **Modular hardware** — RAK3172 (STM32WLE5) and RAK4631 (nRF52840) core modules with pluggable WisBlock sensors (temperature/humidity, pressure, light, accelerometer, BME680) and a switch/alarm input
+- **Meshtastic-friendly test bed** — the RAK4631 is one of the most popular Meshtastic nodes out there, so chances are you already own the hardware: wiping it and flashing LoRaLarm firmware for a spin against your LoRaWAN gateway takes minutes, and going back to Meshtastic is just as easy
 - **Data-driven server core** — device families, alarm rules and field transforms are defined in JSON, not hardcoded; adding a sensor type means one file
 - **Rule-based alarms** — temperature, battery, motion and circuit rules plus watchdog monitoring of silent devices, with per-device/family/default configuration layers
 - **Notification fan-out** — ntfy and Pushover delivery with retries, alarm time windows, per-device settings
@@ -55,6 +56,14 @@ See [`server/python/ARCHITECTURE.md`](server/python/ARCHITECTURE.md) for the des
 - **Edit the website:** run `hugo server` in `site/` — see [`site/README.md`](site/README.md) for the workflow and Cloudflare Pages build settings. Every `git push` publishes automatically.
 - **Build device firmware:** see [`devices/rui3_sensor/README.md`](devices/rui3_sensor/README.md) for supported hardware, wiring notes and AT commands.
 - **Run the service:** see [`server/python/README.md`](server/python/README.md) — `python3 -m loralarm` subscribes to the ChirpStack MQTT feed; tests run with `python3 -m unittest discover -s tests -t .` (stdlib only).
+
+## Trying it out with a Meshtastic RAK4631
+
+Already running [Meshtastic](https://meshtastic.org) on a RAK4631? Then half the work is done — it's the same board, and the nRF52840 + SX1262 radio it carries is exactly what LoRaLarm firmware expects. Flash the firmware over USB through the built-in UF2 bootloader (no extra tools), join it to your LoRaWAN gateway via OTAA, and you have a working sensor node for testing. Going back to Meshtastic is just a re-flash away.
+
+1. Flash the LoRaLarm firmware from [`devices/rui3_sensor/`](devices/rui3_sensor/) to the RAK4631 over USB.
+2. Register the device (OTAA) in ChirpStack with the bundled [`payload_codec_rak4631.js`](server/chirpstack/payload_codec_rak4631.js) codec.
+3. Watch the uplinks arrive and the alarms fire — no soldering required to get started.
 
 ## License
 
