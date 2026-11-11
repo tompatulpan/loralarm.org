@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>loralarm.org: Nordic minimal design mockup</title>
+<style>
+  :root {
+    --bg: #f7f5f1;
+    --surface: #ffffff;
+    --text: #1b1e22;
+    --muted: #6f7378;
+    --hairline: #e6e2da;
+    --accent: #14554f;
+    --ok: #3f9d63;
+    --warn: #c98a1e;
+    --alert: #c4442f;
+    --offline: #b9b4ab;
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+    --sans: system-ui, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--sans); line-height: 1.65; }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 0 28px; }
+
+  /* Nav: hairline, no borders on buttons */
+  nav { padding: 26px 0; border-bottom: 1px solid var(--hairline); }
+  .nav-inner { display: flex; align-items: baseline; gap: 36px; }
+  .logo { font-weight: 650; font-size: 18px; letter-spacing: -0.01em; }
+  .logo .lora { color: var(--accent); }
+  nav .links { display: flex; gap: 26px; margin-left: auto; }
+  nav .links a { color: var(--muted); text-decoration: none; font-size: 14px; }
+  nav .links a:hover { color: var(--text); }
+  .lang { font-size: 13px; color: var(--muted); text-decoration: none; }
+  .lang:hover { color: var(--accent); }
+
+  /* Hero: typographic, centered, generous space */
+  header.hero { padding: 128px 0 96px; text-align: center; }
+  .kicker { font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--muted); margin-bottom: 28px; }
+  h1 { font-size: 52px; line-height: 1.08; letter-spacing: -0.03em; font-weight: 650; max-width: 20ch; margin: 0 auto 24px; }
+  h1 em { font-style: normal; color: var(--accent); }
+  .lede { color: var(--muted); font-size: 18px; max-width: 52ch; margin: 0 auto 40px; }
+  .hero-ctas { display: flex; gap: 16px; justify-content: center; margin-bottom: 20px; }
+  .btn { display: inline-block; text-decoration: none; font-size: 14px; font-weight: 550; padding: 12px 26px; border-radius: 2px; }
+  .btn-solid { background: var(--accent); color: #fff; }
+  .btn-solid:hover { background: #0d3f3b; }
+  .btn-quiet { color: var(--text); border-bottom: 1px solid var(--hairline); padding: 12px 4px; }
+  .btn-quiet:hover { border-color: var(--accent); color: var(--accent); }
+  .meta-row { font-family: var(--mono); font-size: 12px; color: var(--muted); display: flex; gap: 24px; justify-content: center; }
+  .meta-row span::before { content: "·  "; color: var(--ok); }
+
+  /* Status card: light surface, flat dots, no glow */
+  .panel { background: var(--surface); border: 1px solid var(--hairline); border-radius: 4px; padding: 32px 36px; margin: 8px auto 0; max-width: 620px; text-align: left; }
+  .panel-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid var(--hairline); }
+  .panel-title { font-family: var(--mono); font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); }
+  .pill { font-family: var(--mono); font-size: 11px; color: var(--ok); }
+  .device { display: flex; align-items: center; gap: 14px; padding: 13px 2px; border-bottom: 1px solid var(--hairline); }
+  .device:last-child { border-bottom: none; }
+  .led { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .led-ok { background: var(--ok); }
+  .led-warn { background: var(--warn); }
+  .led-alert { background: var(--alert); animation: pulse 2.2s infinite; }
+  @keyframes pulse { 50% { opacity: 0.35; } }
+  .device .name { font-family: var(--mono); font-size: 13px; }
+  .device .state { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--muted); }
+
+  /* Sections: hairline separated, editorial */
+  section { padding: 104px 0; border-top: 1px solid var(--hairline); }
+  h2 { font-size: 32px; letter-spacing: -0.02em; font-weight: 620; margin-bottom: 12px; }
+  .section-sub { color: var(--muted); font-size: 17px; max-width: 56ch; margin-bottom: 56px; }
+
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 40px; }
+  .card h3 { font-size: 17px; margin-bottom: 8px; }
+  .card .tag { font-family: var(--mono); font-size: 11px; color: var(--accent); display: block; margin-bottom: 20px; }
+  .card p { font-size: 14px; color: var(--muted); }
+  .card::before { content: ""; display: block; width: 32px; height: 1px; background: var(--accent); margin-bottom: 24px; }
+
+  /* Flow: hairline boxes */
+  .flow { display: grid; grid-template-columns: 1fr auto 1fr auto 1fr; gap: 20px; align-items: stretch; }
+  .node { border: 1px solid var(--hairline); background: var(--surface); border-radius: 4px; padding: 24px 20px; text-align: center; }
+  .node .mono-label { font-family: var(--mono); font-size: 12px; margin-bottom: 4px; }
+  .node .node-sub { font-size: 12px; color: var(--muted); }
+  .arrow { display: grid; place-items: center; color: var(--muted); font-family: var(--mono); }
+
+  /* Legend: typographic, no boxes */
+  .legend { display: grid; grid-template-columns: repeat(4, 1fr); gap: 36px; }
+  .legend-item .led { margin-bottom: 12px; display: inline-block; }
+  .legend-item .l-name { font-family: var(--mono); font-size: 12px; margin-bottom: 4px; }
+  .legend-item .l-desc { font-size: 13px; color: var(--muted); }
+
+  /* Docs: hairline list, no table chrome */
+  .doc-row { display: flex; align-items: baseline; gap: 20px; padding: 18px 2px; border-bottom: 1px solid var(--hairline); font-size: 15px; }
+  .doc-row .path { font-family: var(--mono); font-size: 13px; color: var(--muted); }
+  .doc-row .status { margin-left: auto; font-size: 13px; color: var(--muted); }
+  .doc-row .status.progress { color: var(--warn); }
+
+  /* Open source band */
+  .os-band { display: flex; gap: 40px; align-items: baseline; justify-content: space-between; flex-wrap: wrap; }
+  .badges { display: flex; gap: 22px; flex-wrap: wrap; }
+  .badge { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+  .badge b { color: var(--text); font-weight: 500; }
+
+  footer { border-top: 1px solid var(--hairline); padding: 56px 0 72px; color: var(--muted); font-size: 13px; }
+  footer .cols { display: flex; justify-content: space-between; gap: 40px; flex-wrap: wrap; }
+  footer a { color: var(--muted); text-decoration: none; }
+  footer a:hover { color: var(--accent); }
+
+  @media (max-width: 820px) {
+    .cards, .flow, .legend { grid-template-columns: 1fr; }
+    .flow .arrow { transform: rotate(90deg); padding: 2px 0; }
+    h1 { font-size: 36px; }
+    nav .links { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+<nav>
+  <div class="nav-inner">
+    <div class="logo"><span class="lora">LoRa</span>Larm</div>
+    <div class="links">
+      <a href="#">Overview</a>
+      <a href="#">Docs</a>
+      <a href="#">News</a>
+      <a href="#">GitHub</a>
+    </div>
+    <a class="lang" href="#">Svenska</a>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="kicker">Open source &middot; LoRaWAN &middot; Long range, low power</div>
+  <h1>Know what happens at home, <em>before it becomes a problem.</em></h1>
+  <p class="lede">LoRaLarm is an open-source IoT alarm and control system. Battery-powered sensors talk LoRaWAN over kilometers of range, and you decide what happens next: get notified, log it, or switch things remotely.</p>
+  <div class="hero-ctas">
+    <a class="btn btn-solid" href="#">Get started</a>
+    <a class="btn btn-quiet" href="#">View on GitHub</a>
+  </div>
+  <div class="meta-row">
+    <span>MIT licensed</span>
+    <span>Runs on your hardware</span>
+    <span>No cloud required</span>
+  </div>
+  <div class="panel">
+    <div class="panel-head">
+      <span class="panel-title">system.status</span>
+      <span class="pill">Armed &middot; 3 devices online</span>
+    </div>
+    <div class="device">
+      <span class="led led-ok"></span>
+      <span class="name">door-sensor.lora</span>
+      <span class="state">closed &middot; 07:41</span>
+    </div>
+    <div class="device">
+      <span class="led led-ok"></span>
+      <span class="name">water-meter.basement</span>
+      <span class="state">nominal &middot; 07:39</span>
+    </div>
+    <div class="device">
+      <span class="led led-warn"></span>
+      <span class="name">temp.garage</span>
+      <span class="state">low signal &middot; 06:58</span>
+    </div>
+    <div class="device">
+      <span class="led led-alert"></span>
+      <span class="name">leak-detector.kitchen</span>
+      <span class="state" style="color:var(--alert)">moisture &middot; 07:43</span>
+    </div>
+  </div>
+</header>
+
+<section>
+  <h2>Monitor. Alert. Control.</h2>
+  <p class="section-sub">Three verbs, one system. Every part is open, inspectable, and yours to modify.</p>
+  <div class="cards">
+    <div class="card">
+      <span class="tag">monitor</span>
+      <h3>Sense anything</h3>
+      <p>Door contacts, motion, water leaks, temperature, or your own sensor firmware. Battery life measured in years, not days.</p>
+    </div>
+    <div class="card">
+      <span class="tag">alert</span>
+      <h3>Alert on your terms</h3>
+      <p>Push, email, or MQTT into your existing home automation. Alerts are rules you own, not a subscription.</p>
+    </div>
+    <div class="card">
+      <span class="tag">control</span>
+      <h3>Act, remotely</h3>
+      <p>Toggle relays, arm or disarm zones, and supervise it all over a link that reaches the far end of the property.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Sensor to server, fully open</h2>
+  <p class="section-sub">A standard LoRaWAN stack. Build it from our guides, or bring the parts you already run.</p>
+  <div class="flow">
+    <div class="node">
+      <div class="mono-label">sensor / client</div>
+      <div class="node-sub">DIY LoRa nodes, battery powered</div>
+    </div>
+    <div class="arrow">&#8594;</div>
+    <div class="node">
+      <div class="mono-label">gateway</div>
+      <div class="node-sub">RAK / any LoRaWAN gateway</div>
+    </div>
+    <div class="arrow">&#8594;</div>
+    <div class="node">
+      <div class="mono-label">server</div>
+      <div class="node-sub">ChirpStack + Mosquitto, self-hosted</div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Status at a glance</h2>
+  <p class="section-sub">Every dot and color means the same thing here as it does on your device. Documentation, dashboards, and hardware share one vocabulary.</p>
+  <div class="legend">
+    <div class="legend-item">
+      <span class="led led-ok"></span>
+      <div class="l-name" style="color:var(--ok)">OK / ARMED</div>
+      <div class="l-desc">Healthy, nominal, reporting on schedule.</div>
+    </div>
+    <div class="legend-item">
+      <span class="led led-warn"></span>
+      <div class="l-name" style="color:var(--warn)">WARNING</div>
+      <div class="l-desc">Weak signal, low battery, missed check-in.</div>
+    </div>
+    <div class="legend-item">
+      <span class="led led-alert"></span>
+      <div class="l-name" style="color:var(--alert)">ALERT</div>
+      <div class="l-desc">Triggered event. Needs your attention now.</div>
+    </div>
+    <div class="legend-item">
+      <span class="led" style="background:var(--offline)"></span>
+      <div class="l-name" style="color:var(--muted)">OFFLINE</div>
+      <div class="l-desc">No contact within the expected interval.</div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Start from any level</h2>
+  <p class="section-sub">Written from a real build, including the gotchas.</p>
+  <div class="doc-row"><span>Flash your first sensor node</span><span class="path">/docs/nodes/</span><span class="status">up to date</span></div>
+  <div class="doc-row"><span>Onboard a RAK gateway to ChirpStack</span><span class="path">/docs/gateway/</span><span class="status">up to date</span></div>
+  <div class="doc-row"><span>Mosquitto auth for device traffic</span><span class="path">/docs/mqtt/</span><span class="status">up to date</span></div>
+  <div class="doc-row"><span>Notification rules and alarm zones</span><span class="path">/docs/rules/</span><span class="status progress">in progress</span></div>
+</section>
+
+<section>
+  <div class="os-band">
+    <div>
+      <h2 style="margin-bottom:8px">Yours to run, fork, and improve</h2>
+      <p class="section-sub" style="margin-bottom:0">Client, server, and this site live in one monorepo. Issues and PRs welcome, whether it is code, docs, or translations.</p>
+    </div>
+    <div class="badges">
+      <span class="badge">license <b>MIT</b></span>
+      <span class="badge">stack <b>LoRaWAN</b></span>
+      <span class="badge">server <b>ChirpStack</b></span>
+      <span class="badge">mqtt <b>Mosquitto</b></span>
+    </div>
+  </div>
+</section>
+
+</div>
+
+<footer>
+  <div class="wrap cols">
+    <div>
+      <div class="logo" style="margin-bottom:10px"><span class="lora">LoRa</span>Larm</div>
+      Open-source LoRaWAN alarm and control.<br />
+      Built by Tomas and contributors.
+    </div>
+    <div style="display:flex;gap:56px;">
+      <div>
+        <div class="panel-title" style="margin-bottom:8px">Site</div>
+        <a href="#">Docs</a><br /><a href="#">News</a><br /><a href="#">Svenska</a>
+      </div>
+      <div>
+        <div class="panel-title" style="margin-bottom:8px">Project</div>
+        <a href="#">GitHub</a><br /><a href="#">Issues</a><br /><a href="#">License</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
