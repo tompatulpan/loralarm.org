@@ -15,6 +15,7 @@ from loralarm.service import Engine
 from .common import REG, make_uplink, sensor_obj
 from .test_engine import RecordingNotifier
 from .test_lds02 import CLOSED, OPEN, lds02
+from .test_tbwl100 import DRY, WET, tbwl
 
 EXAMPLES = Path(__file__).resolve().parent.parent / "examples"
 ENV = {"LORALARM_PUSHOVER_USER": "u", "LORALARM_PUSHOVER_TOKEN": "t",
@@ -30,7 +31,8 @@ class ExamplesLoadTest(unittest.TestCase):
     def test_every_example_loads_without_warnings(self):
         files = sorted(EXAMPLES.glob("*.json"))
         self.assertEqual([f.name for f in files],
-                         ["dragino_lds02.json", "rak3172.json", "rak4631.json"])
+                         ["browan_tbwl100.json", "dragino_lds02.json", "rak3172.json",
+                          "rak4631.json"])
         for f in files:
             with self.subTest(example=f.name), self.assertNoLogs("loralarm", level="WARNING"):
                 load(f.name)
@@ -148,6 +150,27 @@ class SharedFamilySettingsTest(unittest.TestCase):
         self.assertEqual([(c[0], c[1]) for c in notifier.calls], [("a84041a5d7598dd0", "door")])
 
 
+class Tbwl100ExampleTest(unittest.TestCase):
+    EUIS = ("e8e1e100010a7173", "e8e1e100010a7100")
+    PROFILE = "Browan Water sensor"
+
+    def test_resolved_config_has_no_settings_to_push(self):
+        conf = load("browan_tbwl100.json")
+        for eui in self.EUIS:
+            cfg = conf.for_event(eui, "", self.PROFILE)
+            self.assertEqual((cfg.kind, cfg.watchdog_hours, cfg.batt_warn_v), ("water", 3, 3.4))
+            self.assertEqual(desired_frames(cfg, conf.registry), [])
+
+    def test_leak_and_dry_notify_the_device_topic(self):
+        notifier = RecordingNotifier()
+        engine = Engine(load("browan_tbwl100.json"), notifier=notifier)
+        engine.on_uplink(tbwl(DRY, 0))
+        engine.on_uplink(tbwl(WET, 10))
+        engine.on_uplink(tbwl(DRY, 20))
+        self.assertEqual([(c[1], c[2]) for c in notifier.calls],
+                         [("water_leak", True), ("water_leak", False)])
+
+
 class FullTemplateTest(unittest.TestCase):
     """devices.example.json: every section of the config in one template."""
     TEMPLATE = Path(__file__).resolve().parent.parent / "devices.example.json"
@@ -163,7 +186,7 @@ class FullTemplateTest(unittest.TestCase):
             self.conf()
         data = json.loads(self.TEMPLATE.read_text(encoding="utf-8"))
         self.assertEqual({"profiles", "defaults", "families", "devices"} <= set(data), True)
-        self.assertEqual(len(data["devices"]), 5)
+        self.assertEqual(len(data["devices"]), 7)
 
     def test_pushover_is_set_once_in_defaults_and_reaches_every_device(self):
         conf = self.conf()
@@ -189,6 +212,8 @@ class FullTemplateTest(unittest.TestCase):
         self.assertEqual(door1.timezone, "Europe/Stockholm")      # set once in defaults
         self.assertEqual(door1.kind, "door")                     # the type's own default
         self.assertEqual(conf.for_event("ac1f09fffe12da63", "", "RAK3172").temp_alarm_limit_c, 2.0)
+        water = conf.for_event("e8e1e100010a7173", "", "Browan Water sensor")
+        self.assertEqual((water.kind, water.watchdog_hours, water.batt_empty_v), ("water", 3, 3.1))
 
     def test_custom_profile_params_and_alarm_end_to_end(self):
         conf = self.conf()

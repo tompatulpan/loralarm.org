@@ -223,6 +223,8 @@ fPort 106, `status` → `water_leak`, `battery` → `battery_voltage`, `humidity
 kind `water`, no downlinks, battery limits for the 3.6 V Li-SOCl2 cell (full 3.6 /
 warn 3.4 / empty 3.1 V). A wet sensor raises `Vattenläcka` (`water_leak`) once,
 however often it re-sends; the next dry frame clears it ("Torrt igen").
+Starting point: `examples/browan_tbwl100.json` (water1/water2, `watchdog_hours` 3
+because the sensor sends a keep-alive every 60 min).
 
 Stateful detectors (like tilt) still belong in `AlarmState`; register them
 label-only with `AlarmRule(kind, label, check=None, ...)`.

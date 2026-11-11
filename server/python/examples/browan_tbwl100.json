@@ -1,0 +1,46 @@
+{
+  "_readme": [
+    "EXAMPLE: Browan TBWL100 water-leak sensor. Not read by the service; copy from here.",
+    "1. Copy the block under \"devices\" into the \"devices\" object of server/python/devices.json.",
+    "2. Replace the devEUI keys (lowercase, 16 hex chars) with your sensors', and change name and ntfy_topic.",
+    "3. \"family\" must be the ChirpStack device-profile name: Browan Water sensor.",
+    "4. Secrets stay as ${ENV_VAR} placeholders; export LORALARM_PUSHOVER_USER / LORALARM_PUSHOVER_TOKEN.",
+    "5. Save devices.json: it is hot-reloaded, no restart. Wet the probe to test.",
+    "Everything except name and family is optional; the type's defaults fill the gaps.",
+    "No threshold/frequency/duration here: this device has no downlink settings.",
+    "A wet sensor raises Vattenläcka once, however often it re-sends; the next dry frame clears it.",
+    "watchdog_hours: the sensor sends a keep-alive every 60 min, so 3 h catches a dead sensor quickly.",
+    "batt_*: 3.6 V Li-SOCl2 cell (datasheet 3.6 V max / 3.1 V min), warn/empty limits are an assumption;",
+    "   tune against a real discharge.",
+    "No alarm_window: a leak is worth a message day and night. Add \"alarm_window\" to a device to change that."
+  ],
+  "defaults": {
+    "watchdog_hours": 24,
+    "timezone": "Europe/Stockholm",
+    "ntfy_topic": "loralarm",
+    "pushover_user": "${LORALARM_PUSHOVER_USER}",
+    "pushover_token": "${LORALARM_PUSHOVER_TOKEN}"
+  },
+  "families": {
+    "Browan Water sensor": {
+      "watchdog_hours": 3,
+
+      "batt_full_v": 3.6,
+      "batt_warn_v": 3.4,
+      "batt_empty_v": 3.1,
+      "temp_alarm_limit_c": 5.0
+    }
+  },
+  "devices": {
+    "e8e1e100010a7173": {
+      "name": "water1",
+      "family": "Browan Water sensor",
+      "ntfy_topic": "water1"
+    },
+    "e8e1e100010a7100": {
+      "name": "water2",
+      "family": "Browan Water sensor",
+      "ntfy_topic": "water2"
+    }
+  }
+}

@@ -5,7 +5,8 @@
     "",
     "\"profiles\": define a NEW device type in JSON, no Python (here a CO2 sensor): data_ports, fields (codec field",
     "   -> measurement, with calibration such as $co2_scale), rules (alarm when a value passes a limit) and the",
-    "   type's own defaults. The three built-in types (RAK3172, RAK4631, Dragino Switch LDS02) need no entry.",
+    "   type's own defaults. The four built-in types (RAK3172, RAK4631, Dragino Switch LDS02, Browan Water sensor)",
+    "   need no entry.",
     "\"defaults\": applies to every device. Secrets are ${ENV_VAR} placeholders, set once here (Pushover) so no",
     "   device needs its own copy. \"timezone\" (default Europe/Stockholm) is used by alarm_window.",
     "alarm_window: \"HH:MM-HH:MM\" (overnight ok, e.g. Door2 21:00-09:00 = door alarms only at night). Outside it the",
@@ -68,13 +69,24 @@
     }
   },
   "families": {
-    "RAK3172": {"temp_alarm_limit_c": 2.0},
-    "RAK4631": {"circuit_hold_s": 30},
+    "RAK3172": {
+      "temp_alarm_limit_c": 2.0
+    },
+    "RAK4631": {
+      "circuit_hold_s": 30
+    },
     "Dragino Switch LDS02": {
-      "watchdog_hours": 12,
+      "watchdog_hours": 1,
       "batt_full_v": 3.0,
       "batt_warn_v": 2.5,
       "batt_empty_v": 2.2
+    },
+    "Browan Water sensor": {
+      "watchdog_hours": 3,
+      "batt_full_v": 3.6,
+      "batt_warn_v": 3.4,
+      "batt_empty_v": 3.1,
+      "temp_alarm_limit_c": 20.0
     }
   },
   "devices": {
@@ -118,6 +130,16 @@
       "watchdog_hours": 2,
       "alarm_window": "21:00-09:00",
       "notify_fire": {"door": "🚪 {name} är öppen — {detail}"}
+    },
+    "e8e1e100010a7173": {
+      "name": "water1",
+      "family": "Browan Water sensor",
+      "ntfy_topic": "water1"
+    },
+    "e8e1e100010a7100": {
+      "name": "water2",
+      "family": "Browan Water sensor",
+      "ntfy_topic": "water2"
     },
     "0a0b0c0d0e0f1011": {
       "name": "co2-hall",
