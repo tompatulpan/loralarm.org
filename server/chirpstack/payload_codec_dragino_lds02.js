@@ -1,10 +1,10 @@
 /**
  * ChirpStack device-profile payload codec (Custom JavaScript codec)
- * for the **Dragino LDS02** door / water-leak sensor -- third-party
- * codec by Dragino, uplink on fPort 10. Unlike the RAK4631 and RUI3
+ * for the **Dragino LDS02** door / water-leak sensor -- based on the
+ * third-party codec by Dragino, uplink on fPort 10. Unlike the RAK4631 and RUI3
  * families (payload_codec_rak4631.js / payload_codec_rui3.js, both
- * written for this project) this decoder is the vendor-supplied one,
- * kept verbatim in its field names because the Python service maps
+ * written for this project) the decoding logic is vendor-derived, with
+ * the vendor field names kept because the Python service maps
  * them in `families/dragino_lds02.json` (`field_map`:
  * BAT_V -> battery_voltage, DOOR_OPEN_STATUS -> door_open).
  *
@@ -46,76 +46,62 @@
 
 function decodeUplink(input) {
   const b = input.bytes || [];
+  if (input.fPort !== 10) {
+    return { data: {}, warnings: [], errors: ['LDS02: unexpected fPort ' + input.fPort + ', sensor data is on fPort 10'] };
+  }
   if (b.length === 0) {
     return { data: {}, warnings: [], errors: ['empty payload'] };
   }
-  if (b.length < 10) {
-    return { data: {}, warnings: [], errors: ['LDS02 frame too short: ' + b.length + ' bytes, need 10'] };
+  if (b.length !== 10) {
+    return { data: {}, warnings: [], errors: ['LDS02 frame length ' + b.length + ' bytes, need exactly 10'] };
   }
-  const result = Decode(input.fPort, b, input.variables);
+  const result = Decode(b);
   if (result === undefined) {
-    return { data: {}, warnings: [], errors: ['LDS02: unrecognized MOD ' + b[2] + ' or frame length ' + b.length] };
+    return { data: {}, warnings: [], errors: ['LDS02: unrecognized MOD ' + b[2]] };
   }
   return { data: result, warnings: [], errors: [] };
 }
 
-function Decode(fPort, bytes, variables) {
-    // Decode an uplink message from a buffer
-    // (array) of bytes to an object of fields.
-    var value=(bytes[0]<<8 | bytes[1])&0x3FFF;
-    var bat=value/1000;//Battery,units:V
+function Decode(bytes) {
+  // 10-byte frame -> object of fields; undefined for an unknown MOD.
+  const bat = ((bytes[0] << 8 | bytes[1]) & 0x3FFF) / 1000; // V
+  const doorOpen = bytes[0] & 0x80 ? 1 : 0; // 1: open, 0: closed
+  const waterLeak = bytes[0] & 0x40 ? 1 : 0;
+  const mod = bytes[2];
+  const count = bytes[3] << 16 | bytes[4] << 8 | bytes[5];
+  const duration = bytes[6] << 16 | bytes[7] << 8 | bytes[8]; // minutes
+  const alarm = bytes[9] & 0x01;
 
-    var door_open_status=bytes[0]&0x80?1:0;//1:open,0:close
-    var water_leak_status=bytes[0]&0x40?1:0;
-
-    var mod=bytes[2];
-    var alarm=bytes[9]&0x01;
-
-    if(mod==1){
-        var open_times=bytes[3]<<16 | bytes[4]<<8 | bytes[5];
-        var open_duration=bytes[6]<<16 | bytes[7]<<8 | bytes[8];//units:min
-        if(bytes.length==10)
-            return {
-                Node_type:"LDS02",
-                BAT_V:bat,
-                MOD:mod,
-                DOOR_OPEN_STATUS:door_open_status,
-                DOOR_OPEN_TIMES:open_times,
-                LAST_DOOR_OPEN_DURATION:open_duration,
-                ALARM:alarm
-            };
-    }
-    else if(mod==2)
-    {
-        var leak_times=bytes[3]<<16 | bytes[4]<<8 | bytes[5];
-        var leak_duration=bytes[6]<<16 | bytes[7]<<8 | bytes[8];//units:min
-        if(bytes.length==10)
-            return {
-                Node_type:"LDS02",
-                BAT_V:bat,
-                MOD:mod,
-                WATER_LEAK_STATUS:water_leak_status,
-                WATER_LEAK_TIMES:leak_times,
-                LAST_WATER_LEAK_DURATION:leak_duration
-            };
-    }
-    else if(mod==3)
-        if(bytes.length==10)
-        {
-            return {
-                Node_type:"LDS02",
-                BAT_V:bat,
-                MOD:mod,
-                DOOR_OPEN_STATUS:door_open_status,
-                WATER_LEAK_STATUS:water_leak_status,
-                ALARM:alarm
-            };
-        }
-        else{
-            return {
-                Node_type:"LDS02",
-                BAT_V:bat,
-                MOD:mod,
-            };
-        }
+  if (mod === 1) {
+    return {
+      Node_type: 'LDS02',
+      BAT_V: bat,
+      MOD: mod,
+      DOOR_OPEN_STATUS: doorOpen,
+      DOOR_OPEN_TIMES: count,
+      LAST_DOOR_OPEN_DURATION: duration,
+      ALARM: alarm
+    };
+  }
+  if (mod === 2) {
+    return {
+      Node_type: 'LDS02',
+      BAT_V: bat,
+      MOD: mod,
+      WATER_LEAK_STATUS: waterLeak,
+      WATER_LEAK_TIMES: count,
+      LAST_WATER_LEAK_DURATION: duration
+    };
+  }
+  if (mod === 3) {
+    return {
+      Node_type: 'LDS02',
+      BAT_V: bat,
+      MOD: mod,
+      DOOR_OPEN_STATUS: doorOpen,
+      WATER_LEAK_STATUS: waterLeak,
+      ALARM: alarm
+    };
+  }
+  return undefined;
 }
