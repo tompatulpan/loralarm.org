@@ -53,15 +53,15 @@ See [`server/python/ARCHITECTURE.md`](server/python/ARCHITECTURE.md) for the des
 
 ## Getting started
 
-- **Edit the website:** run `hugo server` in `site/` — see [`site/README.md`](site/README.md) for the workflow and Cloudflare Pages build settings. Every `git push` publishes automatically.
 - **Build device firmware:** see [`devices/rui3_sensor/README.md`](devices/rui3_sensor/README.md) for supported hardware, wiring notes and AT commands.
 - **Run the service:** see [`server/python/README.md`](server/python/README.md) — `python3 -m loralarm` subscribes to the ChirpStack MQTT feed; tests run with `python3 -m unittest discover -s tests -t .` (stdlib only).
+- **Edit the website:** run `hugo server` in `site/` — see [`site/README.md`](site/README.md) for the workflow and Cloudflare Pages build settings. Every `git push` publishes automatically.
 
 ## Trying it out with a Meshtastic RAK4631
 
-Already running [Meshtastic](https://meshtastic.org) on a RAK4631? Then half the work is done — it's the same board, and the nRF52840 + SX1262 radio it carries is exactly what LoRaLarm firmware expects. Flash the firmware over USB through the built-in UF2 bootloader (no extra tools), join it to your LoRaWAN gateway via OTAA, and you have a working sensor node for testing. Going back to Meshtastic is just a re-flash away.
+Already running [Meshtastic](https://meshtastic.org) on a RAK4631? Then half the work is done — it's the same board, and the nRF52840 + SX1262 radio it carries is exactly what LoRaLarm firmware expects. Flash the firmware over USB through the board's built-in bootloader, join it to your LoRaWAN gateway via OTAA, and you have a working sensor node for testing. Going back to Meshtastic is just a re-flash away.
 
-1. Flash the LoRaLarm firmware from [`devices/rui3_sensor/`](devices/rui3_sensor/) to the RAK4631 over USB.
+1. Build and flash the Arduino firmware from [`devices/android_rak4631/`](devices/android_rak4631/) to the RAK4631 over USB (Arduino IDE with the RAK nRF52 board package and the `SX126x-Arduino` and `SparkFun LIS3DH` libraries). Copy `example.secrets.h` to `secrets.h` and fill in the OTAA credentials (`NODE_DEVICE_EUI`, `NODE_APP_EUI`, `NODE_APP_KEY`, with `DO_OTAA` set to `true`). The region is hard-coded to EU868 in `lora_handler.cpp`; change it there if your gateway uses another band.
 2. Register the device (OTAA) in ChirpStack with the bundled [`payload_codec_rak4631.js`](server/chirpstack/payload_codec_rak4631.js) codec.
 3. Watch the uplinks arrive and the alarms fire — no soldering required to get started.
 
