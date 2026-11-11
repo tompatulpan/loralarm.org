@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>LoRaLarm PWA — mörka skisser</title>
+<style>
+  :root{
+    font-family: Inter, system-ui, -apple-system, sans-serif;
+    color-scheme: dark;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:#0b0f14;
+    color:#e6edf3;
+    padding:32px 20px 60px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:28px;
+  }
+  h1{font-size:1.4rem;font-weight:700;letter-spacing:.02em}
+  h1 span{color:#58a6ff;font-weight:600}
+  .sub{color:#8b949e;font-size:.9rem;margin-top:-22px}
+  .row{display:flex;flex-wrap:wrap;gap:36px;justify-content:center}
+
+  /* phone frame */
+  .phone{
+    width:300px;height:620px;
+    background:#010409;
+    border:1px solid #21262d;
+    border-radius:36px;
+    padding:14px 10px 12px;
+    box-shadow:0 12px 40px rgba(0,0,0,.55);
+    display:flex;flex-direction:column;
+    overflow:hidden;
+  }
+  .notch{width:96px;height:22px;background:#010409;border-radius:0 0 12px 12px;margin:0 auto -22px;position:relative;z-index:3;border:1px solid #21262d;border-top:none}
+  .screen{
+    flex:1;background:#0d1117;border-radius:24px;
+    display:flex;flex-direction:column;overflow:hidden;
+    border:1px solid #1c2430;
+  }
+  .caption{margin-top:14px;text-align:center;color:#8b949e;font-size:.82rem;line-height:1.5;max-width:300px}
+  .caption b{color:#e6edf3}
+
+  /* app chrome */
+  .statusbar{display:flex;justify-content:space-between;padding:10px 16px 4px;font-size:.68rem;color:#656d76}
+  .appbar{display:flex;align-items:center;justify-content:space-between;padding:8px 16px 10px}
+  .appbar h2{font-size:1.05rem;font-weight:700}
+  .badge{font-size:.62rem;background:#1f6feb;color:#fff;padding:3px 8px;border-radius:999px;font-weight:600}
+  .content{flex:1;overflow:hidden;padding:0 12px 12px;display:flex;flex-direction:column;gap:10px}
+  .tabbar{display:flex;border-top:1px solid #1c2430;background:#0d1117;padding:6px 8px 10px}
+  .tabbar div{flex:1;text-align:center;font-size:.62rem;color:#8b949e;padding-top:4px}
+  .tabbar div.on{color:#58a6ff}
+  .tabbar .ic{display:block;font-size:1.05rem;margin-bottom:1px}
+
+  /* alarm banner */
+  .banner{
+    background:linear-gradient(135deg,#5d1f1f,#3d1418);
+    border:1px solid #f8514955;
+    border-radius:12px;padding:10px 12px;
+    display:flex;gap:10px;align-items:center;
+  }
+  .banner.ok{background:linear-gradient(135deg,#12261f,#0f1a17);border-color:#2ea04355}
+  .banner .dot{width:10px;height:10px;border-radius:50%;background:#f85149;box-shadow:0 0 10px #f85149;flex:none}
+  .banner.ok .dot{background:#2ea043;box-shadow:0 0 10px #2ea043}
+  .banner .t{font-size:.78rem;font-weight:700}
+  .banner .d{font-size:.66rem;color:#c9d1d9;opacity:.85;margin-top:1px}
+
+  /* device card */
+  .card{
+    background:#161b22;border:1px solid #21262d;border-radius:12px;
+    padding:10px 12px;display:flex;align-items:center;gap:10px;
+  }
+  .card .ic{width:34px;height:34px;border-radius:9px;background:#1c2430;display:flex;align-items:center;justify-content:center;font-size:1rem;flex:none}
+  .card .nm{font-size:.8rem;font-weight:600}
+  .card .meta{font-size:.64rem;color:#8b949e;margin-top:2px}
+  .card .right{margin-left:auto;text-align:right}
+  .pill{display:inline-block;font-size:.58rem;padding:2px 7px;border-radius:999px;font-weight:600}
+  .pill.ok{background:#0d2818;color:#2ea043}
+  .pill.warn{background:#3d2d00;color:#d29922}
+  .pill.alarm{background:#4a1010;color:#f85149}
+  .pill.off{background:#21262d;color:#8b949e}
+  .arm{display:inline-flex;align-items:center;gap:3px;font-size:.58rem;font-weight:600;padding:2px 7px;border-radius:999px;margin-left:5px;vertical-align:middle}
+  .arm.on{background:#12261f;color:#2ea043}
+  .arm.off{background:#2d2d35;color:#8b949e}
+  .armswitch{margin-left:auto;width:38px;height:22px;border-radius:999px;background:#21262d;position:relative;flex:none;cursor:pointer}
+  .armswitch::after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#8b949e;transition:.2s}
+  .armswitch.on{background:#2ea043}
+  .armswitch.on::after{left:18px;background:#fff}
+  .armrow{display:flex;align-items:center;gap:10px;background:#161b22;border:1px solid #2ea04355;border-radius:12px;padding:10px 12px}
+  .armrow .lbl{font-size:.74rem;font-weight:700}
+  .armrow .sub2{font-size:.62rem;color:#8b949e;margin-top:1px}
+  .batt{font-size:.62rem;color:#8b949e;margin-top:3px}
+  .batt b{color:#d29922;font-weight:700}
+  .batt b.low{color:#f85149}
+
+  /* toggle */
+  .tg{margin-left:auto;width:38px;height:22px;border-radius:999px;background:#21262d;position:relative;flex:none}
+  .tg::after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#8b949e;transition:.2s}
+  .tg.on{background:#1f6feb}
+  .tg.on::after{left:18px;background:#fff}
+
+  /* detail screen */
+  .kv{background:#161b22;border:1px solid #21262d;border-radius:12px;padding:4px 14px}
+  .kv .rowk{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid #21262d;font-size:.74rem}
+  .kv .rowk:last-child{border-bottom:none}
+  .kv .k{color:#8b949e}
+  .kv .v{font-weight:600}
+  .mini-chart{background:#161b22;border:1px solid #21262d;border-radius:12px;padding:12px 12px 8px}
+  .mini-chart svg{display:block;width:100%}
+  .mini-chart .lbl{font-size:.62rem;color:#8b949e;margin-bottom:6px}
+
+  /* settings */
+  .sect{font-size:.66rem;color:#8b949e;text-transform:uppercase;letter-spacing:.08em;padding:2px 4px 0}
+  .hint{font-size:.62rem;color:#8b949e;line-height:1.5;padding:0 4px}
+  .ios-hint{background:#1f2a1d;border:1px solid #2ea04355;border-radius:10px;padding:8px 12px;font-size:.66rem;color:#7ee787;line-height:1.45}
+  .login{display:flex;flex-direction:column;gap:8px;padding:8px 4px}
+  input.pin{
+    background:#0d1117;border:1px solid #30363d;color:#e6edf3;
+    border-radius:10px;padding:10px 12px;font-size:.85rem;letter-spacing:.3em;text-align:center;width:100%;
+  }
+  .btn{
+    background:#1f6feb;color:#fff;border:none;border-radius:10px;
+    padding:10px;font-size:.8rem;font-weight:600;width:100%;text-align:center;
+  }
+  .btn.ghost{background:transparent;border:1px solid #30363d;color:#8b949e}
+  .foot{font-size:.6rem;color:#484f58;text-align:center;padding-top:4px}
+</style>
+</head>
+<body>
+
+<h1>LoRaLarm PWA <span>— mörka skisser</span></h1>
+<div class="sub">Tre skärmar: Status (alla enheter) · Enhetsdetalj · Mina notiser / inloggning. Mörkt tema = standard.</div>
+
+<div class="row">
+
+  <!-- ================= SCREEN 1: STATUS ================= -->
+  <div>
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="screen">
+      <div class="statusbar"><span>21:47</span><span>📶 ▉▉▂ 🔋</span></div>
+      <div class="appbar">
+        <h2>LoRaLarm</h2>
+        <span class="badge">2 larm aktiva</span>
+      </div>
+      <div class="content">
+        <div class="banner">
+          <div class="dot"></div>
+          <div>
+            <div class="t">Larm: sensor16</div>
+            <div class="d">Tiltlarm · flyttad 0.42 g &gt; 0.3 · 21:43</div>
+          </div>
+        </div>
+        <div class="banner">
+          <div class="dot" style="background:#d29922;box-shadow:0 0 10px #d29922"></div>
+          <div>
+            <div class="t">Batterinivå låg: Door1</div>
+            <div class="d">2.94 V under 3.0 V · sedan 18:35</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="ic">🌡️</div>
+          <div>
+            <div class="nm">sensor16 <span class="arm on">🛡 larm på</span></div>
+            <div class="meta">RAK3172 · temp ute</div>
+          </div>
+          <div class="right">
+            <span class="pill alarm">LARM</span>
+            <div class="batt"><b class="low">2.94 V</b> · 57 %</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="ic">🚪</div>
+          <div>
+            <div class="nm">Door1 <span class="arm on">🛡 larm på</span></div>
+            <div class="meta">Dragino LDS02 · garageport</div>
+          </div>
+          <div class="right">
+            <span class="pill warn">BATT</span>
+            <div class="batt"><b>2.94 V</b> · 21 min sedan</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="ic">🌡️</div>
+          <div>
+            <div class="nm">sensor3 <span class="arm off">🛡 larm av</span></div>
+            <div class="meta">RAK4631 · förråd</div>
+          </div>
+          <div class="right">
+            <span class="pill ok">OK</span>
+            <div class="batt">3.12 V · 4 min sedan</div>
+          </div>
+        </div>
+        <div class="card" style="opacity:.55">
+          <div class="ic">💧</div>
+          <div>
+            <div class="nm">Water1</div>
+            <div class="meta">LDS02 (MOD 2) · källare</div>
+          </div>
+          <div class="right">
+            <span class="pill off">INGEN KONTAKT</span>
+            <div class="batt">7 dagar sedan</div>
+          </div>
+        </div>
+      </div>
+      <div class="tabbar">
+        <div class="on"><span class="ic">🏠</span>Status</div>
+        <div><span class="ic">🔔</span>Notiser</div>
+        <div><span class="ic">⚙️</span>Inställningar</div>
+      </div>
+    </div>
+  </div>
+  <div class="caption"><b>1 · Status.</b> Alarm-banner överst (roterar ej, kvar tills kvitterad), sedan flottan sorterad: larmade enheter först. 🛡-märke per kort = larm på/av. "Ingen kontakt" = watchdog-larm. Enhet med larm av visas grå tone + utan larmstatus.</div>
+  </div>
+
+  <!-- ================= SCREEN 2: DEVICE DETAIL ================= -->
+  <div>
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="screen">
+      <div class="statusbar"><span>21:47</span><span>📶 ▉▉▂ 🔋</span></div>
+      <div class="appbar">
+        <h2>‹ sensor16</h2>
+        <span class="pill alarm">LARM</span>
+      </div>
+      <div class="content">
+        <div class="banner">
+          <div class="dot"></div>
+          <div>
+            <div class="t">Tiltlarm aktivt</div>
+            <div class="d">flyttad 0.42 g &gt; 0.3 · 21:43 · ej kvitterad</div>
+          </div>
+        </div>
+        <div class="mini-chart">
+          <div class="lbl">Temperatur senaste 24 h</div>
+          <svg viewBox="0 0 240 70" preserveAspectRatio="none">
+            <line x1="0" y1="18" x2="240" y2="18" stroke="#21262d" stroke-dasharray="3 3"/>
+            <text x="2" y="14" fill="#f85149" font-size="8">gräns 4 °C</text>
+            <path d="M0,55 C30,52 45,48 70,50 C95,52 120,30 150,28 C170,26 200,45 240,42" fill="none" stroke="#58a6ff" stroke-width="2"/>
+            <path d="M0,55 C30,52 45,48 70,50 C95,52 120,30 150,28 C170,26 200,45 240,42 L240,70 L0,70 Z" fill="#58a6ff" opacity="0.08"/>
+            <circle cx="150" cy="28" r="2.5" fill="#58a6ff"/>
+          </svg>
+        </div>
+        <div class="kv">
+          <div class="rowk"><span class="k">Temperatur</span><span class="v">3.8 °C</span></div>
+          <div class="rowk"><span class="k">Batteri</span><span class="v" style="color:#d29922">2.94 V · 56.7 %</span></div>
+          <div class="rowk"><span class="k">Senaste uplink</span><span class="v">21:43 (4 min)</span></div>
+          <div class="rowk"><span class="k">RSSI / SNR</span><span class="v">−45 dBm / 13.8</span></div>
+          <div class="rowk"><span class="k">fCnt</span><span class="v">1697</span></div>
+          <div class="rowk"><span class="k">devEUI</span><span class="v" style="font-size:.62rem">ac1f09fffe12da63</span></div>
+        </div>
+        <div class="armrow">
+          <div>
+            <div class="lbl">🛡 Larm: PÅ</div>
+            <div class="sub2">Av = larm utvärderas ej, ingen notis till någon. Påverkar alla kanaler.</div>
+          </div>
+          <span class="armswitch on"></span>
+        </div>
+        <div class="kv">
+          <div class="rowk"><span class="k">Följer du enheten?</span><span class="tg on"></span></div>
+        </div>
+        <div class="foot">Graf &amp; historik → Grafana</div>
+      </div>
+      <div class="tabbar">
+        <div class="on"><span class="ic">🏠</span>Status</div>
+        <div><span class="ic">🔔</span>Notiser</div>
+        <div><span class="ic">⚙️</span>Inställningar</div>
+      </div>
+    </div>
+  </div>
+  <div class="caption"><b>2 · Enhetsdetalj.</b> Direktlänkat från notisen. Gränsen från device-config visas i grafen. Följ-reglaget här = samma som på Notiser-fliken.</div>
+  </div>
+
+  <!-- ================= SCREEN 3: NOTIFICATIONS / SETTINGS ================= -->
+  <div>
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="screen">
+      <div class="statusbar"><span>21:47</span><span>📶 ▉▉▂ 🔋</span></div>
+      <div class="appbar">
+        <h2>Mina notiser</h2>
+        <span class="badge">Push på</span>
+      </div>
+      <div class="content">
+        <div class="sect">Välj enheter</div>
+        <div class="card">
+          <div class="ic">🌡️</div>
+          <div><div class="nm">sensor16</div><div class="meta">🛡 larm på · tilt, temp, batteri</div></div>
+          <span class="tg on"></span>
+        </div>
+        <div class="card">
+          <div class="ic">🚪</div>
+          <div><div class="nm">Door1</div><div class="meta">🛡 larm på · dörr, batteri</div></div>
+          <span class="tg on"></span>
+        </div>
+        <div class="card" style="opacity:.62">
+          <div class="ic">🌡️</div>
+          <div><div class="nm">sensor3</div><div class="meta">🛡 larm av · enhet avstängd för service</div></div>
+          <span class="tg"></span>
+        </div>
+        <div class="card">
+          <div class="ic">💧</div>
+          <div><div class="nm">Water1</div><div class="meta">Läckage</div></div>
+          <span class="tg"></span>
+        </div>
+        <div class="ios-hint">📱 iPhone: lägg till på hemskärmen (Dela → "Lägg till på hemskärmen") för att ta emot push-notiser.</div>
+        <div class="sect">Konto</div>
+        <div class="hint">Inloggad som <b>Tomas</b> · PIN från inloggningslänk · logga ut</div>
+      </div>
+      <div class="tabbar">
+        <div><span class="ic">🏠</span>Status</div>
+        <div class="on"><span class="ic">🔔</span>Notiser</div>
+        <div><span class="ic">⚙️</span>Inställningar</div>
+      </div>
+    </div>
+  </div>
+  <div class="caption"><b>3 · Notiser.</b> Toggeln = "följer du enheten" (per användare, bara dina push-notiser). 🛡-märket = enhetens larm på/av (globalt, administreras i enhetsvyn). sensor3 exempel: larm avslaget för service, därför avtonat + grått.</div>
+  </div>
+
+</div>
+
+<div class="sub" style="max-width:640px;text-align:center;line-height:1.7">
+  <b style="color:#e6edf3">Färgsystem:</b> bakgrund <span style="color:#0d1117">#0d1117</span> / kort <span style="color:#161b22">#161b22</span> ·
+  OK-grön <span style="color:#2ea043">#2ea043</span> · varning <span style="color:#d29922">#d29922</span> ·
+  larm <span style="color:#f85149">#f85149</span> · accent <span style="color:#58a6ff">#58a6ff</span>.
+  Larm-banner = enda röda ytan på skärmen, sortering alltid larm först.
+</div>
+
+</body>
+</html>
