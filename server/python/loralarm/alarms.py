@@ -114,6 +114,9 @@ class AlarmRule:
     group: str | None = None
     notify_fire: str = ""       # fallback texts for kinds notify.DEFAULT_TEXT lacks;
     notify_clear: str = ""      # {name} {detail} {label}; empty -> generic text
+    # False = a "health" alarm (temperature, battery, no contact): it always
+    # notifies, whatever the device's alarm_window says
+    windowed: bool = True
 
 
 def known_device_kinds(registry: Registry) -> set[str]:
@@ -192,11 +195,11 @@ def _clear_batt_empty(cfg: DeviceConfig, frame: Frame) -> str:
 
 
 BUILTIN_RULES: list[AlarmRule] = [
-    AlarmRule(AlarmKind.TEMP, "Temperaturalarm", _temp_check, _clear_temp),
+    AlarmRule(AlarmKind.TEMP, "Temperaturalarm", _temp_check, _clear_temp, windowed=False),
     AlarmRule(AlarmKind.BATTERY_LOW, "Batterinivå låg", _batt_low_check, _clear_batt_low,
-              group="battery"),
+              group="battery", windowed=False),
     AlarmRule(AlarmKind.BATTERY_EMPTY, "Batteri tomt", _batt_empty_check, _clear_batt_empty,
-              group="battery"),
+              group="battery", windowed=False),
     # motion/circuit: the level check below is the `level` mode; in `event` mode
     # AlarmState replaces it with the pulse detectors (still gated by device_kinds)
     AlarmRule(
@@ -210,7 +213,7 @@ BUILTIN_RULES: list[AlarmRule] = [
     AlarmRule(
         AlarmKind.TILT, "Tiltlarm", None,
         lambda cfg, f: f"inom baslinje ± {cfg.tilt_sense_g} g", device_kinds=SENSOR),
-    AlarmRule(AlarmKind.STALE, "Ingen kontakt (watchdog)"),
+    AlarmRule(AlarmKind.STALE, "Ingen kontakt (watchdog)", windowed=False),
 ]
 
 
@@ -269,6 +272,9 @@ class AlarmState:
     motion_events: list[datetime] = field(default_factory=list)     # event-mode motion: detections within the window
     motion_burst_active: bool = False                               # event mode, min>1: already alarmed for this burst
     last_values: dict[str, Any] = field(default_factory=dict)       # measurements of the last evaluated frame
+    # active alarms whose fire was NOT notified (outside the alarm window), so their
+    # clear is not notified either; unknown = notify (fail safe, also for old snapshots)
+    suppressed: set[AlarmKind] = field(default_factory=set)
     last_rssi: int | None = None
     last_snr: float | None = None
 
@@ -411,6 +417,7 @@ class AlarmState:
             "motion_events": [t.isoformat() for t in self.motion_events],
             "motion_burst_active": self.motion_burst_active,
             "last_values": self.last_values,
+            "suppressed": sorted(k.value for k in self.suppressed),
             "last_rssi": self.last_rssi,
             "last_snr": self.last_snr,
         }
@@ -428,5 +435,6 @@ class AlarmState:
         self.motion_burst_active = bool(snap.get("motion_burst_active", False))
         values = snap.get("last_values", {})
         self.last_values = dict(values) if isinstance(values, dict) else {}
+        self.suppressed = {_known_kind(registry, v) for v in snap.get("suppressed", [])}
         self.last_rssi = snap.get("last_rssi")
         self.last_snr = snap.get("last_snr")

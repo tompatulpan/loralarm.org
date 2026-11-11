@@ -7,13 +7,16 @@
     "   -> measurement, with calibration such as $co2_scale), rules (alarm when a value passes a limit) and the",
     "   type's own defaults. The three built-in types (RAK3172, RAK4631, Dragino Switch LDS02) need no entry.",
     "\"defaults\": applies to every device. Secrets are ${ENV_VAR} placeholders, set once here (Pushover) so no",
-    "   device needs its own copy.",
+    "   device needs its own copy. \"timezone\" (default Europe/Stockholm) is used by alarm_window.",
+    "alarm_window: \"HH:MM-HH:MM\" (overnight ok, e.g. Door2 21:00-09:00 = door alarms only at night). Outside it the",
+    "   alarm is NOT sent but still logged. Temperature, battery and no-contact alarms ignore it; list exact kinds",
+    "   with \"alarm_window_kinds\" to change that. See README \"Alarm window\".",
     "\"families\": applies to every device of one type (key = ChirpStack device-profile name, exact spelling).",
     "\"devices\": one entry per sensor, keyed by lowercase devEUI. Only name and family are required.",
     "Precedence, later wins: the type's built-in defaults, defaults, families, the device entry. \"params\" merge",
     "   key by key; a dict such as notify_fire is replaced as a whole by the more specific layer.",
     "application_id is set per device (not in a shared layer): devices of one type can use different applications.",
-    "Not available yet (planned): hysteresis on temperature/battery, several recipients per device, time windows."
+    "Not available yet (planned): hysteresis on temperature/battery, several recipients per device."
   ],
   "profiles": {
     "CO2-1": {
@@ -35,6 +38,7 @@
   },
   "defaults": {
     "kind": "sensor",
+    "timezone": "Europe/Stockholm",
     "tilt_sense_g": 0.3,
     "watchdog_hours": 24,
     "motion_mode": "event",
@@ -112,6 +116,7 @@
       "family": "Dragino Switch LDS02",
       "ntfy_topic": "door2",
       "watchdog_hours": 2,
+      "alarm_window": "21:00-09:00",
       "notify_fire": {"door": "🚪 {name} är öppen — {detail}"}
     },
     "0a0b0c0d0e0f1011": {

@@ -38,6 +38,7 @@ from .event import Uplink
 from .events import EventLog, utc_now
 from .notify import Notifier
 from .registry import Registry
+from .schedule import Window, local_time, parse_window, zone
 
 log = logging.getLogger(__name__)
 
@@ -118,6 +119,8 @@ class Engine:
         self._dl_sent: dict[tuple[str, int], _DlSent] = {}
         # devices already warned about for missing from the config (once each)
         self._warned_unconfigured: set[str] = set()
+        # (devEUI, alarm_window, timezone) already reported as invalid (once each)
+        self._warned_windows: set[tuple[str, str, str]] = set()
         self._lock = threading.Lock()
 
     @property
@@ -158,6 +161,7 @@ class Engine:
             return
         log.info("reloaded config from %s", self.config_path)
         self._dl_bad.clear()
+        self._warned_windows.clear()
         self._dl_sent.clear()
         self._push_changed_downlinks()
 
@@ -244,7 +248,8 @@ class Engine:
             for t in transitions:
                 print(f"    >>> {self.registry.label_for(t.kind)}: {'LARM' if t.active else 'kvitterad'} — {t.detail}",
                       flush=True)
-                self._emit(cfg, up.time, t)
+                self._emit(cfg, up.time, t, state)
+            state.suppressed.intersection_update(state.active)
             self._persist(up.dev_eui, state)
             # last: a downlink problem must never cost an alarm notification
             if enforce:
@@ -266,9 +271,10 @@ class Engine:
                     print(f"{now:%Y-%m-%d %H:%M:%S} {cfg.name:<10} watchdog "
                           f">>> {self.registry.label_for(t.kind)}: {'LARM' if t.active else 'kvitterad'} — {t.detail}",
                           flush=True)
-                    self._emit(cfg, now, t)
+                    self._emit(cfg, now, t, state)
                     if t.active:
                         alarmed.append(dev_eui)
+                state.suppressed.intersection_update(state.active)
                 self._persist(dev_eui, state)
         return alarmed
 
@@ -486,15 +492,62 @@ class Engine:
             except Exception:
                 log.exception("could not log the failed downlink command")
 
-    def _emit(self, cfg, ts: datetime, t) -> None:
+    def _window(self, cfg: DeviceConfig) -> Window | None:
+        """The device's alarm window; None = always notify (no window set, or an
+        invalid one, which is reported once per device — a typo must never
+        silence alarms)."""
+        text = (cfg.alarm_window or "").strip()
+        if not text:
+            return None
+        try:
+            window = parse_window(text)
+            zone(cfg.timezone)
+        except ValueError as e:
+            key = (cfg.dev_eui, text, cfg.timezone)
+            if key not in self._warned_windows:
+                self._warned_windows.add(key)
+                log.error("device %s (%s): %s; alarms are sent at any time until it is fixed",
+                          cfg.dev_eui, cfg.name, e)
+            return None
+        return window
+
+    def _windowed(self, cfg: DeviceConfig, kind: str) -> bool:
+        """Does the alarm window apply to this alarm kind of this device?"""
+        if cfg.alarm_window_kinds is not None:
+            return kind in cfg.alarm_window_kinds
+        rule = self.registry.rule_for(kind)
+        return rule.windowed if rule is not None else True
+
+    def _should_notify(self, cfg: DeviceConfig, ts: datetime, t, state: AlarmState) -> tuple[bool, str]:
+        """(send, note): outside the device's alarm window a windowed alarm is not
+        sent (the event is still logged, with the note). A clear follows its fire:
+        it is dropped only if that fire was suppressed."""
+        if not t.active:
+            if t.kind in state.suppressed:
+                state.suppressed.discard(t.kind)
+                return False, "ej skickat: larmet var utanför larmtid"
+            return True, ""
+        window = self._window(cfg)
+        if window is None or not self._windowed(cfg, str(t.kind)):
+            return True, ""
+        if window.contains(local_time(ts, cfg.timezone)):
+            return True, ""
+        state.suppressed.add(t.kind)
+        return False, f"utanför larmtid {window}, ej skickat"
+
+    def _emit(self, cfg, ts: datetime, t, state: AlarmState) -> None:
         # each step isolated: a DB failure must never suppress the notification
         # (and the notifier only enqueues, so it cannot block either)
-        if self.notifier:
+        send, note = self._should_notify(cfg, ts, t, state)
+        detail = f"{t.detail} ({note})" if note else t.detail
+        if note:
+            print(f"    ({note})", flush=True)
+        if self.notifier and send:
             try:
                 self.notifier.notify(cfg, t.kind.value, t.active, t.detail, registry=self.registry)
             except Exception:
                 log.exception("enqueue notification failed for %s %s", cfg.dev_eui, t.kind.value)
-        self._log_event(ts, cfg.dev_eui, cfg.name, t.kind.value, t.active, t.detail)
+        self._log_event(ts, cfg.dev_eui, cfg.name, t.kind.value, t.active, detail)
 
     def _log_event(self, ts: datetime, dev_eui: str, name: str,
                    kind: str, active: bool, detail: str) -> None:

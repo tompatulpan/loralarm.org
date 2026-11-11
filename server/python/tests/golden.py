@@ -146,6 +146,16 @@ def scenarios() -> dict[str, tuple[dict, list[Any]]]:
         sensor(30),
     ])
 
+    # T0 = 16:33 local. Window 21:00-09:00: closed at +0 s, open at +5 h (21:33),
+    # open at +16 h 7 min (08:40), closed again at +16 h 57 min (09:30)
+    night = base_config()
+    night["devices"][DOOR_EUI]["alarm_window"] = "21:00-09:00"
+    s["alarm_window"] = (night, [
+        door(0, 0), door(60, 1), door(120, 0, batt=2.4),       # open+close outside: not sent; low battery: sent
+        door(5 * 3600, 1), door(5 * 3600 + 60, 0),              # inside: both sent
+        door(58020, 1), door(61020, 0),                         # opened inside, cleared outside: both sent
+    ])
+
     s["unconfigured_device"] = (base_config(), [
         make_uplink(dev_eui=BARE_EUI, device_name="newbie", profile="RAK3172",
                     obj=sensor_obj(temperature=-3.0, battery_voltage=2.85), time=at(0)),

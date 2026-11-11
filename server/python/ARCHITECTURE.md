@@ -418,3 +418,122 @@ narrows, the plan above:
    recipients too lists them again. No additive `notify+`.
 6. **Severity → priority — DECIDED (2026-11-11):** `critical` → Pushover 2 /
    ntfy 5, `warning` → 1 / 4, `info` (incl. all "cleared" messages) → 0 / 3.
+
+## 13. Alarm window (`alarm_window`) — implemented 2026-11-11
+
+Status: **implemented** (`loralarm/schedule.py`, `Engine._should_notify`,
+`tests/test_schedule.py`, `tests/test_alarm_window.py`, golden scenario
+`alarm_window`; user documentation in README "Alarm window"). Differences from
+the plan below: the engine remembers the alarms whose fire was *suppressed*
+(`AlarmState.suppressed`) instead of those that were notified, which is
+fail-safe (an unknown state, e.g. an old snapshot, still sends the clear) and
+needs no snapshot migration; the event marker reads `(utanför larmtid
+21:00-09:00, ej skickat)`. The plan text is kept for the reasoning.
+
+Goal (todo.txt): per device, only notify inside a daily time window, e.g. no
+door alarms during the day on some doors. Independent of phases 2–4: it is a
+small change in the Engine's emit path that works with today's flat config, and
+phase 3 later turns it into a route filter without changing the behaviour.
+
+### 13.1 Behaviour (decided 2026-11-11)
+
+- `"alarm_window": "21:00-09:00"` — notifications are sent only while the local
+  time is inside the window. Start is inclusive, end exclusive. **Overnight
+  windows are allowed** (start later than end). No key, or `""` = always.
+- **Outside the window: dropped.** Nothing is sent on any channel; the event is
+  still written to the events table with a marker in `detail`
+  (`… (utanför larmtid, ej skickat)`), so the history stays complete.
+- **Time zone** `timezone`, default `Europe/Stockholm`, set once in `defaults`.
+  Uses stdlib `zoneinfo`, so summer time is handled. The time tested is the
+  event's own time (uplink time; watchdog tick time), not the delivery time, so
+  replay and tests are deterministic.
+- **Which alarm kinds** (your door example: the window must not silence a dead
+  battery or a silent sensor): each alarm rule has a `windowed` flag.
+  Activity kinds (`door`, `motion`, `circuit`, `tilt`, and declarative rules by
+  default) are windowed; **health kinds** (`temp`, `battery_low`,
+  `battery_empty`, `stale`) are not and always notify. A device can override
+  the list: `"alarm_window_kinds": ["door", "temp"]` replaces it entirely.
+- **The engine keeps evaluating** (same idea as the PWA "disarm" in
+  pwa-design.md §3): states, fire-once bookkeeping and the event log are
+  unaffected; only the notification is suppressed.
+- **Clears:** a clear is sent only if its fire was sent. A fire inside the
+  window that clears outside it is still reported (no alarm left hanging); a
+  suppressed fire never produces an orphan "kvitterad".
+- **Fail open:** a bad `alarm_window` (wrong format, start = end, unknown
+  timezone) is logged as an error once per device and treated as *no window* —
+  a typo must never silence alarms.
+- **Known consequence of "drop":** a door opened at 14:00 and left open stays
+  silent at 21:00 when the window opens (there is no catch-up). If that bites,
+  a later `alarm_window_on_open: true` re-notifies once at window start.
+
+### 13.2 Config
+
+```json
+"defaults": {"timezone": "Europe/Stockholm"},
+"devices": {
+  "a84041e3d189503d": {"name": "Door2", "family": "Dragino Switch LDS02",
+                       "alarm_window": "21:00-09:00"},
+  "ac1f09fffe1003ae": {"name": "sensor3", "family": "RAK4631",
+                       "alarm_window": "09:00-21:00",
+                       "alarm_window_kinds": ["motion"]}
+}
+```
+
+Layering is the usual one, so a whole type or fleet can share a window via
+`families` / `defaults`.
+
+### 13.3 Implementation steps
+
+1. **`loralarm/schedule.py`** (new, stdlib only): `parse_window("HH:MM-HH:MM")
+   -> Window` (ValueError on bad input, on `start == end`, on 24:00),
+   `Window.contains(local_time)` with the overnight case, and
+   `local_time(ts, tzname)` with a small `ZoneInfo` cache.
+2. **`config.py`**: `DeviceConfig.alarm_window: str = ""`,
+   `alarm_window_kinds: list[str] | None = None`,
+   `timezone: str = "Europe/Stockholm"`; entries in `_FIELD_TYPES` (typo
+   warnings come for free; add a list-of-strings check).
+3. **`alarms.py` / `definitions.py`**: `AlarmRule.windowed: bool = True`; the
+   built-in `temp`, `battery_*` and `stale` rules set it to `False`; the
+   declarative rule schema gets an optional `"windowed"` key.
+4. **`AlarmState.notified: set[AlarmKind]`**, persisted in the snapshot. An old
+   snapshot without it restores with `notified = active`, so existing active
+   alarms can still clear after the upgrade.
+5. **`service.py` `_emit(cfg, ts, t, state)`**: one small decision function
+   `_should_notify(cfg, ts, t, state) -> (send, note)` implementing 13.1; the
+   notifier is called only when `send`; the event row and the console line carry
+   the note when suppressed. The two call sites (uplink, watchdog) pass `state`.
+   Config errors (bad window) are cached per device so the log shows them once.
+6. **Docs and examples**: README section, `Door2` in `devices.example.json` and
+   `examples/dragino_lds02.json` get `"alarm_window": "21:00-09:00"`, the
+   `_readme` blocks explain it, ARCHITECTURE phase 3 note (13.5).
+
+### 13.4 Tests
+
+- `schedule`: normal window, overnight window, boundaries (start inclusive, end
+  exclusive), `start == end` and malformed text rejected, DST days (the zone
+  converts a UTC time to the right local hour on 2026-03-29 and 2026-10-25).
+- Engine: fire inside → sent and logged; fire outside → not sent, event row
+  with the marker, state still active; clear after a sent fire outside the
+  window → sent; clear of a suppressed fire → not sent; health kinds bypass;
+  `alarm_window_kinds` overrides the default list; pulse (fire-only) alarms
+  outside the window are dropped; bad window / unknown timezone → fail open
+  plus one error log; old snapshot without `notified` restores and can clear.
+- Golden: one new scenario `alarm_window` (existing scenarios untouched, so the
+  parity guarantee holds); `test_examples.py` checks the Door2 example.
+
+### 13.5 Phase 3 mapping and risks
+
+- Phase 3 replaces the flat keys with the route filter
+  `{"to": "ops-ntfy", "hours": "21:00-09:00", "kinds": ["door"]}`: the same
+  `schedule.py`, but **per recipient** (a night Pushover recipient plus an
+  always-on ntfy topic becomes possible). The flat keys then become the
+  shorthand for "all recipients of this device" or are removed with the rest of
+  the clean break; `devices.json` migration is one line per device.
+- **tzdata:** this host has it (`/usr/share/zoneinfo`), but slim Docker images
+  (blue-104 compose stack) often do not. Add the `tzdata` package to the image
+  or `requirements.txt`; a missing zone is the fail-open path above, so it
+  would not break alarms, only the window.
+- **Effort:** about half a day including tests and docs; no dependency on
+  phases 2–4.
+- **Not in scope:** weekdays (`Mon-Fri`), several windows per device,
+  per-recipient windows (phase 3), catch-up notifications (13.1).

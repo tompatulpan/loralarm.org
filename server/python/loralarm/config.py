@@ -73,6 +73,14 @@ class DeviceConfig:
                                         # within motion_window_s (1 = every detection;
                                         # 3 = "3 detections within 30 s")
     watchdog_hours: float = 24        # stale if no uplink within this
+    # Only notify inside this daily window, "HH:MM-HH:MM" in `timezone` (overnight
+    # allowed, e.g. "21:00-09:00"); empty = always. Outside it the alarm is still
+    # evaluated and logged but not sent. Applies to the "windowed" alarm kinds
+    # (activity alarms by default; health kinds temp/battery/stale always notify)
+    # or to exactly `alarm_window_kinds` when that is set. See schedule.py.
+    alarm_window: str = ""
+    alarm_window_kinds: list[str] | None = None
+    timezone: str = "Europe/Stockholm"
     application_id: str = ""            # ChirpStack application UUID; needed for the downlink
                                         # topic (the live service also learns it from uplinks)
     # desired ACC settings, auto-pushed as downlinks (ports 5-7) whenever the
@@ -106,6 +114,7 @@ _FIELD_TYPES: dict[str, tuple[type, ...]] = {
     "circuit_mode": (str,), "circuit_hold_s": (int, float),
     "motion_mode": (str,), "motion_window_s": (int, float), "motion_min_detections": (int,),
     "watchdog_hours": (int, float), "application_id": (str,),
+    "alarm_window": (str,), "alarm_window_kinds": (list,), "timezone": (str,),
     "threshold": (int,), "frequency": (int, str), "duration": (int,),
     "ntfy_topic": (str,),
     "pushover_user": (str,), "pushover_token": (str,),
@@ -118,6 +127,8 @@ def _valid_type(key: str, value: Any) -> bool:
     expected = _FIELD_TYPES[key]
     if isinstance(value, bool) and bool not in expected:
         return False  # True/False must not pass as a number
+    if key == "alarm_window_kinds":
+        return isinstance(value, list) and all(isinstance(k, str) for k in value)
     return isinstance(value, expected)
 
 

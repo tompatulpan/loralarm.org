@@ -1,4 +1,124 @@
 {
+ "alarm_window": {
+  "console": [
+   "2026-11-09 15:33:14 Door1      Dragino Switch LDS02 fPort=10 fCnt=1 rssi=-68 snr=9.0",
+   "    temp=None °C  batt=2.95 V (93.8 %, ok)",
+   "2026-11-09 15:34:14 Door1      Dragino Switch LDS02 fPort=10 fCnt=61 rssi=-68 snr=9.0",
+   "    temp=None °C  batt=2.95 V (93.8 %, ok)",
+   "    >>> Dörrlarm: LARM — dörren är öppen",
+   "    (utanför larmtid 21:00-09:00, ej skickat)",
+   "2026-11-09 15:35:14 Door1      Dragino Switch LDS02 fPort=10 fCnt=121 rssi=-68 snr=9.0",
+   "    temp=None °C  batt=2.4 V (25.0 %, low)",
+   "    >>> Batterinivå låg: LARM — 2.40 V (25.0 %) ≤ varningsgräns 2.5 V",
+   "    >>> Dörrlarm: kvitterad — dörren är stängd",
+   "    (ej skickat: larmet var utanför larmtid)",
+   "2026-11-09 20:33:14 Door1      Dragino Switch LDS02 fPort=10 fCnt=18001 rssi=-68 snr=9.0",
+   "    temp=None °C  batt=2.95 V (93.8 %, ok)",
+   "    >>> Dörrlarm: LARM — dörren är öppen",
+   "    >>> Batterinivå låg: kvitterad — 2.95 V > varningsgräns 2.5 V",
+   "2026-11-09 20:34:14 Door1      Dragino Switch LDS02 fPort=10 fCnt=18061 rssi=-68 snr=9.0",
+   "    temp=None °C  batt=2.95 V (93.8 %, ok)",
+   "    >>> Dörrlarm: kvitterad — dörren är stängd",
+   "2026-11-10 07:40:14 Door1      Dragino Switch LDS02 fPort=10 fCnt=58021 rssi=-68 snr=9.0",
+   "    temp=None °C  batt=2.95 V (93.8 %, ok)",
+   "    >>> Dörrlarm: LARM — dörren är öppen",
+   "2026-11-10 08:30:14 Door1      Dragino Switch LDS02 fPort=10 fCnt=61021 rssi=-68 snr=9.0",
+   "    temp=None °C  batt=2.95 V (93.8 %, ok)",
+   "    >>> Dörrlarm: kvitterad — dörren är stängd"
+  ],
+  "notifications": [
+   {
+    "active": true,
+    "channel": "ntfy",
+    "message": "🔋 BATTERI LÅGT: Door1 — 2.40 V (25.0 %) ≤ varningsgräns 2.5 V",
+    "target": "door1",
+    "title": "loralarm Door1"
+   },
+   {
+    "active": true,
+    "channel": "pushover",
+    "message": "🔋 BATTERI LÅGT: Door1 — 2.40 V (25.0 %) ≤ varningsgräns 2.5 V",
+    "target": "Door1",
+    "title": "loralarm Door1"
+   },
+   {
+    "active": true,
+    "channel": "ntfy",
+    "message": "🚪 DÖRRLARM: Door1 — dörren är öppen",
+    "target": "door1",
+    "title": "loralarm Door1"
+   },
+   {
+    "active": true,
+    "channel": "pushover",
+    "message": "🚪 DÖRRLARM: Door1 — dörren är öppen",
+    "target": "Door1",
+    "title": "loralarm Door1"
+   },
+   {
+    "active": false,
+    "channel": "ntfy",
+    "message": "💚 Batteri OK: Door1 — 2.95 V > varningsgräns 2.5 V",
+    "target": "door1",
+    "title": "loralarm Door1"
+   },
+   {
+    "active": false,
+    "channel": "pushover",
+    "message": "💚 Batteri OK: Door1 — 2.95 V > varningsgräns 2.5 V",
+    "target": "Door1",
+    "title": "loralarm Door1"
+   },
+   {
+    "active": false,
+    "channel": "ntfy",
+    "message": "✔️ Dörr stängd: Door1 — dörren är stängd",
+    "target": "door1",
+    "title": "loralarm Door1"
+   },
+   {
+    "active": false,
+    "channel": "pushover",
+    "message": "✔️ Dörr stängd: Door1 — dörren är stängd",
+    "target": "Door1",
+    "title": "loralarm Door1"
+   },
+   {
+    "active": true,
+    "channel": "ntfy",
+    "message": "🚪 DÖRRLARM: Door1 — dörren är öppen",
+    "target": "door1",
+    "title": "loralarm Door1"
+   },
+   {
+    "active": true,
+    "channel": "pushover",
+    "message": "🚪 DÖRRLARM: Door1 — dörren är öppen",
+    "target": "Door1",
+    "title": "loralarm Door1"
+   },
+   {
+    "active": false,
+    "channel": "ntfy",
+    "message": "✔️ Dörr stängd: Door1 — dörren är stängd",
+    "target": "door1",
+    "title": "loralarm Door1"
+   },
+   {
+    "active": false,
+    "channel": "pushover",
+    "message": "✔️ Dörr stängd: Door1 — dörren är stängd",
+    "target": "Door1",
+    "title": "loralarm Door1"
+   }
+  ],
+  "state": {
+   "a84041a5d7598dd0": {
+    "active": [],
+    "last_detail": {}
+   }
+  }
+ },
  "lds02_door": {
   "console": [
    "2026-11-09 15:33:14 Door1      Dragino Switch LDS02 fPort=10 fCnt=1 rssi=-68 snr=9.0",

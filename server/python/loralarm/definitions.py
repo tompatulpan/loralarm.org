@@ -30,6 +30,7 @@ and every reload builds a fresh registry). Schema (all keys optional except
         "value": 1, "param": "limit_name",          # eq/gt/...: compare to value, or cfg.params[param]
         "fire": "dörren är öppen", "clear": "dörren är stängd",   # fire: {value} {limit} {field}; clear: {limit} {field}
         "device_kinds": ["door"], "group": null,
+        "windowed": true,                           # false = always notify, ignore the device's alarm_window
         "notify_fire": "...", "notify_clear": "..."
       }]
     }
@@ -57,7 +58,7 @@ FAMILIES_DIR = Path(__file__).resolve().parent / "families"
 _PROFILE_KEYS = {"name", "description", "aliases", "data_ports", "fields", "settings",
                  "settings_kinds", "frequency", "defaults", "rules"}
 _RULE_KEYS = {"kind", "label", "field", "when", "value", "param", "fire", "clear",
-              "device_kinds", "group", "notify_fire", "notify_clear"}
+              "device_kinds", "group", "notify_fire", "notify_clear", "windowed"}
 _SETTING_KEYS = {"key", "port", "lo", "hi", "obj_field", "kind"}
 
 _COMPARE: dict[str, Callable[[Any, Any], bool]] = {
@@ -100,6 +101,9 @@ def rule_from_dict(d: dict[str, Any]) -> AlarmRule:
     if device_kinds is not None and not (isinstance(device_kinds, list)
                                          and all(isinstance(k, str) for k in device_kinds)):
         raise ValueError(f"rule {kind!r}: 'device_kinds' must be a list of strings or null")
+    windowed = d.get("windowed", True)
+    if not isinstance(windowed, bool):
+        raise ValueError(f"rule {kind!r}: 'windowed' must be true or false")
 
     def limit(cfg: DeviceConfig) -> Any:
         param = d.get("param")
@@ -127,7 +131,8 @@ def rule_from_dict(d: dict[str, Any]) -> AlarmRule:
         lambda cfg, r: _fmt(clear, value="", limit=limit(cfg), field=field_name),
         device_kinds=frozenset(device_kinds) if device_kinds is not None else None,
         group=d.get("group"),
-        notify_fire=str(d.get("notify_fire", "")), notify_clear=str(d.get("notify_clear", "")))
+        notify_fire=str(d.get("notify_fire", "")), notify_clear=str(d.get("notify_clear", "")),
+        windowed=windowed)
 
 
 def profile_from_dict(name: str, d: dict[str, Any]) -> DeviceProfile:

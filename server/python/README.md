@@ -21,7 +21,8 @@ Verify on the lora box with `mosquitto_sub -h localhost -t 'application/+/device
 | `loralarm/frame.py` | `Frame` (the evaluated uplink as named `values`) and the field machinery: `from` renames, `transform` steps (`add`, `subtract`, `multiply`, `round`, `clamp`), `derive` (`linear_pct`, `band`); all of them registry plugins |
 | `loralarm/config.py` | Per-device config, JSON keyed by devEUI; layering `defaults` < `families[profile]` < `devices[devEUI]` (family defaults come from the profile); `kind` selects the alarm rules, `params` carries rule-specific thresholds and the `$name` references of `fields`; `${ENV_VAR}` strings in the JSON are expanded from the environment |
 | `loralarm/alarms.py` | Rule-driven port of the Node-RED alarm subflows: built-in `AlarmRule`s (temp, battery low/empty, motion, circuit; each limited to device kinds) reading `frame.values`, plus stateful detectors in `AlarmState` (tilt baseline ± tilt_sense per axis, pulse-style motion/circuit, watchdog); fire-once/clear-once; keeps the last measurements per device |
-| `loralarm/service.py` | The live service (`python3 -m loralarm`): Engine + watchdog tick + MQTT wiring + state persistence |
+| `loralarm/service.py` | The live service (`python3 -m loralarm`): Engine + watchdog tick + MQTT wiring + state persistence; decides per alarm whether it is notified (alarm window) |
+| `loralarm/schedule.py` | Daily time windows (`"21:00-09:00"`, overnight ok) and time zones for `alarm_window` |
 | `loralarm/mqttclient.py` | Shared paho-mqtt client builder used by service and replay (guarded callbacks, connect retry) |
 | `loralarm/notify.py` | ntfy + Pushover delivery on a worker queue with retries; RFC 2047-encoded titles |
 | `loralarm/events.py` | SQLite event log + per-device state snapshots (fixed-width UTC timestamps) |
@@ -105,7 +106,8 @@ logged and skipped). Full schema: `loralarm/definitions.py`.
      comparisons use `value`, or `cfg.params[param]` when the device sets that
      param (`"params": {"humidity_max": 80}`, merged defaults < family < device).
      `fire` may use `{value} {limit} {field}`, `clear` `{limit} {field}`.
-     `device_kinds` limits the rule; `group` makes two severities an escalation.
+     `device_kinds` limits the rule; `group` makes two severities an escalation;
+     `"windowed": false` makes it a health alarm that ignores `alarm_window`.
    - `defaults` are the family layer of the config (any device config key,
      including `ntfy_topic`, `pushover_*`, `notify_*`).
 3. **Device entry** in `devices.json` under `"devices"` with `"family"` (the
@@ -149,6 +151,43 @@ to apply to every device, or under `families.<type>` to apply to one type.
 
 Later wins: the type's built-in defaults, then `defaults`, then
 `families["<type>"]`, then the device entry.
+
+### Alarm window (`alarm_window`)
+
+Only notify inside a daily time window, per device (or per type / for all in
+`families` / `defaults`):
+
+```json
+"defaults": {"timezone": "Europe/Stockholm"},
+"devices": {
+  "a84041e3d189503d": {"name": "Door2", "family": "Dragino Switch LDS02",
+                       "alarm_window": "21:00-09:00"}
+}
+```
+
+- Format `"HH:MM-HH:MM"`, in `timezone` (default `Europe/Stockholm`, summer time
+  handled). Start is inclusive, end exclusive. **Overnight windows work**
+  (`21:00-09:00` = evening to morning). No key or `""` = always.
+- **Outside the window nothing is sent**, on any channel. The alarm is still
+  evaluated and written to the events table, with `(utanför larmtid …, ej
+  skickat)` added to its detail, so the history is complete.
+- **Which alarms:** *activity* alarms (door, motion, circuit, tilt, and your
+  own rules by default) respect the window. *Health* alarms (temperature,
+  battery low/empty, no contact) always notify. A rule can opt out with
+  `"windowed": false`; a device can name the exact kinds that are windowed with
+  `"alarm_window_kinds": ["door", "temp"]` (this list replaces the default).
+- **Clears:** a clear is sent only if its alarm was sent. An alarm that fired
+  inside the window and clears after it closed is still reported; a suppressed
+  alarm never produces a lone "kvitterad".
+- **A mistake never silences alarms:** a bad window (`"evenings"`, start = end)
+  or an unknown time zone is logged once per device as an error and treated as
+  "no window".
+- **No catch-up:** a door opened at 14:00 and still open at 21:00 does not
+  alarm when the window opens (only a new event does).
+- Time zone data comes from the OS (`/usr/share/zoneinfo`). In slim containers
+  install the `tzdata` package, or the window is ignored (with the error above).
+- Planned: in the config rework (ARCHITECTURE.md §13) this becomes a per-recipient
+  `hours` filter, so one device can alert different recipients at different times.
 
 ### Every device needs its own `devices` entry for notifications
 

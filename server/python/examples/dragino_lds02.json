@@ -12,11 +12,16 @@
     "batt_*: 2 x AAA, an assumption (3.0 / 2.5 / 2.2 V); tune against a real discharge.",
     "notify_fire / notify_clear are keyed by alarm kind; {name} {detail} {label} are available.",
     "TWO DEVICES: settings shared by every LDS02 live once under \"families\"; Door1 is the minimal case,",
-    "   Door2 overrides one value (watchdog_hours 2: a door you want to hear from more often).",
-    "   Precedence, later wins: the type's built-in defaults, \"defaults\", \"families\", the device entry."
+    "   Door2 overrides two values (watchdog_hours 2, and an alarm_window so it only alarms at night).",
+    "   Precedence, later wins: the type's built-in defaults, \"defaults\", \"families\", the device entry.",
+    "ALARM WINDOW: \"alarm_window\": \"21:00-09:00\" on Door2 = door alarms (open and closed) are only sent between",
+    "   21:00 and 09:00 local time (\"timezone\" in defaults, default Europe/Stockholm). Outside it nothing is sent,",
+    "   the event is still logged. A low battery or a silent sensor is still reported at any time. Door1 has no",
+    "   window, so it alarms day and night. Leave alarm_window out (or \"\") for 'always'."
   ],
   "defaults": {
     "watchdog_hours": 24,
+    "timezone": "Europe/Stockholm",
     "ntfy_topic": "loralarm",
     "pushover_user": "${LORALARM_PUSHOVER_USER}",
     "pushover_token": "${LORALARM_PUSHOVER_TOKEN}"
@@ -43,7 +48,8 @@
       "name": "Door2",
       "family": "Dragino Switch LDS02",
       "ntfy_topic": "door2",
-      "watchdog_hours": 2
+      "watchdog_hours": 2,
+      "alarm_window": "21:00-09:00"
     }
   }
 }

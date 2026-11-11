@@ -1,4 +1,8 @@
 # loralarm service runtime dependencies (stdlib otherwise)
 paho-mqtt>=2.0,<3
 
+# alarm_window needs time zone data (stdlib zoneinfo reads the OS database). On slim
+# containers without /usr/share/zoneinfo install the OS tzdata package, or uncomment:
+# tzdata
+
 # tests: python3 -m unittest discover -s tests -t .  (or pytest, if installed)
