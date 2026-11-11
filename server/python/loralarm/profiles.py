@@ -8,6 +8,9 @@ downlink.py / service.py:
 * `settings`       — downlink settings the device accepts (key, fPort, range,
                      and the codec `object` field the device reports it in)
 * `freq_table`     — ODR wire value -> Hz, with `freq_label` for display
+* `data_ports`     — fPorts that carry sensor data (default {2}; Dragino: {10})
+* `field_map`      — codec field -> canonical field, for third-party codecs that
+                     cannot be changed (Dragino `BAT_V` -> `battery_voltage`)
 * `settings_kinds` — device kinds (`DeviceConfig.kind`) that take the
                      auto-downlink settings (a door contact does not)
 
@@ -73,6 +76,23 @@ class DeviceProfile:
     settings_kinds: frozenset[str] = frozenset({"sensor"})
     freq_table: dict[int, int] | None = None     # wire value -> Hz; None = unknown, pass through
     freq_label: str = "index"                    # "code" / "index": how a wire value is shown
+    data_ports: frozenset[int] = frozenset({2})
+    field_map: dict[str, str] = field(default_factory=dict)
+
+    # -- uplinks -------------------------------------------------------------
+
+    def is_data_port(self, f_port: int) -> bool:
+        return f_port in self.data_ports
+
+    def normalize(self, obj: dict[str, Any]) -> dict[str, Any]:
+        """Codec object with the canonical field names added (originals kept)."""
+        if not self.field_map:
+            return obj
+        out = dict(obj)
+        for src, dst in self.field_map.items():
+            if src in obj and dst not in obj:
+                out[dst] = obj[src]
+        return out
 
     # -- settings ------------------------------------------------------------
 
@@ -220,3 +240,14 @@ register_profile(DeviceProfile(
                   batt_full_v=4.2, batt_warn_v=3.5, batt_empty_v=3.2,
                   circuit_mode="event"),
     freq_table=RAK4631_FREQ, freq_label="code"))
+# Dragino LDS02 door switch (third-party codec, fPort 10): DOOR_OPEN_STATUS
+# 1 = open / 0 = closed, sent on every change plus a periodic heartbeat. No
+# temperature, no downlink settings. Battery is 2 x AAA (~3.0 V fresh), so the
+# thresholds are looser than the RAK 3 V cell — tune per device in devices.json.
+register_profile(DeviceProfile(
+    name="Dragino Switch LDS02",
+    aliases=("lds02",),
+    defaults=dict(kind="door", batt_full_v=3.0, batt_warn_v=2.5, batt_empty_v=2.2),
+    settings=(), settings_kinds=frozenset(),
+    data_ports=frozenset({10}),
+    field_map={"BAT_V": "battery_voltage", "DOOR_OPEN_STATUS": "door_open"}))

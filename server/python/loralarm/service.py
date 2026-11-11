@@ -24,7 +24,7 @@ import sqlite3
 import sys
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -198,7 +198,10 @@ class Engine:
             if up.application_id:
                 self.app_ids[up.dev_eui] = up.application_id
 
-            enforce = up.is_sensor_data and bool(up.obj)
+            profile = get_profile(cfg.family)
+            if profile.field_map:
+                up = replace(up, obj=profile.normalize(up.obj))
+            enforce = profile.is_data_port(up.f_port) and bool(up.obj)
             if enforce:
                 reading, transitions = state.update(cfg, up)
             else:

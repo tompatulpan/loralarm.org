@@ -43,6 +43,7 @@ The codec is the device boundary: whatever the wire format, it must emit these
 | `motion_switch` | 0/1 | `circuit` rule / event-mode pulse detector |
 | `acc_threshold`, `acc_duration`, `acc_frequency` | device-reported wire values | downlink read-back (`SettingSpec.obj_field`) |
 | `acc_frequency_hz` | Hz | informational |
+| `door_open` | 0/1 (1 = open) | `door` rule (device kind `door`) |
 | anything else (`humidity`, `leak`, ...) | any | read by your own `AlarmRule` via `obj` |
 
 ## Adding a device or sensor
@@ -86,9 +87,21 @@ No change to `alarms.py`, `downlink.py` or `service.py` is needed:
    escalation instead of a clear.
 4. **Config**: set `"kind"` (and `"family"`) on the device. `kind` selects which
    rules run — `sensor` (everything, the default), `door` (temp, battery,
-   circuit), `water`/others (temp, battery, plus rules naming that kind) — and
+   circuit, door), `water`/others (temp, battery, plus rules naming that kind) — and
    whether the auto-downlink settings apply (`settings_kinds`). An unknown
    `kind` logs a warning once.
+5. **Third-party codec you cannot change** (field names differ, data not on
+   fPort 2): give the profile a `field_map` (codec field → canonical field,
+   originals are kept) and `data_ports`, as the Dragino LDS02 profile does.
+
+### Dragino LDS02 door switch
+
+Profile `Dragino Switch LDS02` (the ChirpStack device-profile name) is built in:
+fPort 10, `DOOR_OPEN_STATUS` → `door_open`, `BAT_V` → `battery_voltage`, kind
+`door`, no downlink settings, battery limits for 2 × AAA (full 3.0 / warn 2.5 /
+empty 2.2 V). Opening the door raises `Dörrlarm`, closing it clears it
+("kvitterad"); heartbeats while open do not repeat it. No config entry is needed;
+add the device to `devices.json` for a name, its own `ntfy_topic` or other limits.
 
 Stateful detectors (like tilt) still belong in `AlarmState`; register them
 label-only with `AlarmRule(kind, label, check=None, ...)`.
