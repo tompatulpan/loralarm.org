@@ -62,7 +62,7 @@ class Lds02EngineTest(unittest.TestCase):
         self.assertEqual(self.notifier.calls,
                          [(LDS02_EUI, "door", True, "dörren är öppen")])
         _, state = self.engine.devices[LDS02_EUI]
-        self.assertEqual(state.active, {AlarmKind.DOOR})
+        self.assertEqual(state.active, {AlarmKind("door")})
         self.engine.on_uplink(lds02(CLOSED, 30))
         self.assertEqual(self.notifier.calls[-1], (LDS02_EUI, "door", False, "dörren är stängd"))
         self.assertEqual(state.active, set())

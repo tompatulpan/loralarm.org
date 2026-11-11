@@ -128,6 +128,10 @@ def _type_names(types: tuple[type, ...]) -> str:
 class Config:
     def __init__(self, data: dict[str, Any]):
         data = _expand(data, "config")
+        # device definitions in devices.json ("profiles") must be in place before
+        # the family defaults below are read; imported here to avoid an import cycle
+        from .definitions import apply_user_definitions
+        apply_user_definitions(data.get("profiles"))
         self.defaults = data.get("defaults", {})
         # merge per family so a partial override keeps the built-in keys
         user_families = data.get("families", {})

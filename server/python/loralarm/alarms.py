@@ -44,7 +44,6 @@ class AlarmKind(str):
     BATTERY_EMPTY: ClassVar["AlarmKind"]
     MOTION: ClassVar["AlarmKind"]       # motion_alert (accelerometer interrupt) -> rörelselarm
     CIRCUIT: ClassVar["AlarmKind"]      # motion_switch / door contact -> kretsalarm
-    DOOR: ClassVar["AlarmKind"]         # door_open (door contact) -> dörrlarm
     TILT: ClassVar["AlarmKind"]
     STALE: ClassVar["AlarmKind"]        # watchdog: no uplink within watchdog_hours
 
@@ -58,7 +57,6 @@ AlarmKind.BATTERY_LOW = AlarmKind("battery_low")
 AlarmKind.BATTERY_EMPTY = AlarmKind("battery_empty")
 AlarmKind.MOTION = AlarmKind("motion")
 AlarmKind.CIRCUIT = AlarmKind("circuit")
-AlarmKind.DOOR = AlarmKind("door")
 AlarmKind.TILT = AlarmKind("tilt")
 AlarmKind.STALE = AlarmKind("stale")
 
@@ -231,13 +229,6 @@ register_rule(AlarmRule(
     AlarmKind.CIRCUIT, "Kretsalarm",
     lambda cfg, r, obj: "krets öppen" if obj.get("motion_switch") else None,
     lambda cfg, r: "krets sluten", device_kinds=SENSOR | {"door"}))
-# door contact (canonical `door_open`, level: open -> alarm, closed -> clear)
-register_rule(AlarmRule(
-    AlarmKind.DOOR, "Dörrlarm",
-    lambda cfg, r, obj: "dörren är öppen" if obj.get("door_open") else None,
-    lambda cfg, r: "dörren är stängd", device_kinds=frozenset({"door"}),
-    notify_fire="🚪 DÖRRLARM: {name} — {detail}",
-    notify_clear="✔️ Dörr stängd: {name} — {detail}"))
 register_rule(AlarmRule(
     AlarmKind.TILT, "Tiltlarm", None,
     lambda cfg, r: f"inom baslinje ± {cfg.tilt_sense_g} g", device_kinds=SENSOR))

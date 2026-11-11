@@ -116,7 +116,21 @@ class Engine:
         # (dev_eui, fPort) -> last auto-sent value, to avoid re-queueing the
         # same frame on every uplink; cleared on config reload
         self._dl_sent: dict[tuple[str, int], _DlSent] = {}
+        # devices already warned about for missing from the config (once each)
+        self._warned_unconfigured: set[str] = set()
         self._lock = threading.Lock()
+
+    def _warn_if_unconfigured(self, cfg: DeviceConfig) -> None:
+        """A device without a `devices` entry still alarms, but with the default
+        ntfy topic and no Pushover — say so once instead of failing silently."""
+        known = self.config.devices
+        if cfg.dev_eui in known or cfg.name.lower() in known or cfg.dev_eui in self._warned_unconfigured:
+            return
+        self._warned_unconfigured.add(cfg.dev_eui)
+        log.warning("device %s (%s) is not in the config: using defaults (ntfy topic %r, pushover %s); "
+                    "add it under \"devices\" in the config to set its topic/pushover/limits",
+                    cfg.name, cfg.dev_eui, cfg.ntfy_topic,
+                    "on" if cfg.pushover_user and cfg.pushover_token else "off")
 
     def _maybe_reload_config(self) -> None:
         """Reload the config file if it changed on disk (call with the lock held)."""
@@ -193,6 +207,7 @@ class Engine:
         with self._lock:
             self._maybe_reload_config()
             cfg = self.config.for_event(up.dev_eui, up.device_name, up.device_profile_name)
+            self._warn_if_unconfigured(cfg)
             _, state = self.devices.setdefault(up.dev_eui, (cfg, AlarmState()))
             self.devices[up.dev_eui] = (cfg, state)
             if up.application_id:

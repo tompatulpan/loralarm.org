@@ -14,9 +14,11 @@ downlink.py / service.py:
 * `settings_kinds` — device kinds (`DeviceConfig.kind`) that take the
                      auto-downlink settings (a door contact does not)
 
-Adding a device family = one `register_profile(DeviceProfile(...))` call; a
-family without a registered profile gets GENERIC (all standard settings, wire
-values passed through unchanged), which is what unknown families always did.
+The built-in families are data, not code: one JSON file each in
+`loralarm/families/`, and `devices.json` can define or override more under
+`"profiles"` (see definitions.py for the schema). `register_profile()` remains
+for code-defined profiles. A family without a profile gets GENERIC (all
+standard settings, wire values passed through unchanged).
 
 Codecs stay in ChirpStack and must emit the canonical field names documented
 in README.md ("Canonical codec fields"); profiles describe only the downlink
@@ -53,12 +55,6 @@ ACC_SETTINGS: tuple[SettingSpec, ...] = (
     SettingSpec("duration", PORT_DURATION, 0, 127, "acc_duration"),
     SettingSpec("command", PORT_COMMAND, 0, 255),
 )
-
-# LIS3DH ODR: RAK4631 register code -> Hz (payload_codec_rak4631.js)
-RAK4631_FREQ = {31: 1, 47: 10, 63: 25, 79: 50, 95: 100}
-# LIS3DH ODR: RUI3 index -> Hz; 6/7 (200/400 Hz) exist only on RUI3
-RUI3_FREQ = {1: 1, 2: 10, 3: 25, 4: 50, 5: 100, 6: 200, 7: 400}
-
 
 def _int(s: str, what: str) -> int:
     try:
@@ -222,32 +218,3 @@ def get_profile(family: str | None) -> DeviceProfile:
             if fam == p.name.lower() or fam in p.aliases:
                 return p
     return GENERIC
-
-
-# Migration spec §4: RAK3172 = 3 V cell (0 °C Tk, alarm limit 0 °C),
-# RAK4631 Android = LiPo (8 °C Tk, limit 2 °C).
-register_profile(DeviceProfile(
-    name="RAK3172",
-    aliases=("rak3172", "rui3", "cayenne"),
-    defaults=dict(tk_correction_c=0.0, temp_alarm_limit_c=0.0,
-                  batt_full_v=3.1, batt_warn_v=2.9, batt_empty_v=2.8,
-                  circuit_mode="level"),
-    freq_table=RUI3_FREQ, freq_label="index"))
-register_profile(DeviceProfile(
-    name="RAK4631",
-    aliases=("rak4631", "android", "custom"),
-    defaults=dict(tk_correction_c=8.0, temp_alarm_limit_c=2.0,
-                  batt_full_v=4.2, batt_warn_v=3.5, batt_empty_v=3.2,
-                  circuit_mode="event"),
-    freq_table=RAK4631_FREQ, freq_label="code"))
-# Dragino LDS02 door switch (third-party codec, fPort 10): DOOR_OPEN_STATUS
-# 1 = open / 0 = closed, sent on every change plus a periodic heartbeat. No
-# temperature, no downlink settings. Battery is 2 x AAA (~3.0 V fresh), so the
-# thresholds are looser than the RAK 3 V cell — tune per device in devices.json.
-register_profile(DeviceProfile(
-    name="Dragino Switch LDS02",
-    aliases=("lds02",),
-    defaults=dict(kind="door", batt_full_v=3.0, batt_warn_v=2.5, batt_empty_v=2.2),
-    settings=(), settings_kinds=frozenset(),
-    data_ports=frozenset({10}),
-    field_map={"BAT_V": "battery_voltage", "DOOR_OPEN_STATUS": "door_open"}))

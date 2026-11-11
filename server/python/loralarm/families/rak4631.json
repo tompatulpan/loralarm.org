@@ -1,0 +1,17 @@
+{
+  "name": "RAK4631",
+  "description": "RAK4631 Android/Arduino sensors: LiPo (8 C Tk), LIS3DH ODR register code on fPort 6, event-mode circuit (migration spec §4)",
+  "aliases": ["rak4631", "android", "custom"],
+  "frequency": {
+    "label": "code",
+    "table": {"31": 1, "47": 10, "63": 25, "79": 50, "95": 100}
+  },
+  "defaults": {
+    "tk_correction_c": 8.0,
+    "temp_alarm_limit_c": 2.0,
+    "batt_full_v": 4.2,
+    "batt_warn_v": 3.5,
+    "batt_empty_v": 3.2,
+    "circuit_mode": "event"
+  }
+}

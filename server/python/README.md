@@ -14,7 +14,9 @@ Verify on the lora box with `mosquitto_sub -h localhost -t 'application/+/device
 | File | Role |
 |---|---|
 | `loralarm/event.py` | Parse a ChirpStack up event → `Uplink` (devEUI, fPort, `object`, rssi/snr; fPort 4–7 ASCII settings frames parsed here, not by the codec) |
-| `loralarm/profiles.py` | Device-profile registry: per family the config defaults (spec §4: RAK3172 vs RAK4631 Tk/battery), downlink settings (key, fPort, range, read-back field), frequency table and which device `kind`s take settings. Unknown families get `GENERIC`. See "Adding a device" |
+| `loralarm/families/*.json` | One built-in device-family definition per file (RAK3172, RAK4631, Dragino LDS02): config defaults (spec §4), data ports, field map, downlink settings, frequency table, alarm rules. See "Adding a device" |
+| `loralarm/definitions.py` | Loads those files and the `"profiles"` section of `devices.json` into the registries (validated; user definitions override built-ins and are undone on reload) |
+| `loralarm/profiles.py` | `DeviceProfile` / `SettingSpec` classes and the profile registry; unknown families get `GENERIC` |
 | `loralarm/config.py` | Per-device config, JSON keyed by devEUI; layering `defaults` < `families[profile]` < `devices[devEUI]` (family defaults come from `profiles.py`); `kind` selects the alarm rules, `params` carries rule-specific thresholds; `${ENV_VAR}` strings in the JSON are expanded from the environment |
 | `loralarm/alarms.py` | Rule-driven port of the Node-RED alarm subflows: an `AlarmRule` registry (temp after Tk, battery low/empty, motion, circuit; each limited to device kinds) plus stateful detectors in `AlarmState` (tilt baseline ± tilt_sense per axis, pulse-style motion/circuit, watchdog); fire-once/clear-once |
 | `loralarm/service.py` | The live service (`python3 -m loralarm`): Engine + watchdog tick + MQTT wiring + state persistence |
@@ -48,60 +50,79 @@ The codec is the device boundary: whatever the wire format, it must emit these
 
 ## Adding a device or sensor
 
-No change to `alarms.py`, `downlink.py` or `service.py` is needed:
+Devices are **data, not code**: one JSON file per family in
+[`loralarm/families/`](loralarm/families) (`rak3172.json`, `rak4631.json`,
+`dragino_lds02.json`), and the same schema works in a top-level `"profiles"`
+object of `devices.json` (a definition there overrides a built-in of the same
+name and is removed again when you delete it — `devices.json` is hot-reloaded;
+a bad definition is logged and skipped). Full schema: `loralarm/definitions.py`.
 
-1. **Codec** in ChirpStack emitting the fields above (new sensor types: pick a
-   field name and use it in the rule below).
-2. **Profile** (if the device family has its own wire format, defaults or
-   settings) — one call, e.g. in `loralarm/profiles.py` or your own module
-   imported at startup:
+1. **Codec** in ChirpStack. If you cannot change its field names or fPort
+   (third-party codec), map them in the definition: `field_map` (codec field →
+   canonical field, originals kept) and `data_ports`.
+2. **Definition** (`families/<name>.json` or `devices.json` → `"profiles"`):
 
-   ```python
-   register_profile(DeviceProfile(
-       name="RAK1234", aliases=("rak1234",),
-       defaults=dict(kind="water", batt_full_v=3.1, batt_warn_v=2.9, batt_empty_v=2.8),
-       settings=(SettingSpec("interval", 10, 1, 60, obj_field="report_interval"),),
-       settings_kinds=frozenset({"water"})))
+   ```json
+   "profiles": {
+     "Dragino Switch LDS02": {
+       "aliases": ["lds02"],
+       "data_ports": [10],
+       "field_map": {"BAT_V": "battery_voltage", "DOOR_OPEN_STATUS": "door_open"},
+       "settings": [], "settings_kinds": [],
+       "defaults": {"kind": "door", "batt_warn_v": 2.5},
+       "rules": [{"kind": "door", "label": "Dörrlarm", "field": "door_open",
+                  "when": "truthy", "fire": "dörren är öppen", "clear": "dörren är stängd",
+                  "device_kinds": ["door"],
+                  "notify_fire": "🚪 DÖRRLARM: {name} — {detail}"}]
+     }
+   }
    ```
 
-   `settings=()` for a device without downlinks; omit the profile entirely and
-   the family behaves as `GENERIC` (standard ACC settings, wire values passed
-   through). Profile-specific desired values go in the device's `params`
-   (`"params": {"interval": 30}`) and are pushed/read back like `threshold`.
-3. **Alarm rule** for each new condition:
+   - `settings` omitted = the standard ACC settings, `[]` = none, else a list of
+     `{key, port, lo, hi, obj_field, kind}` (desired values go in the device's
+     `params`, pushed and read back like `threshold`).
+   - `rules`: `when` is `truthy | falsy | eq | ne | gt | ge | lt | le`; the
+     comparisons use `value`, or `cfg.params[param]` when the device sets that
+     param (`"params": {"humidity_max": 80}`, merged defaults < family < device).
+     `fire` may use `{value} {limit} {field}`, `clear` `{limit} {field}`.
+     `device_kinds` limits the rule; `group` makes two severities an escalation.
+   - `defaults` are the family layer of the config (any device config key,
+     including `ntfy_topic`, `pushover_*`, `notify_*`).
+3. **Device entry** in `devices.json` under `"devices"` with `"family"` (the
+   ChirpStack device-profile name) — see below.
 
-   ```python
-   register_rule(AlarmRule(
-       AlarmKind("leak"), "Vattenläcka",
-       check=lambda cfg, r, obj: "vatten upptäckt" if obj.get("leak") else None,
-       clear=lambda cfg, r: "torrt",
-       device_kinds=frozenset({"water"}),
-       notify_fire="💧 {label}: {name} — {detail}",   # optional; else generic text
-       notify_clear="✔️ {name} torrt"))
-   ```
+Anything that needs code (a stateful detector, a new derived reading) is still
+a Python `register_rule(AlarmRule(...))` / `register_profile(DeviceProfile(...))`
+call; stateful detectors like tilt are registered label-only (`check=None`).
+`kind` selects which rules run — `sensor` (everything, the default), `door`
+(temp, battery, circuit, plus rules naming `door`), others (temp, battery, plus
+rules naming that kind) — and whether the auto-downlink settings apply
+(`settings_kinds`). An unknown `kind` logs a warning once.
 
-   `check` returns the fire detail while the condition holds (fire-once /
-   clear-once handled for you); thresholds come from `cfg.params`
-   (`"params": {"humidity_max": 80}`, merged key-by-key across defaults <
-   family < device). Use `group=` to make two severities of one quantity an
-   escalation instead of a clear.
-4. **Config**: set `"kind"` (and `"family"`) on the device. `kind` selects which
-   rules run — `sensor` (everything, the default), `door` (temp, battery,
-   circuit, door), `water`/others (temp, battery, plus rules naming that kind) — and
-   whether the auto-downlink settings apply (`settings_kinds`). An unknown
-   `kind` logs a warning once.
-5. **Third-party codec you cannot change** (field names differ, data not on
-   fPort 2): give the profile a `field_map` (codec field → canonical field,
-   originals are kept) and `data_ports`, as the Dragino LDS02 profile does.
+### Every device needs its own `devices` entry for notifications
+
+ntfy topic and Pushover credentials are **per-device config**, not part of the
+family. A device that is not under `"devices"` still alarms, but with the
+default ntfy topic (`loralarm`) and **no Pushover**; the service logs
+`device X is not in the config: using defaults …` once when it first sees it.
+Add it (see Door1/Door2 in `devices.example.json`), or put `ntfy_topic` /
+`pushover_user` / `pushover_token` in `"defaults"` to cover every device:
+
+```json
+"a84041a5d7598dd0": {"name": "Door1", "family": "Dragino Switch LDS02",
+                     "ntfy_topic": "door1", "watchdog_hours": 2,
+                     "pushover_user": "${LORALARM_PUSHOVER_USER}",
+                     "pushover_token": "${LORALARM_PUSHOVER_TOKEN}"}
+```
 
 ### Dragino LDS02 door switch
 
-Profile `Dragino Switch LDS02` (the ChirpStack device-profile name) is built in:
-fPort 10, `DOOR_OPEN_STATUS` → `door_open`, `BAT_V` → `battery_voltage`, kind
-`door`, no downlink settings, battery limits for 2 × AAA (full 3.0 / warn 2.5 /
-empty 2.2 V). Opening the door raises `Dörrlarm`, closing it clears it
-("kvitterad"); heartbeats while open do not repeat it. No config entry is needed;
-add the device to `devices.json` for a name, its own `ntfy_topic` or other limits.
+Built in as `families/dragino_lds02.json` (profile name = the ChirpStack
+device profile `Dragino Switch LDS02`): fPort 10, `DOOR_OPEN_STATUS` →
+`door_open`, `BAT_V` → `battery_voltage`, kind `door`, no downlinks, battery
+limits for 2 × AAA (full 3.0 / warn 2.5 / empty 2.2 V). Opening the door raises
+`Dörrlarm`, closing it clears it ("kvitterad"); heartbeats while open do not
+repeat it.
 
 Stateful detectors (like tilt) still belong in `AlarmState`; register them
 label-only with `AlarmRule(kind, label, check=None, ...)`.

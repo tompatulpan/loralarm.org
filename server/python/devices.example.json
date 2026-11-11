@@ -48,6 +48,22 @@
       "watchdog_hours": 0.5,
       "pushover_user": "${LORALARM_PUSHOVER_USER}",
       "pushover_token": "${LORALARM_PUSHOVER_TOKEN}"
+    },
+    "a84041a5d7598dd0": {
+      "name": "Door1",
+      "family": "Dragino Switch LDS02",
+      "ntfy_topic": "door1",
+      "watchdog_hours": 12,
+      "pushover_user": "${LORALARM_PUSHOVER_USER}",
+      "pushover_token": "${LORALARM_PUSHOVER_TOKEN}"
+    },
+    "a84041e3d189503d": {
+      "name": "Door2",
+      "family": "Dragino Switch LDS02",
+      "ntfy_topic": "door2",
+      "watchdog_hours": 12,
+      "pushover_user": "${LORALARM_PUSHOVER_USER}",
+      "pushover_token": "${LORALARM_PUSHOVER_TOKEN}"
     }
   }
 }

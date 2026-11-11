@@ -1,0 +1,17 @@
+{
+  "name": "RAK3172",
+  "description": "RAK3172 / RUI3 Cayenne sensors: 3 V cell, ODR index 1-7 on fPort 6, level-mode circuit (migration spec §4)",
+  "aliases": ["rak3172", "rui3", "cayenne"],
+  "frequency": {
+    "label": "index",
+    "table": {"1": 1, "2": 10, "3": 25, "4": 50, "5": 100, "6": 200, "7": 400}
+  },
+  "defaults": {
+    "tk_correction_c": 0.0,
+    "temp_alarm_limit_c": 0.0,
+    "batt_full_v": 3.1,
+    "batt_warn_v": 2.9,
+    "batt_empty_v": 2.8,
+    "circuit_mode": "level"
+  }
+}
