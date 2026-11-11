@@ -26,7 +26,7 @@
 
   /* phone frame */
   .phone{
-    width:300px;height:620px;
+    width:300px;height:720px;
     background:#010409;
     border:1px solid #21262d;
     border-radius:36px;
@@ -108,9 +108,6 @@
   .kv .rowk:last-child{border-bottom:none}
   .kv .k{color:#8b949e}
   .kv .v{font-weight:600}
-  .mini-chart{background:#161b22;border:1px solid #21262d;border-radius:12px;padding:12px 12px 8px}
-  .mini-chart svg{display:block;width:100%}
-  .mini-chart .lbl{font-size:.62rem;color:#8b949e;margin-bottom:6px}
 
   /* settings */
   .sect{font-size:.66rem;color:#8b949e;text-transform:uppercase;letter-spacing:.08em;padding:2px 4px 0}
@@ -132,7 +129,7 @@
 <body>
 
 <h1>LoRaLarm PWA <span>— mörka skisser</span></h1>
-<div class="sub">Tre skärmar: Status (alla enheter) · Enhetsdetalj · Mina notiser / inloggning. Mörkt tema = standard.</div>
+<div class="sub">Tre skärmar: Status (alla enheter) · Enhetsdetalj · Mina notiser (inkl. konto). Mörkt tema = standard. Två flikar: Status, Notiser.</div>
 
 <div class="row">
 
@@ -144,14 +141,14 @@
       <div class="statusbar"><span>21:47</span><span>📶 ▉▉▂ 🔋</span></div>
       <div class="appbar">
         <h2>LoRaLarm</h2>
-        <span class="badge">2 larm aktiva</span>
+        <span class="badge">3 larm aktiva</span>
       </div>
       <div class="content">
         <div class="banner">
           <div class="dot"></div>
           <div>
             <div class="t">Larm: sensor16</div>
-            <div class="d">Tiltlarm · flyttad 0.42 g &gt; 0.3 · 21:43</div>
+            <div class="d">z-axeln rörde sig 0.42 g (&gt; 0.3 g) · 21:43</div>
           </div>
         </div>
         <div class="banner">
@@ -169,7 +166,18 @@
           </div>
           <div class="right">
             <span class="pill alarm">LARM</span>
-            <div class="batt"><b class="low">2.94 V</b> · 57 %</div>
+            <div class="batt">2.94 V · 57 %</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="ic">💧</div>
+          <div>
+            <div class="nm">Water1 <span class="arm on">🛡 larm på</span></div>
+            <div class="meta">LDS02 (MOD 2) · källare</div>
+          </div>
+          <div class="right">
+            <span class="pill alarm">INGEN KONTAKT</span>
+            <div class="batt">7 dagar sedan</div>
           </div>
         </div>
         <div class="card">
@@ -183,37 +191,25 @@
             <div class="batt"><b>2.94 V</b> · 21 min sedan</div>
           </div>
         </div>
-        <div class="card">
+        <div class="card" style="opacity:.55">
           <div class="ic">🌡️</div>
           <div>
-            <div class="nm">sensor3 <span class="arm off">🛡 larm av</span></div>
+            <div class="nm">sensor3 <span class="arm off">🛡 larm av · 06:00</span></div>
             <div class="meta">RAK4631 · förråd</div>
           </div>
           <div class="right">
-            <span class="pill ok">OK</span>
+            <span class="pill off">LARM AV</span>
             <div class="batt">3.12 V · 4 min sedan</div>
-          </div>
-        </div>
-        <div class="card" style="opacity:.55">
-          <div class="ic">💧</div>
-          <div>
-            <div class="nm">Water1</div>
-            <div class="meta">LDS02 (MOD 2) · källare</div>
-          </div>
-          <div class="right">
-            <span class="pill off">INGEN KONTAKT</span>
-            <div class="batt">7 dagar sedan</div>
           </div>
         </div>
       </div>
       <div class="tabbar">
         <div class="on"><span class="ic">🏠</span>Status</div>
         <div><span class="ic">🔔</span>Notiser</div>
-        <div><span class="ic">⚙️</span>Inställningar</div>
       </div>
     </div>
   </div>
-  <div class="caption"><b>1 · Status.</b> Alarm-banner överst (roterar ej, kvar tills kvitterad), sedan flottan sorterad: larmade enheter först. 🛡-märke per kort = larm på/av. "Ingen kontakt" = watchdog-larm. Enhet med larm av visas grå tone + utan larmstatus.</div>
+  <div class="caption"><b>1 · Status.</b> Alarm-banner överst (kvar så länge larmet är aktivt), sedan flottan sorterad: enheter med aktivt larm först, inklusive "ingen kontakt" (watchdog = ett riktigt larm och räknas i badgen). 🛡-märke per kort = larm på/av (av visar när det återaktiveras). Enhet med larm av: grå ton, ingen larmstatus.</div>
   </div>
 
   <!-- ================= SCREEN 2: DEVICE DETAIL ================= -->
@@ -231,47 +227,37 @@
           <div class="dot"></div>
           <div>
             <div class="t">Tiltlarm aktivt</div>
-            <div class="d">flyttad 0.42 g &gt; 0.3 · 21:43 · ej kvitterad</div>
+            <div class="d">z-axeln rörde sig 0.42 g (&gt; 0.3 g) · aktivt sedan 21:43</div>
           </div>
-        </div>
-        <div class="mini-chart">
-          <div class="lbl">Temperatur senaste 24 h</div>
-          <svg viewBox="0 0 240 70" preserveAspectRatio="none">
-            <line x1="0" y1="18" x2="240" y2="18" stroke="#21262d" stroke-dasharray="3 3"/>
-            <text x="2" y="14" fill="#f85149" font-size="8">gräns 4 °C</text>
-            <path d="M0,55 C30,52 45,48 70,50 C95,52 120,30 150,28 C170,26 200,45 240,42" fill="none" stroke="#58a6ff" stroke-width="2"/>
-            <path d="M0,55 C30,52 45,48 70,50 C95,52 120,30 150,28 C170,26 200,45 240,42 L240,70 L0,70 Z" fill="#58a6ff" opacity="0.08"/>
-            <circle cx="150" cy="28" r="2.5" fill="#58a6ff"/>
-          </svg>
         </div>
         <div class="kv">
           <div class="rowk"><span class="k">Temperatur</span><span class="v">3.8 °C</span></div>
-          <div class="rowk"><span class="k">Batteri</span><span class="v" style="color:#d29922">2.94 V · 56.7 %</span></div>
+          <div class="rowk"><span class="k">Batteri</span><span class="v">2.94 V · 56.7 %</span></div>
           <div class="rowk"><span class="k">Senaste uplink</span><span class="v">21:43 (4 min)</span></div>
           <div class="rowk"><span class="k">RSSI / SNR</span><span class="v">−45 dBm / 13.8</span></div>
           <div class="rowk"><span class="k">fCnt</span><span class="v">1697</span></div>
           <div class="rowk"><span class="k">devEUI</span><span class="v" style="font-size:.62rem">ac1f09fffe12da63</span></div>
         </div>
+        <div class="kv">
+          <div class="rowk"><span class="k">Följer du enheten? <span style="font-size:.6rem">(bara du)</span></span><span class="tg on"></span></div>
+        </div>
+        <div class="sect">Gäller alla användare</div>
         <div class="armrow">
           <div>
             <div class="lbl">🛡 Larm: PÅ</div>
-            <div class="sub2">Av = larm utvärderas ej, ingen notis till någon. Påverkar alla kanaler.</div>
+            <div class="sub2">Stäng av i 1 / 8 / 24 h (slår på sig själv). Ingen notis till någon, alla kanaler. Följare meddelas.</div>
           </div>
           <span class="armswitch on"></span>
         </div>
-        <div class="kv">
-          <div class="rowk"><span class="k">Följer du enheten?</span><span class="tg on"></span></div>
-        </div>
-        <div class="foot">Graf &amp; historik → Grafana</div>
+        <div class="btn ghost">Öppna historik i Grafana ↗</div>
       </div>
       <div class="tabbar">
         <div class="on"><span class="ic">🏠</span>Status</div>
         <div><span class="ic">🔔</span>Notiser</div>
-        <div><span class="ic">⚙️</span>Inställningar</div>
       </div>
     </div>
   </div>
-  <div class="caption"><b>2 · Enhetsdetalj.</b> Direktlänkat från notisen. Gränsen från device-config visas i grafen. Följ-reglaget här = samma som på Notiser-fliken.</div>
+  <div class="caption"><b>2 · Enhetsdetalj.</b> Direktlänkat från notisen. Inga grafer (historik → Grafana). Följ-reglaget (personligt) är skilt från larm på/av (globalt, kräver bekräftelse och behörighet).</div>
   </div>
 
   <!-- ================= SCREEN 3: NOTIFICATIONS / SETTINGS ================= -->
@@ -298,7 +284,7 @@
         </div>
         <div class="card" style="opacity:.62">
           <div class="ic">🌡️</div>
-          <div><div class="nm">sensor3</div><div class="meta">🛡 larm av · enhet avstängd för service</div></div>
+          <div><div class="nm">sensor3</div><div class="meta">🛡 larm av till 06:00 · service</div></div>
           <span class="tg"></span>
         </div>
         <div class="card">
@@ -308,16 +294,15 @@
         </div>
         <div class="ios-hint">📱 iPhone: lägg till på hemskärmen (Dela → "Lägg till på hemskärmen") för att ta emot push-notiser.</div>
         <div class="sect">Konto</div>
-        <div class="hint">Inloggad som <b>Tomas</b> · PIN från inloggningslänk · logga ut</div>
+        <div class="hint">Nya enheter följs automatiskt. Inloggad som <b>Tomas</b> · logga ut (tar bort push på den här telefonen)</div>
       </div>
       <div class="tabbar">
         <div><span class="ic">🏠</span>Status</div>
         <div class="on"><span class="ic">🔔</span>Notiser</div>
-        <div><span class="ic">⚙️</span>Inställningar</div>
       </div>
     </div>
   </div>
-  <div class="caption"><b>3 · Notiser.</b> Toggeln = "följer du enheten" (per användare, bara dina push-notiser). 🛡-märket = enhetens larm på/av (globalt, administreras i enhetsvyn). sensor3 exempel: larm avslaget för service, därför avtonat + grått.</div>
+  <div class="caption"><b>3 · Notiser (inkl. konto).</b> Toggeln = "följer du enheten" (per användare, bara dina push-notiser). 🛡-märket = enhetens larm på/av (globalt, ändras i enhetsvyn). sensor3: larm avslaget för service till 06:00, därför avtonat + grått.</div>
   </div>
 
 </div>
