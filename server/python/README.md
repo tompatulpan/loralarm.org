@@ -14,11 +14,13 @@ Verify on the lora box with `mosquitto_sub -h localhost -t 'application/+/device
 | File | Role |
 |---|---|
 | `loralarm/event.py` | Parse a ChirpStack up event → `Uplink` (devEUI, fPort, `object`, rssi/snr; fPort 4–7 ASCII settings frames parsed here, not by the codec) |
-| `loralarm/families/*.json` | One built-in device-family definition per file (RAK3172, RAK4631, Dragino LDS02): config defaults (spec §4), data ports, field map, downlink settings, frequency table, alarm rules. See "Adding a device" |
-| `loralarm/definitions.py` | Loads those files and the `"profiles"` section of `devices.json` into the registries (validated; user definitions override built-ins and are undone on reload) |
-| `loralarm/profiles.py` | `DeviceProfile` / `SettingSpec` classes and the profile registry; unknown families get `GENERIC` |
-| `loralarm/config.py` | Per-device config, JSON keyed by devEUI; layering `defaults` < `families[profile]` < `devices[devEUI]` (family defaults come from `profiles.py`); `kind` selects the alarm rules, `params` carries rule-specific thresholds; `${ENV_VAR}` strings in the JSON are expanded from the environment |
-| `loralarm/alarms.py` | Rule-driven port of the Node-RED alarm subflows: an `AlarmRule` registry (temp after Tk, battery low/empty, motion, circuit; each limited to device kinds) plus stateful detectors in `AlarmState` (tilt baseline ± tilt_sense per axis, pulse-style motion/circuit, watchdog); fire-once/clear-once |
+| `loralarm/families/*.json` | One built-in device-family definition per file (RAK3172, RAK4631, Dragino LDS02, Browan TBWL100): config defaults (spec §4), data ports, measurement `fields`, downlink settings, frequency table, alarm rules. See "Adding a device" |
+| `loralarm/registry.py` | `Registry`: the alarm rules, device profiles, field transforms and derivations known to one config, as an **instance** (no module-level globals). `fork()` gives an independent copy |
+| `loralarm/definitions.py` | Loads those files and the `"profiles"` section of `devices.json` into a registry (validated); `builtin_registry()` is the shared read-only base, every `Config` works on its own fork, so a hot reload has nothing to undo |
+| `loralarm/profiles.py` | `DeviceProfile` / `SettingSpec` classes and the standard fields; unknown families get `GENERIC` |
+| `loralarm/frame.py` | `Frame` (the evaluated uplink as named `values`) and the field machinery: `from` renames, `transform` steps (`add`, `subtract`, `multiply`, `round`, `clamp`), `derive` (`linear_pct`, `band`); all of them registry plugins |
+| `loralarm/config.py` | Per-device config, JSON keyed by devEUI; layering `defaults` < `families[profile]` < `devices[devEUI]` (family defaults come from the profile); `kind` selects the alarm rules, `params` carries rule-specific thresholds and the `$name` references of `fields`; `${ENV_VAR}` strings in the JSON are expanded from the environment |
+| `loralarm/alarms.py` | Rule-driven port of the Node-RED alarm subflows: built-in `AlarmRule`s (temp, battery low/empty, motion, circuit; each limited to device kinds) reading `frame.values`, plus stateful detectors in `AlarmState` (tilt baseline ± tilt_sense per axis, pulse-style motion/circuit, watchdog); fire-once/clear-once; keeps the last measurements per device |
 | `loralarm/service.py` | The live service (`python3 -m loralarm`): Engine + watchdog tick + MQTT wiring + state persistence |
 | `loralarm/mqttclient.py` | Shared paho-mqtt client builder used by service and replay (guarded callbacks, connect retry) |
 | `loralarm/notify.py` | ntfy + Pushover delivery on a worker queue with retries; RFC 2047-encoded titles |
@@ -26,27 +28,37 @@ Verify on the lora box with `mosquitto_sub -h localhost -t 'application/+/device
 | `loralarm/downlink.py` | Per-device downlinks: ChirpStack MQTT `command/down`, ports 4–7 ASCII-decimal, frequency translation, CLI (`python3 -m loralarm.downlink`) |
 | `loralarm/replay.py` | Test app CLI: replay captured events or subscribe live MQTT |
 | `devices.example.json` | Tracked config template — placeholders only, no secrets |
-| `tests/` | `python3 -m unittest discover -s tests -t .` (stdlib only) |
+| `tests/` | `python3 -m unittest discover -s tests -t .` (stdlib only); `tests/test_golden.py` replays the real fixtures plus synthetic scenarios and compares console output, notifications and alarm state with `tests/golden/engine.json` — regenerate only for an intended behaviour change: `python3 -m tests.golden --update` |
 
 Codecs stay in ChirpStack (`../chirpstack/payload_codec_*.js`); this package never
-decodes fPort 2 itself — it trusts `object`.
+decodes fPort 2 itself — it trusts `object`. The real captured uplinks used as
+fixtures are in `../chirpstack/fixtures/`.
 
-### Canonical codec fields
+### Fields: from the codec object to measurements
 
-The codec is the device boundary: whatever the wire format, it must emit these
-`object` field names (omit a field the device does not have):
+The codec is the device boundary, and its field names are the device *type's*
+business: the definition's `fields` say how each measurement is made, so a
+third-party codec is never edited. Every type starts from the standard fields
+below (they only appear when the codec reports the source); a type's own
+`fields` add to them or replace one of the same name.
 
-| field | type | used by |
+| standard field | made from | used by |
 |---|---|---|
-| `temperature` | °C, raw (family `tk_correction_c` is subtracted here) | `temp` rule |
-| `battery_voltage` | V | `battery_low` / `battery_empty` rules, % in console |
-| `accelerometer` | `{x,y,z}` in g | tilt detector |
-| `motion_alert` | 0/1 | `motion` rule / event-mode pulse detector |
-| `motion_switch` | 0/1 | `circuit` rule / event-mode pulse detector |
-| `acc_threshold`, `acc_duration`, `acc_frequency` | device-reported wire values | downlink read-back (`SettingSpec.obj_field`) |
-| `acc_frequency_hz` | Hz | informational |
-| `door_open` | 0/1 (1 = open) | `door` rule (device kind `door`) |
-| anything else (`humidity`, `leak`, ...) | any | read by your own `AlarmRule` via `obj` |
+| `temperature` | `temperature` − `$tk_correction_c`, rounded to 0.01 | `temp` rule |
+| `battery_voltage` | `battery_voltage` (numbers only) | battery rules |
+| `battery_pct` | linear between `$batt_empty_v` and `$batt_full_v` | console, status page |
+| `battery_status` | `ok` > `$batt_warn_v`, `low` ≥ `$batt_empty_v`, else `empty`; `unknown` without a voltage | `battery_low` / `battery_empty` rules |
+
+Codec fields that are not declared pass through unchanged, which is what the
+built-in rules read directly: `accelerometer` (`{x,y,z}` in g, tilt),
+`motion_alert` / `motion_switch` (0/1 pulses, motion and circuit),
+`acc_threshold` / `acc_duration` / `acc_frequency` (device-reported wire values,
+downlink read-back via `SettingSpec.obj_field`), and anything else
+(`humidity`, `leak`, ...) for your own rules. `$name` in a field refers to a
+device parameter: a config key (`tk_correction_c`, `batt_warn_v`, ...) or an
+entry of the device's `params`. A field whose source is missing or not a number
+is left out of the values — never a silent 0 — and a field that cannot be built
+(unknown op, unknown `$param`) is logged once and left out.
 
 ## Adding a device or sensor
 
@@ -54,12 +66,12 @@ Devices are **data, not code**: one JSON file per family in
 [`loralarm/families/`](loralarm/families) (`rak3172.json`, `rak4631.json`,
 `dragino_lds02.json`), and the same schema works in a top-level `"profiles"`
 object of `devices.json` (a definition there overrides a built-in of the same
-name and is removed again when you delete it — `devices.json` is hot-reloaded;
-a bad definition is logged and skipped). Full schema: `loralarm/definitions.py`.
+name for that config; `devices.json` is hot-reloaded and a bad definition is
+logged and skipped). Full schema: `loralarm/definitions.py`.
 
 1. **Codec** in ChirpStack. If you cannot change its field names or fPort
-   (third-party codec), map them in the definition: `field_map` (codec field →
-   canonical field, originals kept) and `data_ports`.
+   (third-party codec), map them in the definition: `fields` (`from` the codec
+   name, optional `transform`) and `data_ports`.
 2. **Definition** (`families/<name>.json` or `devices.json` → `"profiles"`):
 
    ```json
@@ -67,7 +79,8 @@ a bad definition is logged and skipped). Full schema: `loralarm/definitions.py`.
      "Dragino Switch LDS02": {
        "aliases": ["lds02"],
        "data_ports": [10],
-       "field_map": {"BAT_V": "battery_voltage", "DOOR_OPEN_STATUS": "door_open"},
+       "fields": {"battery_voltage": {"from": "BAT_V", "unit": "V", "type": "number"},
+                  "door_open": {"from": "DOOR_OPEN_STATUS"}},
        "settings": [], "settings_kinds": [],
        "defaults": {"kind": "door", "batt_warn_v": 2.5},
        "rules": [{"kind": "door", "label": "Dörrlarm", "field": "door_open",
@@ -78,10 +91,17 @@ a bad definition is logged and skipped). Full schema: `loralarm/definitions.py`.
    }
    ```
 
+   A sensor with its own calibration is the same shape, e.g. a CO₂ meter
+   (`"fields": {"co2_ppm": {"from": "CO2RAW", "type": "number", "transform":
+   [{"op": "multiply", "by": "$co2_scale"}, {"op": "round", "n": 0}]}}`, a rule
+   on `co2_ppm` with `"param": "co2_max"`, and `co2_scale` / `co2_max` in the
+   device's `params`) — `tests/test_frame.py` runs exactly this.
+
    - `settings` omitted = the standard ACC settings, `[]` = none, else a list of
      `{key, port, lo, hi, obj_field, kind}` (desired values go in the device's
      `params`, pushed and read back like `threshold`).
-   - `rules`: `when` is `truthy | falsy | eq | ne | gt | ge | lt | le`; the
+   - `rules`: `field` names a value of the frame (declared or passed through),
+     `when` is `truthy | falsy | eq | ne | gt | ge | lt | le`; the
      comparisons use `value`, or `cfg.params[param]` when the device sets that
      param (`"params": {"humidity_max": 80}`, merged defaults < family < device).
      `fire` may use `{value} {limit} {field}`, `clear` `{limit} {field}`.
@@ -91,13 +111,44 @@ a bad definition is logged and skipped). Full schema: `loralarm/definitions.py`.
 3. **Device entry** in `devices.json` under `"devices"` with `"family"` (the
    ChirpStack device-profile name) — see below.
 
-Anything that needs code (a stateful detector, a new derived reading) is still
-a Python `register_rule(AlarmRule(...))` / `register_profile(DeviceProfile(...))`
-call; stateful detectors like tilt are registered label-only (`check=None`).
+Anything that needs code is a registry call on the registry your `Config` owns
+(`config.registry`, or a `builtin_registry().fork()` in tests):
+`register_rule(AlarmRule(...))` for a rule, `register_profile(DeviceProfile(...))`
+for a profile, `register_transform(name, fn)` / `register_derivation(name, fn)`
+for a new calibration (`fn(value, spec, resolve)` / `fn(spec, values, resolve)`,
+return `None` to leave the field out). Stateful detectors like tilt are
+registered label-only (`check=None`).
 `kind` selects which rules run — `sensor` (everything, the default), `door`
 (temp, battery, circuit, plus rules naming `door`), others (temp, battery, plus
 rules naming that kind) — and whether the auto-downlink settings apply
 (`settings_kinds`). An unknown `kind` logs a warning once.
+
+### Examples per device type
+
+[`devices.example.json`](devices.example.json) is the **full template**: every
+section the config supports (`profiles` with a custom CO₂ type, `defaults` with
+Pushover set once, `families`, five devices with per-device limits, settings and
+`params`). The files below are smaller, one per type. Copy one of these into the `"devices"` object of
+your `devices.json` and edit
+the devEUI, name, topics and limits. Each file is a complete config of its own,
+and `tests/test_examples.py` keeps them loading and behaving as described.
+
+| File | Type | What it shows |
+|---|---|---|
+| [`examples/rak3172.json`](examples/rak3172.json) | RAK3172 (RUI3 / Cayenne, 3 V cell) | frost limit 2 °C, level-mode circuit, every motion detection alarms, settings pushed on connect: threshold 16, **10 Hz** → RUI3 ODR *index* 2, duration 1 |
+| [`examples/rak4631.json`](examples/rak4631.json) | RAK4631 (Android, LiPo) | `tk_correction_c` 8 °C, event-mode circuit, motion only after **3 detections within 30 s**, settings: threshold 8, **10 Hz** → register *code* 47, custom notification texts per alarm kind |
+| [`examples/dragino_lds02.json`](examples/dragino_lds02.json) | Dragino LDS02 door switch | no settings or downlinks, 2 × AAA battery limits, open fires and closed clears with custom door texts, long watchdog (12 h, it only sends on change plus a heartbeat) |
+
+What every entry has in common: `family` is the ChirpStack device-profile name
+(or an alias), the secrets are `${ENV_VAR}` placeholders, and everything except
+`name` and `family` is optional, because the type's own defaults fill the gaps
+(see "Where a value comes from" below). The same key can be set in `defaults`
+to apply to every device, or under `families.<type>` to apply to one type.
+
+### Where a value comes from
+
+Later wins: the type's built-in defaults, then `defaults`, then
+`families["<type>"]`, then the device entry.
 
 ### Every device needs its own `devices` entry for notifications
 
@@ -119,10 +170,20 @@ Add it (see Door1/Door2 in `devices.example.json`), or put `ntfy_topic` /
 
 Built in as `families/dragino_lds02.json` (profile name = the ChirpStack
 device profile `Dragino Switch LDS02`): fPort 10, `DOOR_OPEN_STATUS` →
-`door_open`, `BAT_V` → `battery_voltage`, kind `door`, no downlinks, battery
+`door_open`, `BAT_V` → `battery_voltage` (both declared in its `fields`), kind
+`door`, no downlinks, battery
 limits for 2 × AAA (full 3.0 / warn 2.5 / empty 2.2 V). Opening the door raises
 `Dörrlarm`, closing it clears it ("kvitterad"); heartbeats while open do not
 repeat it.
+
+### Browan TBWL100 water-leak sensor
+
+Built in as `families/browan_tbwl100.json` (profile name = the ChirpStack
+device profile `Browan Water sensor`, codec `payload_codec_browan_tbwl100.js`):
+fPort 106, `status` → `water_leak`, `battery` → `battery_voltage`, `humidity`,
+kind `water`, no downlinks, battery limits for the 3.6 V Li-SOCl2 cell (full 3.6 /
+warn 3.4 / empty 3.1 V). A wet sensor raises `Vattenläcka` (`water_leak`) once,
+however often it re-sends; the next dry frame clears it ("Torrt igen").
 
 Stateful detectors (like tilt) still belong in `AlarmState`; register them
 label-only with `AlarmRule(kind, label, check=None, ...)`.
@@ -142,7 +203,7 @@ cd server/python
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt   # paho-mqtt only
 
 # offline replay of captured real events (no broker needed):
-.venv/bin/python3 -m loralarm.replay ../chirpstack/log/*.json --config devices.example.json
+.venv/bin/python3 -m loralarm.replay ../chirpstack/fixtures/*.json --config devices.example.json
 
 # the live service:
 .venv/bin/python3 -m loralarm --mqtt <lora-box> --config devices.json \

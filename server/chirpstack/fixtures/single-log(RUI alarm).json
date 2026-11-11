@@ -1,0 +1,65 @@
+{
+    "deduplicationId": "449b5669-8f4d-499f-be51-2ddb173b258d",
+    "time": "2026-11-09T15:31:48.005953963+00:00",
+    "deviceInfo": {
+        "tenantId": "52f14cd4-c6f1-4fbd-8f87-4025e1d49242",
+        "tenantName": "LoRaLarm",
+        "applicationId": "1d7d3417-e6bf-4e85-ab60-fb422fecdf90",
+        "applicationName": "Larm",
+        "deviceProfileId": "3ff3e0de-c136-40ec-84fe-b42918bca9eb",
+        "deviceProfileName": "RAK3172",
+        "deviceName": "sensor16",
+        "devEui": "ac1f09fffe12da63",
+        "deviceClassEnabled": "CLASS_A",
+        "tags": {}
+    },
+    "devAddr": "0003fe93",
+    "adr": true,
+    "dr": 5,
+    "fCnt": 1793,
+    "fPort": 2,
+    "confirmed": false,
+    "data": "DAEB",
+    "object": {
+        "motion_alert": 1
+    },
+    "rxInfo": [
+        {
+            "gatewayId": "60c5a8fffe76149c",
+            "uplinkId": 1912,
+            "nsTime": "2026-11-09T15:31:47.773776571+00:00",
+            "rssi": -41,
+            "snr": 8.8,
+            "channel": 6,
+            "location": {
+                "latitude": 59.283356024213454,
+                "longitude": 17.796732165346832
+            },
+            "context": "l2iGpA==",
+            "crcStatus": "CRC_OK"
+        },
+        {
+            "gatewayId": "ac1f09fffe14411b",
+            "uplinkId": 2448617426,
+            "nsTime": "2026-11-09T15:31:47.774053874+00:00",
+            "rssi": -40,
+            "snr": 13.8,
+            "channel": 3,
+            "location": {
+                "source": "GPS"
+            },
+            "context": "9LXftw=="
+        }
+    ],
+    "txInfo": {
+        "frequency": 867700000,
+        "modulation": {
+            "lora": {
+                "bandwidth": 125000,
+                "spreadingFactor": 7,
+                "codeRate": "CR_4_5"
+            }
+        }
+    },
+    "regionConfigId": "eu868"
+}

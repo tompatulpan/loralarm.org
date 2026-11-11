@@ -17,8 +17,13 @@ import urllib.parse
 import urllib.request
 from email.header import Header
 
-from .alarms import label_for, rule_for
 from .config import DeviceConfig
+from .registry import Registry
+
+
+def _default_registry() -> Registry:
+    from .definitions import builtin_registry   # lazy: definitions imports config
+    return builtin_registry()
 
 log = logging.getLogger(__name__)
 
@@ -62,11 +67,13 @@ def _safe_format(template: str, what: str, **fields: str) -> str | None:
 
 
 def message_text(kind: str, name: str, active: bool, detail: str,
-                 fire: dict | None = None, clear: dict | None = None) -> str:
+                 fire: dict | None = None, clear: dict | None = None,
+                 registry: Registry | None = None) -> str:
     """Config templates (per kind) win over the DEFAULT_TEXT built-ins; a broken
     template falls back to the built-in so an alarm is never lost to a typo.
     Available substitutions: {name} {detail} {label}."""
-    label = label_for(kind)
+    registry = registry or _default_registry()
+    label = registry.label_for(kind)
     fields = dict(name=name, detail=detail, label=label)
     templates = (fire or {}) if active else (clear or {})
     template = templates.get(kind)
@@ -78,7 +85,7 @@ def message_text(kind: str, name: str, active: bool, detail: str,
     template = fire_tpl if active else clear_tpl
     if template:
         return template.format(**fields)
-    rule = rule_for(kind)       # a registered rule may carry its own texts
+    rule = registry.rule_for(kind)       # a registered rule may carry its own texts
     template = (rule.notify_fire if active else rule.notify_clear) if rule else ""
     if template:
         text = _safe_format(template, f"rule text for {kind}", **fields)
@@ -129,31 +136,34 @@ class Notifier:
             self._worker.join(timeout=2 * (self.timeout * self.retries + sum(self.backoff)) + 5)
             self._worker = None
 
-    def notify(self, cfg: DeviceConfig, kind: str, active: bool, detail: str) -> None:
+    def notify(self, cfg: DeviceConfig, kind: str, active: bool, detail: str,
+               registry: Registry | None = None) -> None:
         if self._worker is not None and not self._closed:
-            self._queue.put((cfg, kind, active, detail))
+            self._queue.put((cfg, kind, active, detail, registry))
         else:
-            self._deliver(cfg, kind, active, detail)
+            self._deliver(cfg, kind, active, detail, registry)
 
     def _run(self) -> None:
         while True:
             job = self._queue.get()
             if job is None:
                 return
-            cfg, kind, active, detail = job
+            cfg, kind, active, detail, registry = job
             try:
-                self._deliver(cfg, kind, active, detail)
+                self._deliver(cfg, kind, active, detail, registry)
             except Exception:
                 # _deliver already catches per-channel errors; this is a last
                 # resort so the worker thread can never die silently
                 log.exception("notification worker failed for %s %s", cfg.dev_eui, kind)
 
-    def _deliver(self, cfg: DeviceConfig, kind: str, active: bool, detail: str) -> None:
+    def _deliver(self, cfg: DeviceConfig, kind: str, active: bool, detail: str,
+                 registry: Registry | None = None) -> None:
+        registry = registry or _default_registry()
         name = cfg.name or cfg.dev_eui
         message = message_text(kind, name, active, detail,
-                               cfg.notify_fire, cfg.notify_clear)
+                               cfg.notify_fire, cfg.notify_clear, registry)
         title = _safe_format(cfg.notify_title, "title", name=name, kind=kind,
-                             detail=detail, label=label_for(kind)) \
+                             detail=detail, label=registry.label_for(kind)) \
             or f"loralarm {name}"
 
         if self.dry_run:

@@ -3,15 +3,22 @@
 One JSON file per device family lives in `loralarm/families/` (built-in), and
 `devices.json` may carry more under a top-level `"profiles"` object
 (`{"<ChirpStack device-profile name>": {...}}`); a user definition replaces a
-built-in one of the same name and disappears again when removed from the file
-(devices.json is hot-reloaded). Schema (all keys optional except `name` in
-the family files):
+built-in one of the same name for that config only (devices.json is hot-reloaded
+and every reload builds a fresh registry). Schema (all keys optional except
+`name` in the family files):
 
     {
       "name": "Dragino Switch LDS02",       # ChirpStack device-profile name
       "aliases": ["lds02"],
       "data_ports": [10],                   # fPorts carrying sensor data (default [2])
-      "field_map": {"BAT_V": "battery_voltage"},   # codec field -> canonical field
+      "fields": {                           # codec object -> named values (see frame.py);
+                                            # added to the standard temperature/battery fields
+        "battery_voltage": {"from": "BAT_V", "type": "number"},
+        "door_open": {"from": "DOOR_OPEN_STATUS"},
+        "temperature": {"from": "temp", "transform": [{"op": "subtract", "by": "$tk_correction_c"}]},
+        "battery_pct": {"derive": "linear_pct", "of": "battery_voltage",
+                        "empty": "$batt_empty_v", "full": "$batt_full_v"}
+      },
       "settings": [],                       # omit = standard ACC settings; [] = none;
                                             # else [{key, port, lo, hi, obj_field, kind}]
       "settings_kinds": [],                 # device kinds that take the settings (default ["sensor"])
@@ -37,16 +44,17 @@ import operator
 from pathlib import Path
 from typing import Any, Callable
 
-from .alarms import AlarmKind, AlarmRule, register_rule, rule_for, unregister_rule
+from .alarms import AlarmKind, AlarmRule, register_builtin_rules
 from .config import _FIELD_TYPES, DeviceConfig
-from .profiles import (ACC_SETTINGS, DeviceProfile, SettingSpec, profiles, register_profile,
-                       unregister_profile)
+from .frame import register_builtin_transforms
+from .profiles import ACC_SETTINGS, STANDARD_FIELDS, DeviceProfile, SettingSpec
+from .registry import Registry
 
 log = logging.getLogger(__name__)
 
 FAMILIES_DIR = Path(__file__).resolve().parent / "families"
 
-_PROFILE_KEYS = {"name", "description", "aliases", "data_ports", "field_map", "settings",
+_PROFILE_KEYS = {"name", "description", "aliases", "data_ports", "fields", "settings",
                  "settings_kinds", "frequency", "defaults", "rules"}
 _RULE_KEYS = {"kind", "label", "field", "when", "value", "param", "fire", "clear",
               "device_kinds", "group", "notify_fire", "notify_clear"}
@@ -148,8 +156,27 @@ def profile_from_dict(name: str, d: dict[str, Any]) -> DeviceProfile:
         name=name,
         aliases=tuple(str(a).lower() for a in d.get("aliases", ())),
         defaults=defaults, settings=settings,
-        field_map={str(k): str(v) for k, v in d.get("field_map", {}).items()},
+        fields={**STANDARD_FIELDS, **_fields_from_dict(name, d.get("fields", {}))},
         **extra)
+
+
+def _fields_from_dict(profile: str, fields: Any) -> dict[str, dict[str, Any]]:
+    """Structure check only: the ops/derivations are plugins resolved when a frame
+    is built (an unknown one is reported there, once)."""
+    if not isinstance(fields, dict):
+        raise ValueError(f"profile {profile!r}: 'fields' must be an object of {{name: spec}}")
+    out: dict[str, dict[str, Any]] = {}
+    for fname, spec in fields.items():
+        where = f"profile {profile!r} field {fname!r}"
+        if not isinstance(spec, dict):
+            raise ValueError(f"{where}: must be an object")
+        if "derive" in spec and "from" in spec:
+            raise ValueError(f"{where}: use either 'from' or 'derive', not both")
+        steps = spec.get("transform", [])
+        if not isinstance(steps, list) or not all(isinstance(s, dict) and "op" in s for s in steps):
+            raise ValueError(f"{where}: 'transform' must be a list of {{op, ...}} objects")
+        out[str(fname)] = dict(spec)
+    return out
 
 
 def _setting_from_dict(profile: str, s: dict[str, Any]) -> SettingSpec:
@@ -159,50 +186,49 @@ def _setting_from_dict(profile: str, s: dict[str, Any]) -> SettingSpec:
     return SettingSpec(**s)
 
 
-def register_definition(name: str, d: dict[str, Any]) -> tuple[DeviceProfile, list[AlarmRule]]:
+def register_definition(registry: Registry, name: str,
+                        d: dict[str, Any]) -> tuple[DeviceProfile, list[AlarmRule]]:
     """Validate first, register after: a bad definition changes nothing."""
     profile = profile_from_dict(name, d)
     rules = [rule_from_dict(r) for r in d.get("rules", [])]
-    register_profile(profile)
+    registry.register_profile(profile)
     for r in rules:
-        register_rule(r)
+        registry.register_rule(r)
     return profile, rules
 
 
-def load_builtin() -> None:
+def load_builtin(registry: Registry) -> None:
     """Register every `families/*.json` (alphabetical). A broken shipped file is a
     bug, so errors propagate here."""
     for path in sorted(FAMILIES_DIR.glob("*.json")):
         d = json.loads(path.read_text(encoding="utf-8"))
         if "name" not in d:
             raise ValueError(f"{path.name}: missing 'name'")
-        register_definition(str(d["name"]), {k: v for k, v in d.items() if k != "name"})
+        register_definition(registry, str(d["name"]), {k: v for k, v in d.items() if k != "name"})
+
+
+_builtin: Registry | None = None
+
+
+def builtin_registry() -> Registry:
+    """The shared, read-only-by-convention registry of built-in rules and families.
+    Anything that adds to it must work on `.fork()` (Config does)."""
+    global _builtin
+    if _builtin is None:
+        reg = Registry()
+        register_builtin_rules(reg)
+        register_builtin_transforms(reg)
+        load_builtin(reg)
+        _builtin = reg
+    return _builtin
 
 
 # -- user definitions from devices.json ------------------------------------------
 
-# what the previous user section replaced, so it can be put back on reload
-_user_profiles: dict[str, DeviceProfile | None] = {}
-_user_rules: dict[str, AlarmRule | None] = {}
-
-
-def _undo_user_definitions() -> None:
-    for kind, original in _user_rules.items():
-        unregister_rule(kind)
-        if original is not None:
-            register_rule(original)
-    for name, original in _user_profiles.items():
-        unregister_profile(name)
-        if original is not None:
-            register_profile(original)
-    _user_profiles.clear()
-    _user_rules.clear()
-
-
-def apply_user_definitions(section: Any) -> None:
-    """Replace the previously applied `"profiles"` section of devices.json with
-    this one (None/{} just removes the old one)."""
-    _undo_user_definitions()
+def apply_user_definitions(registry: Registry, section: Any) -> None:
+    """Add the `"profiles"` section of devices.json to `registry` (a fork owned by
+    one Config, so a reload needs no undo). A definition replaces a built-in of
+    the same name; a bad one is logged and skipped."""
     if not section:
         return
     if not isinstance(section, dict):
@@ -217,14 +243,11 @@ def apply_user_definitions(section: Any) -> None:
         except (ValueError, TypeError, KeyError, AttributeError) as e:
             log.error("config profiles.%s ignored: %s: %s", name, type(e).__name__, e)
             continue
-        original = next((p for p in profiles() if p.name.lower() == name.lower()), None)
-        _user_profiles.setdefault(original.name if original else name, original)
-        register_profile(profile)
+        registry.register_profile(profile)
         for r in rules:
-            _user_rules.setdefault(str(r.kind), rule_for(r.kind))
-            register_rule(r)
+            registry.register_rule(r)
         log.info("config: profile %s defined in devices.json (%d rule(s))", name, len(rules))
 
 
-__all__ = ["apply_user_definitions", "load_builtin", "register_definition",
+__all__ = ["apply_user_definitions", "builtin_registry", "load_builtin", "register_definition",
            "profile_from_dict", "rule_from_dict"]

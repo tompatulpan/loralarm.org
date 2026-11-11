@@ -3,7 +3,7 @@ evaluation, or subscribe live to Mosquitto. Uses the same Engine as the
 service, so replay output == service output.
 
     cd server/python
-    python3 -m loralarm.replay ../chirpstack/log/*.json --config devices.example.json
+    python3 -m loralarm.replay ../chirpstack/fixtures/*.json --config devices.example.json
     python3 -m loralarm.replay --mqtt <lora-box-host>     # live, needs paho-mqtt
 
 On the lora box the same feed can be inspected with:

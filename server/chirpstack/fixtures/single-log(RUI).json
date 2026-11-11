@@ -1,0 +1,76 @@
+{
+    "deduplicationId": "dd338060-74b8-4016-8ef4-393d3e12443e",
+    "time": "2026-11-09T15:31:21.334554054+00:00",
+    "deviceInfo": {
+        "tenantId": "52f14cd4-c6f1-4fbd-8f87-4025e1d49242",
+        "tenantName": "LoRaLarm",
+        "applicationId": "1d7d3417-e6bf-4e85-ab60-fb422fecdf90",
+        "applicationName": "Larm",
+        "deviceProfileId": "3ff3e0de-c136-40ec-84fe-b42918bca9eb",
+        "deviceProfileName": "RAK3172",
+        "deviceName": "sensor16",
+        "devEui": "ac1f09fffe12da63",
+        "deviceClassEnabled": "CLASS_A",
+        "tags": {}
+    },
+    "devAddr": "0003fe93",
+    "adr": true,
+    "dr": 5,
+    "fCnt": 1792,
+    "fPort": 2,
+    "confirmed": false,
+    "data": "A2hWAmcA5wZxAN//8APgAXQBKgcAHggAEAkABAoABQ==",
+    "object": {
+        "acc_frequency": 5,
+        "temperature": 23.1,
+        "humidity": 43,
+        "version_byte": 30,
+        "accelerometer": {
+            "x": 0.223,
+            "z": 0.992,
+            "y": -0.016
+        },
+        "acc_threshold": 16,
+        "battery_voltage": 2.98,
+        "acc_duration": 4
+    },
+    "rxInfo": [
+        {
+            "gatewayId": "ac1f09fffe14411b",
+            "uplinkId": 317633252,
+            "nsTime": "2026-11-09T15:31:21.098397279+00:00",
+            "rssi": -38,
+            "snr": 11.5,
+            "channel": 2,
+            "location": {
+                "source": "GPS"
+            },
+            "context": "U6tItg=="
+        },
+        {
+            "gatewayId": "60c5a8fffe76149c",
+            "uplinkId": 40537,
+            "nsTime": "2026-11-09T15:31:21.098754026+00:00",
+            "rssi": -41,
+            "snr": 7,
+            "channel": 5,
+            "location": {
+                "latitude": 59.283356024213454,
+                "longitude": 17.796732165346832
+            },
+            "context": "ldF8DA==",
+            "crcStatus": "CRC_OK"
+        }
+    ],
+    "txInfo": {
+        "frequency": 867500000,
+        "modulation": {
+            "lora": {
+                "bandwidth": 125000,
+                "spreadingFactor": 7,
+                "codeRate": "CR_4_5"
+            }
+        }
+    },
+    "regionConfigId": "eu868"
+}

@@ -1,0 +1,70 @@
+{
+  "_readme": [
+    "EXAMPLE: RAK4631 (Android, LiPo) sensor. Not read by the service; copy from here.",
+    "1. Copy the block under \"devices\" into the \"devices\" object of server/python/devices.json.",
+    "2. Replace the devEUI key (lowercase, 16 hex chars) with your sensor's, and change name and ntfy_topic.",
+    "3. \"family\" must be the ChirpStack device-profile name: RAK4631 (aliases android, custom also work).",
+    "4. application_id is the ChirpStack application UUID, needed only for downlinks; the service also",
+    "   learns it from the first uplink. Secrets stay as ${ENV_VAR} placeholders.",
+    "5. Save devices.json: it is hot-reloaded, no restart. The settings below are pushed on the next uplink.",
+    "Everything except name and family is optional; the type's defaults fill the gaps.",
+    "tk_correction_c is subtracted from the raw temperature (8 C for this hardware), then compared with temp_alarm_limit_c.",
+    "circuit_mode event: the firmware sends one frame when the contact opens and nothing on close, so each pulse",
+    "   is a fire-only alarm (pulses within circuit_hold_s count as one) and there is no 'cleared' message.",
+    "motion_min_detections 3 + motion_window_s 30: alarm only on 3 detections within 30 s (1 = every detection).",
+    "frequency 10 means 10 Hz; for RAK4631 it is sent as register code 47. Hz, wire codes and code:N all work.",
+    "notify_fire / notify_clear are keyed by alarm kind (temp, battery_low, battery_empty, motion, circuit, tilt, stale).",
+    "TWO DEVICES: settings shared by every RAK4631 live once under \"families\"; sensor3 and sensor4 only",
+    "   list what is theirs. sensor4 is the minimal case plus two overrides (freezer limit, every motion alarms).",
+    "   Precedence, later wins: the type's built-in defaults, \"defaults\", \"families\", the device entry.",
+    "   Note: a dict such as notify_fire is replaced as a whole by a lower layer, not merged key by key.",
+    "application_id is set per device (not in \"families\"): devices of one type can sit in different ChirpStack applications."
+  ],
+  "defaults": {
+    "watchdog_hours": 24,
+    "ntfy_topic": "loralarm",
+    "pushover_user": "${LORALARM_PUSHOVER_USER}",
+    "pushover_token": "${LORALARM_PUSHOVER_TOKEN}"
+  },
+  "families": {
+    "RAK4631": {
+      "tk_correction_c": 8.0,
+      "temp_alarm_limit_c": 2.0,
+      "batt_full_v": 4.2,
+      "batt_warn_v": 3.5,
+      "batt_empty_v": 3.2,
+
+      "motion_mode": "event",
+      "motion_window_s": 30,
+      "motion_min_detections": 3,
+      "tilt_sense_g": 0.3,
+      "circuit_mode": "event",
+      "circuit_hold_s": 30,
+
+      "threshold": 8,
+      "frequency": 10,
+      "duration": 1,
+
+      "notify_title": "loralarm {name}",
+      "notify_fire": {"motion": "🚨 RÖRELSE på {name}: {detail}"},
+      "notify_clear": {"temp": "🌡️ Temperaturen på {name} är normal igen"}
+    }
+  },
+  "devices": {
+    "ac1f09fffe1003ae": {
+      "name": "sensor3",
+      "family": "RAK4631",
+      "application_id": "${LORALARM_CS_APP_LARM}",
+      "ntfy_topic": "sensor3",
+      "watchdog_hours": 0.5
+    },
+    "ac1f09fffe1003af": {
+      "name": "sensor4",
+      "family": "RAK4631",
+      "application_id": "${LORALARM_CS_APP_LARM}",
+      "ntfy_topic": "sensor4",
+      "temp_alarm_limit_c": -18.0,
+      "motion_min_detections": 1
+    }
+  }
+}

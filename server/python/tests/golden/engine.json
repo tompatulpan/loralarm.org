@@ -1,0 +1,778 @@
+{
+ "lds02_door": {
+  "console": [
+   "2026-11-09 15:33:14 Door1      Dragino Switch LDS02 fPort=10 fCnt=1 rssi=-68 snr=9.0",
+   "    temp=None °C  batt=2.95 V (93.8 %, ok)",
+   "2026-11-09 15:33:24 Door1      Dragino Switch LDS02 fPort=10 fCnt=11 rssi=-68 snr=9.0",
+   "    temp=None °C  batt=2.95 V (93.8 %, ok)",
+   "    >>> Dörrlarm: LARM — dörren är öppen",
+   "2026-11-09 15:33:34 Door1      Dragino Switch LDS02 fPort=10 fCnt=21 rssi=-68 snr=9.0",
+   "    temp=None °C  batt=2.95 V (93.8 %, ok)",
+   "2026-11-09 15:33:44 Door1      Dragino Switch LDS02 fPort=10 fCnt=31 rssi=-68 snr=9.0",
+   "    temp=None °C  batt=2.95 V (93.8 %, ok)",
+   "    >>> Dörrlarm: kvitterad — dörren är stängd",
+   "2026-11-09 15:33:54 Door1      Dragino Switch LDS02 fPort=10 fCnt=41 rssi=-68 snr=9.0",
+   "    temp=None °C  batt=2.4 V (25.0 %, low)",
+   "    >>> Batterinivå låg: LARM — 2.40 V (25.0 %) ≤ varningsgräns 2.5 V",
+   "2026-11-09 15:34:04 Door1      Dragino Switch LDS02 fPort=10 fCnt=51 rssi=-68 snr=9.0",
+   "    temp=None °C  batt=2.1 V (0.0 %, empty)",
+   "    >>> Batteri tomt: LARM — 2.10 V (0.0 %) < tomt 2.2 V",
+   "2026-11-09 15:34:14 Door1      Dragino Switch LDS02 fPort=10 fCnt=61 rssi=-68 snr=9.0",
+   "    temp=None °C  batt=2.95 V (93.8 %, ok)",
+   "    >>> Batteri tomt: kvitterad — 2.95 V ≥ tomt 2.2 V",
+   "2026-11-09 15:34:24 Door1      Dragino Switch LDS02 fPort=2 fCnt=71"
+  ],
+  "notifications": [
+   {
+    "active": true,
+    "channel": "ntfy",
+    "message": "🚪 DÖRRLARM: Door1 — dörren är öppen",
+    "target": "door1",
+    "title": "loralarm Door1"
+   },
+   {
+    "active": true,
+    "channel": "pushover",
+    "message": "🚪 DÖRRLARM: Door1 — dörren är öppen",
+    "target": "Door1",
+    "title": "loralarm Door1"
+   },
+   {
+    "active": false,
+    "channel": "ntfy",
+    "message": "✔️ Dörr stängd: Door1 — dörren är stängd",
+    "target": "door1",
+    "title": "loralarm Door1"
+   },
+   {
+    "active": false,
+    "channel": "pushover",
+    "message": "✔️ Dörr stängd: Door1 — dörren är stängd",
+    "target": "Door1",
+    "title": "loralarm Door1"
+   },
+   {
+    "active": true,
+    "channel": "ntfy",
+    "message": "🔋 BATTERI LÅGT: Door1 — 2.40 V (25.0 %) ≤ varningsgräns 2.5 V",
+    "target": "door1",
+    "title": "loralarm Door1"
+   },
+   {
+    "active": true,
+    "channel": "pushover",
+    "message": "🔋 BATTERI LÅGT: Door1 — 2.40 V (25.0 %) ≤ varningsgräns 2.5 V",
+    "target": "Door1",
+    "title": "loralarm Door1"
+   },
+   {
+    "active": true,
+    "channel": "ntfy",
+    "message": "🪫 BATTERI TOMT: Door1 — 2.10 V (0.0 %) < tomt 2.2 V",
+    "target": "door1",
+    "title": "loralarm Door1"
+   },
+   {
+    "active": true,
+    "channel": "pushover",
+    "message": "🪫 BATTERI TOMT: Door1 — 2.10 V (0.0 %) < tomt 2.2 V",
+    "target": "Door1",
+    "title": "loralarm Door1"
+   },
+   {
+    "active": false,
+    "channel": "ntfy",
+    "message": "🔌 Batteri OK: Door1 — 2.95 V ≥ tomt 2.2 V",
+    "target": "door1",
+    "title": "loralarm Door1"
+   },
+   {
+    "active": false,
+    "channel": "pushover",
+    "message": "🔌 Batteri OK: Door1 — 2.95 V ≥ tomt 2.2 V",
+    "target": "Door1",
+    "title": "loralarm Door1"
+   }
+  ],
+  "state": {
+   "a84041a5d7598dd0": {
+    "active": [],
+    "last_detail": {}
+   }
+  }
+ },
+ "non_sensor_frames": {
+  "console": [
+   "2026-11-09 15:33:14 sensor3    RAK4631  fPort=2 fCnt=1 rssi=-35 snr=13.2",
+   "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)",
+   "    >>> Rörelselarm: LARM — rörelse upptäckt — 1 detektering inom 30 s",
+   "2026-11-09 15:33:24 sensor3    RAK4631  fPort=5 fCnt=1",
+   "    settings fPort 5: '016'",
+   "2026-11-09 15:33:34 sensor3    RAK4631  fPort=2 fCnt=1",
+   "2026-11-09 15:33:44 sensor3    RAK4631  fPort=2 fCnt=31 rssi=-35 snr=13.2",
+   "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)"
+  ],
+  "notifications": [
+   {
+    "active": true,
+    "channel": "ntfy",
+    "message": "🚨 RÖRELSELARM: sensor3 — rörelse upptäckt — 1 detektering inom 30 s",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   },
+   {
+    "active": true,
+    "channel": "pushover",
+    "message": "🚨 RÖRELSELARM: sensor3 — rörelse upptäckt — 1 detektering inom 30 s",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   }
+  ],
+  "state": {
+   "ac1f09fffe1003ae": {
+    "active": [],
+    "last_detail": {}
+   }
+  }
+ },
+ "rak3172_circuit_level": {
+  "console": [
+   "2026-11-09 15:33:14 sensor16   RAK3172  fPort=2 fCnt=1 rssi=-35 snr=13.2",
+   "    temp=32.0 °C  batt=3.9 V (100.0 %, ok)",
+   "2026-11-09 15:33:24 sensor16   RAK3172  fPort=2 fCnt=11 rssi=-35 snr=13.2",
+   "    temp=32.0 °C  batt=3.9 V (100.0 %, ok)",
+   "    >>> Kretsalarm: LARM — krets öppen",
+   "2026-11-09 15:33:34 sensor16   RAK3172  fPort=2 fCnt=21 rssi=-35 snr=13.2",
+   "    temp=32.0 °C  batt=3.9 V (100.0 %, ok)",
+   "2026-11-09 15:33:44 sensor16   RAK3172  fPort=2 fCnt=31 rssi=-35 snr=13.2",
+   "    temp=32.0 °C  batt=3.9 V (100.0 %, ok)",
+   "    >>> Kretsalarm: kvitterad — krets sluten"
+  ],
+  "notifications": [
+   {
+    "active": true,
+    "channel": "ntfy",
+    "message": "⚠️ KRETSALARM (öppen krets): sensor16 — krets öppen",
+    "target": "sensor16",
+    "title": "loralarm sensor16"
+   },
+   {
+    "active": false,
+    "channel": "ntfy",
+    "message": "✔️ Krets sluten: sensor16 — krets sluten",
+    "target": "sensor16",
+    "title": "loralarm sensor16"
+   }
+  ],
+  "state": {
+   "ac1f09fffe12da63": {
+    "active": [],
+    "last_detail": {}
+   }
+  }
+ },
+ "rak4631_circuit_event": {
+  "console": [
+   "2026-11-09 15:33:14 sensor3    RAK4631  fPort=2 fCnt=1 rssi=-35 snr=13.2",
+   "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)",
+   "2026-11-09 15:33:24 sensor3    RAK4631  fPort=2 fCnt=11 rssi=-35 snr=13.2",
+   "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)",
+   "    >>> Kretsalarm: LARM — krets öppen",
+   "2026-11-09 15:33:34 sensor3    RAK4631  fPort=2 fCnt=21 rssi=-35 snr=13.2",
+   "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)",
+   "2026-11-09 15:34:14 sensor3    RAK4631  fPort=2 fCnt=61 rssi=-35 snr=13.2",
+   "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)",
+   "    >>> Kretsalarm: LARM — krets öppen",
+   "2026-11-09 15:34:24 sensor3    RAK4631  fPort=2 fCnt=71 rssi=-35 snr=13.2",
+   "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)"
+  ],
+  "notifications": [
+   {
+    "active": true,
+    "channel": "ntfy",
+    "message": "⚠️ KRETSALARM (öppen krets): sensor3 — krets öppen",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   },
+   {
+    "active": true,
+    "channel": "pushover",
+    "message": "⚠️ KRETSALARM (öppen krets): sensor3 — krets öppen",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   },
+   {
+    "active": true,
+    "channel": "ntfy",
+    "message": "⚠️ KRETSALARM (öppen krets): sensor3 — krets öppen",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   },
+   {
+    "active": true,
+    "channel": "pushover",
+    "message": "⚠️ KRETSALARM (öppen krets): sensor3 — krets öppen",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   }
+  ],
+  "state": {
+   "ac1f09fffe1003ae": {
+    "active": [],
+    "last_detail": {}
+   }
+  }
+ },
+ "rak4631_motion_event_min3": {
+  "console": [
+   "2026-11-09 15:33:14 sensor3    RAK4631  fPort=2 fCnt=1 rssi=-35 snr=13.2",
+   "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)",
+   "2026-11-09 15:33:19 sensor3    RAK4631  fPort=2 fCnt=6 rssi=-35 snr=13.2",
+   "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)",
+   "2026-11-09 15:33:24 sensor3    RAK4631  fPort=2 fCnt=11 rssi=-35 snr=13.2",
+   "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)",
+   "    >>> Rörelselarm: LARM — rörelse upptäckt — 3 detekteringar inom 30 s (gräns 3)",
+   "2026-11-09 15:33:26 sensor3    RAK4631  fPort=2 fCnt=13 rssi=-35 snr=13.2",
+   "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)",
+   "2026-11-09 15:36:34 sensor3    RAK4631  fPort=2 fCnt=201 rssi=-35 snr=13.2",
+   "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)",
+   "2026-11-09 15:36:39 sensor3    RAK4631  fPort=2 fCnt=206 rssi=-35 snr=13.2",
+   "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)",
+   "2026-11-09 15:36:44 sensor3    RAK4631  fPort=2 fCnt=211 rssi=-35 snr=13.2",
+   "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)",
+   "    >>> Rörelselarm: LARM — rörelse upptäckt — 3 detekteringar inom 30 s (gräns 3)"
+  ],
+  "notifications": [
+   {
+    "active": true,
+    "channel": "ntfy",
+    "message": "🚨 RÖRELSELARM: sensor3 — rörelse upptäckt — 3 detekteringar inom 30 s (gräns 3)",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   },
+   {
+    "active": true,
+    "channel": "pushover",
+    "message": "🚨 RÖRELSELARM: sensor3 — rörelse upptäckt — 3 detekteringar inom 30 s (gräns 3)",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   },
+   {
+    "active": true,
+    "channel": "ntfy",
+    "message": "🚨 RÖRELSELARM: sensor3 — rörelse upptäckt — 3 detekteringar inom 30 s (gräns 3)",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   },
+   {
+    "active": true,
+    "channel": "pushover",
+    "message": "🚨 RÖRELSELARM: sensor3 — rörelse upptäckt — 3 detekteringar inom 30 s (gräns 3)",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   }
+  ],
+  "state": {
+   "ac1f09fffe1003ae": {
+    "active": [],
+    "last_detail": {}
+   }
+  }
+ },
+ "rak4631_motion_event_single": {
+  "console": [
+   "2026-11-09 15:33:14 sensor3    RAK4631  fPort=2 fCnt=1 rssi=-35 snr=13.2",
+   "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)",
+   "2026-11-09 15:33:24 sensor3    RAK4631  fPort=2 fCnt=11 rssi=-35 snr=13.2",
+   "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)",
+   "    >>> Rörelselarm: LARM — rörelse upptäckt — 1 detektering inom 30 s",
+   "2026-11-09 15:33:25 sensor3    RAK4631  fPort=2 fCnt=12 rssi=-35 snr=13.2",
+   "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)",
+   "    >>> Rörelselarm: LARM — rörelse upptäckt — 2 detekteringar inom 30 s",
+   "2026-11-09 15:34:54 sensor3    RAK4631  fPort=2 fCnt=101 rssi=-35 snr=13.2",
+   "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)"
+  ],
+  "notifications": [
+   {
+    "active": true,
+    "channel": "ntfy",
+    "message": "🚨 RÖRELSELARM: sensor3 — rörelse upptäckt — 1 detektering inom 30 s",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   },
+   {
+    "active": true,
+    "channel": "pushover",
+    "message": "🚨 RÖRELSELARM: sensor3 — rörelse upptäckt — 1 detektering inom 30 s",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   },
+   {
+    "active": true,
+    "channel": "ntfy",
+    "message": "🚨 RÖRELSELARM: sensor3 — rörelse upptäckt — 2 detekteringar inom 30 s",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   },
+   {
+    "active": true,
+    "channel": "pushover",
+    "message": "🚨 RÖRELSELARM: sensor3 — rörelse upptäckt — 2 detekteringar inom 30 s",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   }
+  ],
+  "state": {
+   "ac1f09fffe1003ae": {
+    "active": [],
+    "last_detail": {}
+   }
+  }
+ },
+ "rak4631_motion_level": {
+  "console": [
+   "2026-11-09 15:33:14 sensor3    RAK4631  fPort=2 fCnt=1 rssi=-35 snr=13.2",
+   "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)",
+   "    >>> Rörelselarm: LARM — rörelse upptäckt",
+   "2026-11-09 15:33:24 sensor3    RAK4631  fPort=2 fCnt=11 rssi=-35 snr=13.2",
+   "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)",
+   "2026-11-09 15:33:34 sensor3    RAK4631  fPort=2 fCnt=21 rssi=-35 snr=13.2",
+   "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)",
+   "    >>> Rörelselarm: kvitterad — ingen rörelse",
+   "2026-11-09 15:33:44 sensor3    RAK4631  fPort=2 fCnt=31 rssi=-35 snr=13.2",
+   "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)"
+  ],
+  "notifications": [
+   {
+    "active": true,
+    "channel": "ntfy",
+    "message": "🚨 RÖRELSELARM: sensor3 — rörelse upptäckt",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   },
+   {
+    "active": true,
+    "channel": "pushover",
+    "message": "🚨 RÖRELSELARM: sensor3 — rörelse upptäckt",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   },
+   {
+    "active": false,
+    "channel": "ntfy",
+    "message": "✔️ Rörelse kvitterad: sensor3 — ingen rörelse",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   },
+   {
+    "active": false,
+    "channel": "pushover",
+    "message": "✔️ Rörelse kvitterad: sensor3 — ingen rörelse",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   }
+  ],
+  "state": {
+   "ac1f09fffe1003ae": {
+    "active": [],
+    "last_detail": {}
+   }
+  }
+ },
+ "rak4631_temperature_and_battery": {
+  "console": [
+   "2026-11-09 15:33:14 sensor3    RAK4631  fPort=2 fCnt=1 rssi=-35 snr=13.2",
+   "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)",
+   "2026-11-09 15:34:14 sensor3    RAK4631  fPort=2 fCnt=61 rssi=-35 snr=13.2",
+   "    temp=1.0 °C  batt=3.9 V (70.0 %, ok)",
+   "    >>> Temperaturalarm: LARM — 1.0 °C ≤ gräns 2.0 °C",
+   "2026-11-09 15:35:14 sensor3    RAK4631  fPort=2 fCnt=121 rssi=-35 snr=13.2",
+   "    temp=1.0 °C  batt=3.9 V (70.0 %, ok)",
+   "2026-11-09 15:36:14 sensor3    RAK4631  fPort=2 fCnt=181 rssi=-35 snr=13.2",
+   "    temp=12.0 °C  batt=3.9 V (70.0 %, ok)",
+   "    >>> Temperaturalarm: kvitterad — 12.0 °C > gräns 2.0 °C",
+   "2026-11-09 15:37:14 sensor3    RAK4631  fPort=2 fCnt=241 rssi=-35 snr=13.2",
+   "    temp=24.0 °C  batt=3.4 V (20.0 %, low)",
+   "    >>> Batterinivå låg: LARM — 3.40 V (20.0 %) ≤ varningsgräns 3.5 V",
+   "2026-11-09 15:38:14 sensor3    RAK4631  fPort=2 fCnt=301 rssi=-35 snr=13.2",
+   "    temp=24.0 °C  batt=3.1 V (0.0 %, empty)",
+   "    >>> Batteri tomt: LARM — 3.10 V (0.0 %) < tomt 3.2 V",
+   "2026-11-09 15:39:14 sensor3    RAK4631  fPort=2 fCnt=361 rssi=-35 snr=13.2",
+   "    temp=24.0 °C  batt=3.4 V (20.0 %, low)",
+   "    >>> Batterinivå låg: LARM — 3.40 V (20.0 %) ≤ varningsgräns 3.5 V",
+   "2026-11-09 15:40:14 sensor3    RAK4631  fPort=2 fCnt=421 rssi=-35 snr=13.2",
+   "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)",
+   "    >>> Batterinivå låg: kvitterad — 3.90 V > varningsgräns 3.5 V",
+   "2026-11-09 15:41:14 sensor3    RAK4631  fPort=2 fCnt=481 rssi=-35 snr=13.2",
+   "    temp=None °C  batt=3.9 V (70.0 %, ok)",
+   "2026-11-09 15:42:14 sensor3    RAK4631  fPort=2 fCnt=541 rssi=-35 snr=13.2",
+   "    temp=24.0 °C  batt=None V (None %, unknown)",
+   "2026-11-09 15:43:14 sensor3    RAK4631  fPort=2 fCnt=601 rssi=-35 snr=13.2",
+   "    temp=-6.0 °C  batt=3.5 V (30.0 %, low)",
+   "    >>> Temperaturalarm: LARM — -6.0 °C ≤ gräns 2.0 °C",
+   "    >>> Batterinivå låg: LARM — 3.50 V (30.0 %) ≤ varningsgräns 3.5 V"
+  ],
+  "notifications": [
+   {
+    "active": true,
+    "channel": "ntfy",
+    "message": "❄️ TEMPERATURALARM: sensor3 — 1.0 °C ≤ gräns 2.0 °C",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   },
+   {
+    "active": true,
+    "channel": "pushover",
+    "message": "❄️ TEMPERATURALARM: sensor3 — 1.0 °C ≤ gräns 2.0 °C",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   },
+   {
+    "active": false,
+    "channel": "ntfy",
+    "message": "🌡️ Temperatur OK: sensor3 — 12.0 °C > gräns 2.0 °C",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   },
+   {
+    "active": false,
+    "channel": "pushover",
+    "message": "🌡️ Temperatur OK: sensor3 — 12.0 °C > gräns 2.0 °C",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   },
+   {
+    "active": true,
+    "channel": "ntfy",
+    "message": "🔋 BATTERI LÅGT: sensor3 — 3.40 V (20.0 %) ≤ varningsgräns 3.5 V",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   },
+   {
+    "active": true,
+    "channel": "pushover",
+    "message": "🔋 BATTERI LÅGT: sensor3 — 3.40 V (20.0 %) ≤ varningsgräns 3.5 V",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   },
+   {
+    "active": true,
+    "channel": "ntfy",
+    "message": "🪫 BATTERI TOMT: sensor3 — 3.10 V (0.0 %) < tomt 3.2 V",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   },
+   {
+    "active": true,
+    "channel": "pushover",
+    "message": "🪫 BATTERI TOMT: sensor3 — 3.10 V (0.0 %) < tomt 3.2 V",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   },
+   {
+    "active": true,
+    "channel": "ntfy",
+    "message": "🔋 BATTERI LÅGT: sensor3 — 3.40 V (20.0 %) ≤ varningsgräns 3.5 V",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   },
+   {
+    "active": true,
+    "channel": "pushover",
+    "message": "🔋 BATTERI LÅGT: sensor3 — 3.40 V (20.0 %) ≤ varningsgräns 3.5 V",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   },
+   {
+    "active": false,
+    "channel": "ntfy",
+    "message": "💚 Batteri OK: sensor3 — 3.90 V > varningsgräns 3.5 V",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   },
+   {
+    "active": false,
+    "channel": "pushover",
+    "message": "💚 Batteri OK: sensor3 — 3.90 V > varningsgräns 3.5 V",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   },
+   {
+    "active": true,
+    "channel": "ntfy",
+    "message": "❄️ TEMPERATURALARM: sensor3 — -6.0 °C ≤ gräns 2.0 °C",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   },
+   {
+    "active": true,
+    "channel": "pushover",
+    "message": "❄️ TEMPERATURALARM: sensor3 — -6.0 °C ≤ gräns 2.0 °C",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   },
+   {
+    "active": true,
+    "channel": "ntfy",
+    "message": "🔋 BATTERI LÅGT: sensor3 — 3.50 V (30.0 %) ≤ varningsgräns 3.5 V",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   },
+   {
+    "active": true,
+    "channel": "pushover",
+    "message": "🔋 BATTERI LÅGT: sensor3 — 3.50 V (30.0 %) ≤ varningsgräns 3.5 V",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   }
+  ],
+  "state": {
+   "ac1f09fffe1003ae": {
+    "active": [
+     "battery_low",
+     "temp"
+    ],
+    "last_detail": {
+     "battery_low": "3.50 V (30.0 %) ≤ varningsgräns 3.5 V",
+     "temp": "-6.0 °C ≤ gräns 2.0 °C"
+    }
+   }
+  }
+ },
+ "rak4631_tilt": {
+  "console": [
+   "2026-11-09 15:33:14 sensor3    RAK4631  fPort=2 fCnt=1 rssi=-35 snr=13.2",
+   "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)",
+   "2026-11-09 15:33:24 sensor3    RAK4631  fPort=2 fCnt=11 rssi=-35 snr=13.2",
+   "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)",
+   "2026-11-09 15:33:34 sensor3    RAK4631  fPort=2 fCnt=21 rssi=-35 snr=13.2",
+   "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)",
+   "    >>> Tiltlarm: LARM — y-axeln rörde sig 0.68 g (> 0.3 g)",
+   "2026-11-09 15:33:44 sensor3    RAK4631  fPort=2 fCnt=31 rssi=-35 snr=13.2",
+   "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)",
+   "2026-11-09 15:33:45 sensor3    RAK4631  fPort=2 fCnt=32 rssi=-35 snr=13.2",
+   "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)",
+   "2026-11-09 15:33:46 sensor3    RAK4631  fPort=2 fCnt=33 rssi=-35 snr=13.2",
+   "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)",
+   "2026-11-09 15:33:47 sensor3    RAK4631  fPort=2 fCnt=34 rssi=-35 snr=13.2",
+   "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)",
+   "2026-11-09 15:33:48 sensor3    RAK4631  fPort=2 fCnt=35 rssi=-35 snr=13.2",
+   "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)",
+   "2026-11-09 15:33:49 sensor3    RAK4631  fPort=2 fCnt=36 rssi=-35 snr=13.2",
+   "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)",
+   "2026-11-09 15:33:50 sensor3    RAK4631  fPort=2 fCnt=37 rssi=-35 snr=13.2",
+   "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)",
+   "2026-11-09 15:33:51 sensor3    RAK4631  fPort=2 fCnt=38 rssi=-35 snr=13.2",
+   "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)",
+   "2026-11-09 15:33:52 sensor3    RAK4631  fPort=2 fCnt=39 rssi=-35 snr=13.2",
+   "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)",
+   "    >>> Tiltlarm: kvitterad — inom baslinje ± 0.3 g",
+   "2026-11-09 15:33:53 sensor3    RAK4631  fPort=2 fCnt=40 rssi=-35 snr=13.2",
+   "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)",
+   "2026-11-09 15:33:54 sensor3    RAK4631  fPort=2 fCnt=41 rssi=-35 snr=13.2",
+   "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)",
+   "2026-11-09 15:33:55 sensor3    RAK4631  fPort=2 fCnt=42 rssi=-35 snr=13.2",
+   "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)",
+   "2026-11-09 15:34:54 sensor3    RAK4631  fPort=2 fCnt=101 rssi=-35 snr=13.2",
+   "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)"
+  ],
+  "notifications": [
+   {
+    "active": true,
+    "channel": "ntfy",
+    "message": "📐 TILTLARM: sensor3 — y-axeln rörde sig 0.68 g (> 0.3 g)",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   },
+   {
+    "active": true,
+    "channel": "pushover",
+    "message": "📐 TILTLARM: sensor3 — y-axeln rörde sig 0.68 g (> 0.3 g)",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   },
+   {
+    "active": false,
+    "channel": "ntfy",
+    "message": "✔️ Tilt kvitterad: sensor3 — inom baslinje ± 0.3 g",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   },
+   {
+    "active": false,
+    "channel": "pushover",
+    "message": "✔️ Tilt kvitterad: sensor3 — inom baslinje ± 0.3 g",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   }
+  ],
+  "state": {
+   "ac1f09fffe1003ae": {
+    "active": [],
+    "last_detail": {}
+   }
+  }
+ },
+ "real_fixtures": {
+  "console": [
+   "2026-11-09 15:31:48 sensor16   RAK3172  fPort=2 fCnt=1793 rssi=-41 snr=8.8",
+   "    temp=None °C  batt=None V (None %, unknown)",
+   "    >>> Rörelselarm: LARM — rörelse upptäckt — 1 detektering inom 30 s",
+   "2026-11-09 15:31:21 sensor16   RAK3172  fPort=2 fCnt=1792 rssi=-38 snr=11.5",
+   "    temp=23.1 °C  batt=2.98 V (60.0 %, ok)",
+   "2026-11-09 15:33:14 sensor3    RAK4631  fPort=2 fCnt=1493 rssi=-35 snr=13.2",
+   "    temp=24.0 °C  batt=3.578095238095238 V (37.8 %, ok)",
+   "    >>> Rörelselarm: LARM — rörelse upptäckt — 1 detektering inom 30 s",
+   "2026-11-09 15:32:55 sensor3    RAK4631  fPort=2 fCnt=1492 rssi=-40 snr=8.3",
+   "    temp=24.0 °C  batt=3.578095238095238 V (37.8 %, ok)"
+  ],
+  "notifications": [
+   {
+    "active": true,
+    "channel": "ntfy",
+    "message": "🚨 RÖRELSELARM: sensor16 — rörelse upptäckt — 1 detektering inom 30 s",
+    "target": "sensor16",
+    "title": "loralarm sensor16"
+   },
+   {
+    "active": true,
+    "channel": "ntfy",
+    "message": "🚨 RÖRELSELARM: sensor3 — rörelse upptäckt — 1 detektering inom 30 s",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   },
+   {
+    "active": true,
+    "channel": "pushover",
+    "message": "🚨 RÖRELSELARM: sensor3 — rörelse upptäckt — 1 detektering inom 30 s",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   }
+  ],
+  "state": {
+   "ac1f09fffe1003ae": {
+    "active": [],
+    "last_detail": {}
+   },
+   "ac1f09fffe12da63": {
+    "active": [],
+    "last_detail": {}
+   }
+  }
+ },
+ "unconfigured_device": {
+  "console": [
+   "2026-11-09 15:33:14 newbie     RAK3172  fPort=2 fCnt=1 rssi=-35 snr=13.2",
+   "    temp=-3.0 °C  batt=2.85 V (16.7 %, low)",
+   "    >>> Temperaturalarm: LARM — -3.0 °C ≤ gräns 0.0 °C",
+   "    >>> Batterinivå låg: LARM — 2.85 V (16.7 %) ≤ varningsgräns 2.9 V",
+   "2026-11-09 15:33:24 newbie              fPort=2 fCnt=1 rssi=-35 snr=13.2",
+   "    temp=32.0 °C  batt=2.7 V (0.0 %, empty)",
+   "    >>> Batteri tomt: LARM — 2.70 V (0.0 %) < tomt 2.8 V",
+   "    >>> Temperaturalarm: kvitterad — 32.0 °C > gräns 0.0 °C"
+  ],
+  "notifications": [
+   {
+    "active": true,
+    "channel": "ntfy",
+    "message": "❄️ TEMPERATURALARM: newbie — -3.0 °C ≤ gräns 0.0 °C",
+    "target": "loralarm",
+    "title": "loralarm newbie"
+   },
+   {
+    "active": true,
+    "channel": "ntfy",
+    "message": "🔋 BATTERI LÅGT: newbie — 2.85 V (16.7 %) ≤ varningsgräns 2.9 V",
+    "target": "loralarm",
+    "title": "loralarm newbie"
+   },
+   {
+    "active": true,
+    "channel": "ntfy",
+    "message": "🪫 BATTERI TOMT: newbie — 2.70 V (0.0 %) < tomt 2.8 V",
+    "target": "loralarm",
+    "title": "loralarm newbie"
+   },
+   {
+    "active": false,
+    "channel": "ntfy",
+    "message": "🌡️ Temperatur OK: newbie — 32.0 °C > gräns 0.0 °C",
+    "target": "loralarm",
+    "title": "loralarm newbie"
+   }
+  ],
+  "state": {
+   "0102030405060708": {
+    "active": [
+     "battery_empty"
+    ],
+    "last_detail": {
+     "battery_empty": "2.70 V (0.0 %) < tomt 2.8 V"
+    }
+   }
+  }
+ },
+ "watchdog": {
+  "console": [
+   "2026-11-09 15:33:14 sensor3    RAK4631  fPort=2 fCnt=1 rssi=-35 snr=13.2",
+   "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)",
+   "2026-11-10 16:33:14 sensor3    watchdog >>> Ingen kontakt (watchdog): LARM — ingen uplink på 1 dag, 01:00:00",
+   "2026-11-10 16:33:44 sensor3    RAK4631  fPort=2 fCnt=90031 rssi=-35 snr=13.2",
+   "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)",
+   "2026-11-10 16:34:14 sensor3    watchdog >>> Ingen kontakt (watchdog): kvitterad — uplink mottagen",
+   "2026-11-12 03:33:14 sensor3    watchdog >>> Ingen kontakt (watchdog): LARM — ingen uplink på 1 dag, 10:59:30"
+  ],
+  "notifications": [
+   {
+    "active": true,
+    "channel": "ntfy",
+    "message": "📵 INGEN KONTAKT: sensor3 — ingen uplink på 1 dag, 01:00:00",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   },
+   {
+    "active": true,
+    "channel": "pushover",
+    "message": "📵 INGEN KONTAKT: sensor3 — ingen uplink på 1 dag, 01:00:00",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   },
+   {
+    "active": false,
+    "channel": "ntfy",
+    "message": "✔️ Kommunikationen med sensor3 är återupptagen",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   },
+   {
+    "active": false,
+    "channel": "pushover",
+    "message": "✔️ Kommunikationen med sensor3 är återupptagen",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   },
+   {
+    "active": true,
+    "channel": "ntfy",
+    "message": "📵 INGEN KONTAKT: sensor3 — ingen uplink på 1 dag, 10:59:30",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   },
+   {
+    "active": true,
+    "channel": "pushover",
+    "message": "📵 INGEN KONTAKT: sensor3 — ingen uplink på 1 dag, 10:59:30",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   }
+  ],
+  "state": {
+   "ac1f09fffe1003ae": {
+    "active": [
+     "stale"
+    ],
+    "last_detail": {}
+   }
+  }
+ }
+}

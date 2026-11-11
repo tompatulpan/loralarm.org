@@ -12,13 +12,20 @@ custom RAK4631 frame.
 |---|---|---|
 | `payload_codec_rak4631.js` | RAK4631 (Arduino/Android) | custom 14-byte binary frame |
 | `payload_codec_rui3.js` | RUI3 | Cayenne LPP (`devices/rui3_sensor/app.h` channel map) |
+| `payload_codec_dragino_lds02.js` | Dragino LDS02 door switch | third-party format, fPort 10 (`DOOR_OPEN_STATUS`, `BAT_V`) |
 | `payload_codec_test.js` | runnable test: `node payload_codec_test.js` | |
 
-`log/` holds four captured real ChirpStack MQTT up events — one
+`fixtures/` holds four captured real ChirpStack MQTT up events — one
 heartbeat and one alarm uplink each for a RAK4631 (`sensor3`) and a
 RUI3 sensor (`sensor16`). The test decodes their raw payloads and
 asserts the codec output matches the logged `object` field, so real
-firmware frames serve as regression fixtures.
+firmware frames serve as regression fixtures. They are tracked in git
+(the Python service tests replay them too:
+`server/python/tests/test_golden.py`); the old git-ignored `log/` name is gone.
+
+The Dragino LDS02 codec (`payload_codec_dragino_lds02.js`) is a third-party
+decoder, fPort 10; its decoded objects are the inline fixtures in
+`server/python/tests/test_lds02.py` and the golden scenarios.
 
 ## Install in ChirpStack
 

@@ -4,33 +4,41 @@ from __future__ import annotations
 import unittest
 from datetime import timedelta
 
-from loralarm.alarms import (AlarmKind, AlarmState, TILT_REBASELINE_AFTER,
-                             evaluate, format_duration)
+from loralarm.alarms import AlarmKind, TILT_REBASELINE_AFTER, format_duration
 
-from .common import T0, make_cfg, make_uplink, sensor_obj
+from .common import AlarmState, T0, evaluate, make_cfg, make_uplink, sensor_obj
 
 
 class EvaluateTest(unittest.TestCase):
     def test_temp_alarm_after_tk_correction(self):
         cfg = make_cfg()  # tk 8.0, limit 2.0
-        reading, fired = evaluate(cfg, make_uplink(obj=sensor_obj(temperature=9.0)))
-        self.assertEqual(reading.temp_c, 1.0)
+        frame, fired = evaluate(cfg, make_uplink(obj=sensor_obj(temperature=9.0)))
+        self.assertEqual(frame.values["temperature"], 1.0)
         self.assertEqual([t.kind for t in fired], [AlarmKind.TEMP])
         self.assertIn("1.0 °C", fired[0].detail)
 
     def test_battery_percent_and_status(self):
         cfg = make_cfg()  # full 4.2, warn 3.5, empty 3.2
-        reading, fired = evaluate(cfg, make_uplink(obj=sensor_obj(battery_voltage=3.85)))
-        self.assertEqual(reading.batt_status, "ok")
-        self.assertAlmostEqual(reading.batt_percent, 65.0, places=1)  # (3.85-3.2)/(4.2-3.2)
+        frame, fired = evaluate(cfg, make_uplink(obj=sensor_obj(battery_voltage=3.85)))
+        self.assertEqual(frame.values["battery_status"], "ok")
+        self.assertAlmostEqual(frame.values["battery_pct"], 65.0, places=1)  # (3.85-3.2)/(4.2-3.2)
         self.assertEqual(fired, [])
 
     def test_battery_zero_span_no_zero_division(self):
         cfg = make_cfg(batt_full_v=3.2, batt_empty_v=3.2)
-        reading, fired = evaluate(cfg, make_uplink(obj=sensor_obj(battery_voltage=3.0)))
-        self.assertIsNone(reading.batt_percent)
-        self.assertEqual(reading.batt_status, "empty")
+        frame, fired = evaluate(cfg, make_uplink(obj=sensor_obj(battery_voltage=3.0)))
+        self.assertNotIn("battery_pct", frame.values)
+        self.assertEqual(frame.values["battery_status"], "empty")
         self.assertEqual([t.kind for t in fired], [AlarmKind.BATTERY_EMPTY])
+
+    def test_missing_or_invalid_sources_leave_no_value(self):
+        cfg = make_cfg()
+        frame, fired = evaluate(cfg, make_uplink(obj={"temperature": "n/a", "battery_voltage": None}))
+        self.assertNotIn("temperature", frame.values)
+        self.assertNotIn("battery_voltage", frame.values)
+        self.assertNotIn("battery_pct", frame.values)
+        self.assertEqual(frame.values["battery_status"], "unknown")
+        self.assertEqual(fired, [])
 
     def test_motion_and_circuit(self):
         cfg = make_cfg()

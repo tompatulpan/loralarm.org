@@ -9,7 +9,7 @@ from loralarm.event import Uplink
 
 from .common import DEV_EUI
 
-LOG_DIR = Path(__file__).resolve().parent.parent.parent / "chirpstack" / "log"
+LOG_DIR = Path(__file__).resolve().parent.parent.parent / "chirpstack" / "fixtures"
 
 
 class FromJsonTest(unittest.TestCase):
@@ -39,10 +39,7 @@ class FromJsonTest(unittest.TestCase):
         self.assertIsNone(up2.settings_text())
 
     def test_real_captured_alarm_log(self):
-        path = LOG_DIR / "single-log(rak4631 alarm).json"
-        if not path.exists():
-            self.skipTest("captured ChirpStack log not present")
-        up = Uplink.from_file(path)
+        up = Uplink.from_file(LOG_DIR / "single-log(rak4631 alarm).json")
         self.assertEqual(up.dev_eui, DEV_EUI)
         self.assertTrue(up.is_sensor_data)
         self.assertEqual(up.obj["motion_alert"], 1)

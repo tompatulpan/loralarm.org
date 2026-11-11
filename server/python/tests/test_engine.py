@@ -21,7 +21,7 @@ class RecordingNotifier:
     def __init__(self):
         self.calls = []
 
-    def notify(self, cfg, kind, active, detail):
+    def notify(self, cfg, kind, active, detail, registry=None):
         self.calls.append((cfg.dev_eui, kind, active, detail))
 
 
@@ -122,7 +122,7 @@ class ErrorIsolationTest(unittest.TestCase):
 
     def test_notify_failure_does_not_break_uplink(self):
         class BadNotifier:
-            def notify(self, *a):
+            def notify(self, *a, **kw):
                 raise RuntimeError("queue exploded")
         engine = Engine(make_config(), notifier=BadNotifier())
         engine.on_uplink(make_uplink(obj=sensor_obj(motion_alert=1)))  # must not raise

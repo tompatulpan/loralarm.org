@@ -1,0 +1,49 @@
+{
+  "_readme": [
+    "EXAMPLE: Dragino LDS02 door switch. Not read by the service; copy from here.",
+    "1. Copy the block under \"devices\" into the \"devices\" object of server/python/devices.json.",
+    "2. Replace the devEUI key (lowercase, 16 hex chars) with your sensor's, and change name and ntfy_topic.",
+    "3. \"family\" must be the ChirpStack device-profile name: Dragino Switch LDS02.",
+    "4. Secrets stay as ${ENV_VAR} placeholders; export LORALARM_PUSHOVER_USER / LORALARM_PUSHOVER_TOKEN.",
+    "5. Save devices.json: it is hot-reloaded, no restart. Open and close the door to test.",
+    "Everything except name and family is optional; the type's defaults fill the gaps.",
+    "No threshold/frequency/duration here: this device has no downlink settings.",
+    "watchdog_hours: the LDS02 only reports on change plus a heartbeat, so keep it long (12 h).",
+    "batt_*: 2 x AAA, an assumption (3.0 / 2.5 / 2.2 V); tune against a real discharge.",
+    "notify_fire / notify_clear are keyed by alarm kind; {name} {detail} {label} are available.",
+    "TWO DEVICES: settings shared by every LDS02 live once under \"families\"; Door1 is the minimal case,",
+    "   Door2 overrides one value (watchdog_hours 2: a door you want to hear from more often).",
+    "   Precedence, later wins: the type's built-in defaults, \"defaults\", \"families\", the device entry."
+  ],
+  "defaults": {
+    "watchdog_hours": 24,
+    "ntfy_topic": "loralarm",
+    "pushover_user": "${LORALARM_PUSHOVER_USER}",
+    "pushover_token": "${LORALARM_PUSHOVER_TOKEN}"
+  },
+  "families": {
+    "Dragino Switch LDS02": {
+      "watchdog_hours": 12,
+
+      "batt_full_v": 3.0,
+      "batt_warn_v": 2.5,
+      "batt_empty_v": 2.2,
+
+      "notify_fire": {"door": "🚪 {name} är öppen — {detail}"},
+      "notify_clear": {"door": "✔️ {name} är stängd"}
+    }
+  },
+  "devices": {
+    "a84041a5d7598dd0": {
+      "name": "Door1",
+      "family": "Dragino Switch LDS02",
+      "ntfy_topic": "door1"
+    },
+    "a84041e3d189503d": {
+      "name": "Door2",
+      "family": "Dragino Switch LDS02",
+      "ntfy_topic": "door2",
+      "watchdog_hours": 2
+    }
+  }
+}

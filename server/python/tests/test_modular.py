@@ -5,14 +5,16 @@ from __future__ import annotations
 
 import unittest
 
-from loralarm.alarms import (AlarmKind, AlarmRule, AlarmState, clear_detail, evaluate,
-                             label_for, register_rule, unregister_rule)
+from loralarm.alarms import AlarmKind, AlarmRule
+from loralarm.definitions import builtin_registry
 from loralarm.downlink import desired_frames, parse_command_message, parse_frequency, wire_to_hz
 from loralarm.notify import message_text
-from loralarm.profiles import (ACC_SETTINGS, DeviceProfile, SettingSpec, get_profile,
-                               register_profile, unregister_profile)
+from loralarm.profiles import ACC_SETTINGS, DeviceProfile, SettingSpec
 
-from .common import DEV_EUI, make_cfg, make_config, make_uplink, sensor_obj
+from .common import (DEV_EUI, REG, AlarmState, clear_detail, evaluate, make_cfg, make_config,
+                     make_uplink, sensor_obj)
+
+get_profile = REG.get_profile
 
 
 def _leak_rule(**kw) -> AlarmRule:
@@ -24,52 +26,59 @@ def _leak_rule(**kw) -> AlarmRule:
 
 class CustomRuleTest(unittest.TestCase):
     def setUp(self):
-        register_rule(_leak_rule(notify_fire="💧 {label}: {name} — {detail}",
-                                 notify_clear="✔️ {name} torrt"))
-        self.addCleanup(unregister_rule, "leak")
+        # a private registry: custom rules never leak into other tests
+        self.reg = builtin_registry().fork()
+        self.reg.register_rule(_leak_rule(notify_fire="💧 {label}: {name} — {detail}",
+                                          notify_clear="✔️ {name} torrt"))
+
+    def test_registering_does_not_touch_the_builtin_registry(self):
+        self.assertIsNone(REG.rule_for("leak"))
+        self.assertIsNotNone(self.reg.rule_for("leak"))
 
     def test_rule_fires_only_for_its_device_kind(self):
         up = make_uplink(obj=sensor_obj(leak=1))
-        _, water = evaluate(make_cfg(kind="water"), up)
-        _, sensor = evaluate(make_cfg(kind="sensor"), up)
+        _, water = evaluate(make_cfg(kind="water"), up, self.reg)
+        _, sensor = evaluate(make_cfg(kind="sensor"), up, self.reg)
         self.assertEqual([t.kind for t in water], [AlarmKind("leak")])
         self.assertEqual(sensor, [])
 
     def test_fire_once_clear_once_and_label(self):
         cfg, st = make_cfg(kind="water"), AlarmState()
-        _, t1 = st.update(cfg, make_uplink(obj=sensor_obj(leak=1)))
-        _, t2 = st.update(cfg, make_uplink(obj=sensor_obj(leak=1)))
-        _, t3 = st.update(cfg, make_uplink(obj=sensor_obj(leak=0)))
+        _, t1 = st.update(cfg, make_uplink(obj=sensor_obj(leak=1)), self.reg)
+        _, t2 = st.update(cfg, make_uplink(obj=sensor_obj(leak=1)), self.reg)
+        _, t3 = st.update(cfg, make_uplink(obj=sensor_obj(leak=0)), self.reg)
         self.assertEqual([(t.kind, t.active, t.detail) for t in t1],
                          [("leak", True, "vatten upptäckt")])
         self.assertEqual(t2, [])
         self.assertEqual([(t.kind, t.active, t.detail) for t in t3], [("leak", False, "torrt")])
-        self.assertEqual(label_for("leak"), "Vattenläcka")
+        self.assertEqual(self.reg.label_for("leak"), "Vattenläcka")
 
     def test_snapshot_round_trip_with_custom_kind(self):
         cfg, st = make_cfg(kind="water"), AlarmState()
-        st.update(cfg, make_uplink(obj=sensor_obj(leak=1)))
+        st.update(cfg, make_uplink(obj=sensor_obj(leak=1)), self.reg)
         restored = AlarmState()
-        restored.restore(st.snapshot())
+        restored.restore(st.snapshot(), self.reg)
         self.assertEqual(restored.active, {AlarmKind("leak")})
+        with self.assertRaises(ValueError):      # the built-in registry has no such rule
+            AlarmState().restore(st.snapshot(), REG)
 
     def test_rule_texts_reach_the_notification(self):
-        self.assertEqual(message_text("leak", "källare", True, "vatten upptäckt"),
+        self.assertEqual(message_text("leak", "källare", True, "vatten upptäckt", registry=self.reg),
                          "💧 Vattenläcka: källare — vatten upptäckt")
-        self.assertEqual(message_text("leak", "källare", False, "torrt"), "✔️ källare torrt")
+        self.assertEqual(message_text("leak", "källare", False, "torrt", registry=self.reg),
+                         "✔️ källare torrt")
 
     def test_rule_with_params(self):
-        register_rule(AlarmRule(
+        self.reg.register_rule(AlarmRule(
             AlarmKind("humidity"), "Fuktlarm",
             lambda cfg, r, obj: (f"{obj['humidity']} % > {cfg.params['humidity_max']} %"
                                  if obj.get("humidity", 0) > cfg.params.get("humidity_max", 100)
                                  else None)))
-        self.addCleanup(unregister_rule, "humidity")
         cfg = make_cfg(params={"humidity_max": 80})
-        _, fired = evaluate(cfg, make_uplink(obj=sensor_obj(humidity=91)))
+        _, fired = evaluate(cfg, make_uplink(obj=sensor_obj(humidity=91)), self.reg)
         self.assertEqual([(t.kind, t.detail) for t in fired], [("humidity", "91 % > 80 %")])
         self.assertEqual(clear_detail(AlarmKind("humidity"), cfg, evaluate(cfg, make_uplink(
-            obj=sensor_obj()))[0]), "kvitterad")
+            obj=sensor_obj()), self.reg)[0], self.reg), "kvitterad")
 
 
 class GenericNotificationTest(unittest.TestCase):
@@ -122,32 +131,34 @@ class ProfileRegistryTest(unittest.TestCase):
         self.assertEqual((dc.tk_correction_c, dc.batt_full_v, dc.circuit_mode), (0.0, 3.1, "level"))
 
     def test_new_profile_without_settings_and_own_defaults(self):
-        register_profile(DeviceProfile(name="DOORX", aliases=("doorx",), settings=(),
-                                       defaults=dict(kind="door", batt_full_v=3.0)))
-        self.addCleanup(unregister_profile, "DOORX")
-        dc = make_config().for_event(DEV_EUI, "x", "DOORX")
+        reg = builtin_registry().fork()
+        reg.register_profile(DeviceProfile(name="DOORX", aliases=("doorx",), settings=(),
+                                           defaults=dict(kind="door", batt_full_v=3.0)))
+        dc = make_config(registry=reg).for_event(DEV_EUI, "x", "DOORX")
         self.assertEqual((dc.kind, dc.batt_full_v), ("door", 3.0))
-        self.assertEqual(desired_frames(make_cfg(family="DOORX", kind="sensor", threshold=5)), [])
+        self.assertEqual(desired_frames(make_cfg(family="DOORX", kind="sensor", threshold=5), reg), [])
         with self.assertRaises(ValueError):
-            parse_command_message({"threshold": 5}, "DOORX")
+            parse_command_message({"threshold": 5}, "DOORX", registry=reg)
 
     def test_new_profile_with_own_ports_frequency_and_readback(self):
-        register_profile(DeviceProfile(
+        reg = builtin_registry().fork()
+        reg.register_profile(DeviceProfile(
             name="NEWDEV",
             settings=(SettingSpec("interval", 10, 1, 60, "report_interval"),
                       SettingSpec("frequency", 11, obj_field="odr", kind="frequency")),
             freq_table={0: 1, 1: 10, 2: 50}, freq_label="step"))
-        self.addCleanup(unregister_profile, "NEWDEV")
-        frames = parse_command_message({"interval": 15, "frequency": "hz:50"}, "NEWDEV")
+        frames = parse_command_message({"interval": 15, "frequency": "hz:50"}, "NEWDEV", registry=reg)
         self.assertEqual([(f.f_port, f.data) for f in frames], [(10, b"015"), (11, b"002")])
         # desired values for profile-specific keys come from cfg.params
         cfg = make_cfg(family="NEWDEV", params={"interval": 30})
-        self.assertEqual([(f.f_port, f.data) for f in desired_frames(cfg)], [(10, b"030")])
-        self.assertEqual(wire_to_hz(1, "NEWDEV"), 10.0)
+        self.assertEqual([(f.f_port, f.data) for f in desired_frames(cfg, reg)], [(10, b"030")])
+        self.assertEqual(wire_to_hz(1, "NEWDEV", reg), 10.0)
         with self.assertRaises(ValueError):
-            parse_frequency("hz:25", "NEWDEV")      # not in this table
+            parse_frequency("hz:25", "NEWDEV", reg)      # not in this table
         with self.assertRaises(ValueError):
-            parse_command_message({"interval": 99}, "NEWDEV")   # range from the spec
+            parse_command_message({"interval": 99}, "NEWDEV", registry=reg)   # range from the spec
+        # the shared built-in registry never saw the new profile
+        self.assertEqual(REG.get_profile("NEWDEV").name, "")
 
     def test_existing_frequency_translation_matrix(self):
         for family, value, wire in [("RAK4631", 50, 79), ("RAK4631", "index:3", 63),

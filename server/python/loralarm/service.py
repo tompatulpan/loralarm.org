@@ -24,20 +24,20 @@ import sqlite3
 import sys
 import threading
 import time
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from . import mqttclient
-from .alarms import AlarmState, label_for
+from .alarms import AlarmState
 from .config import Config, DeviceConfig
 from .downlink import (DEFAULT_DL_TOPIC, Downlink, DownlinkSender, desired_frames,
                        parse_command_message, wire_to_hz)
 from .event import Uplink
 from .events import EventLog, utc_now
 from .notify import Notifier
-from .profiles import get_profile
+from .registry import Registry
 
 log = logging.getLogger(__name__)
 
@@ -63,10 +63,10 @@ def _fmt_num(v) -> str:
     return str(int(f)) if f.is_integer() else f"{f:g}"
 
 
-def _freq_str(wire: int, family: str) -> str:
+def _freq_str(wire: int, family: str, registry: Registry) -> str:
     """Human display for a frequency wire value: Hz first, wire code/index after."""
-    hz = wire_to_hz(wire, family)
-    label = get_profile(family).freq_label
+    hz = wire_to_hz(wire, family, registry)
+    label = registry.get_profile(family).freq_label
     return f"{hz:g} Hz ({label} {wire})" if hz is not None else str(wire)
 
 
@@ -120,6 +120,11 @@ class Engine:
         self._warned_unconfigured: set[str] = set()
         self._lock = threading.Lock()
 
+    @property
+    def registry(self) -> Registry:
+        """Rules and profiles of the *current* config (replaced on hot reload)."""
+        return self.config.registry
+
     def _warn_if_unconfigured(self, cfg: DeviceConfig) -> None:
         """A device without a `devices` entry still alarms, but with the default
         ntfy topic and no Pushover — say so once instead of failing silently."""
@@ -146,7 +151,7 @@ class Engine:
         # not on every uplink; the previous good config stays active
         self._config_mtime = mtime
         try:
-            self.config = Config.load(self.config_path)
+            self.config = Config.load(self.config_path, self.config.base_registry)
         except Exception as e:  # bad JSON, wrong shape, unreadable file
             log.error("config reload from %s failed (%s: %s); keeping previous config",
                       self.config_path, type(e).__name__, e)
@@ -179,7 +184,7 @@ class Engine:
                     try:
                         snap = self.event_log.load_state(dev_eui)
                         if snap:
-                            state.restore(snap)
+                            state.restore(snap, self.registry)
                             # identity from the last uplink, so alarms for a device that
                             # stays silent after a restart still read "Door1", not the devEUI
                             name = str(snap.get("name") or "")
@@ -213,32 +218,31 @@ class Engine:
             if up.application_id:
                 self.app_ids[up.dev_eui] = up.application_id
 
-            profile = get_profile(cfg.family)
-            if profile.field_map:
-                up = replace(up, obj=profile.normalize(up.obj))
+            profile = self.registry.get_profile(cfg.family)
             enforce = profile.is_data_port(up.f_port) and bool(up.obj)
             if enforce:
-                reading, transitions = state.update(cfg, up)
+                frame, transitions = state.update(cfg, up, self.registry)
             else:
                 # settings frame (fPort 4-7) or codec failure: only refresh
                 # last_seen, never evaluate and never clear active alarms
                 state.touch(up)
-                reading, transitions = None, []
+                frame, transitions = None, []
 
             print(f"{up.time:%Y-%m-%d %H:%M:%S} {up.device_name:<10} {up.device_profile_name:<8} "
                   f"fPort={up.f_port} fCnt={up.f_cnt}"
-                  + (f" rssi={reading.rssi} snr={reading.snr}" if reading else ""),
+                  + (f" rssi={frame.rssi} snr={frame.snr}" if frame is not None else ""),
                   flush=True)
-            if reading is not None:
-                print(f"    temp={reading.temp_c} °C  batt={reading.batt_v} V "
-                      f"({reading.batt_percent} %, {reading.batt_status})", flush=True)
+            if frame is not None:
+                v = frame.values
+                print(f"    temp={v.get('temperature')} °C  batt={v.get('battery_voltage')} V "
+                      f"({v.get('battery_pct')} %, {v.get('battery_status')})", flush=True)
             text = up.settings_text()
             if text is not None:
                 print(f"    settings fPort {up.f_port}: {text!r}", flush=True)
                 self._log_event(up.time, up.dev_eui, up.device_name,
                                 f"settings_f{up.f_port}", False, text)
             for t in transitions:
-                print(f"    >>> {label_for(t.kind)}: {'LARM' if t.active else 'kvitterad'} — {t.detail}",
+                print(f"    >>> {self.registry.label_for(t.kind)}: {'LARM' if t.active else 'kvitterad'} — {t.detail}",
                       flush=True)
                 self._emit(cfg, up.time, t)
             self._persist(up.dev_eui, state)
@@ -260,7 +264,7 @@ class Engine:
                 self.devices[dev_eui] = (cfg, state)
                 for t in state.watchdog(cfg, now):
                     print(f"{now:%Y-%m-%d %H:%M:%S} {cfg.name:<10} watchdog "
-                          f">>> {label_for(t.kind)}: {'LARM' if t.active else 'kvitterad'} — {t.detail}",
+                          f">>> {self.registry.label_for(t.kind)}: {'LARM' if t.active else 'kvitterad'} — {t.detail}",
                           flush=True)
                     self._emit(cfg, now, t)
                     if t.active:
@@ -313,7 +317,7 @@ class Engine:
             dl = Downlink.from_frame(dev_eui, frame)
             self.downlink_sender.send(app_id, dl)
             sent.append(dl)
-            spec = get_profile(cfg.family).setting_for_port(dl.f_port)
+            spec = self.registry.get_profile(cfg.family).setting_for_port(dl.f_port)
             if spec is not None and spec.obj_field is not None:
                 self._note_sent(dev_eui, dl, now)
             text = dl.data.decode("ascii", "replace")
@@ -333,14 +337,14 @@ class Engine:
         if self.downlink_sender is None or dev_eui in self._dl_bad:
             return
         try:
-            frames = desired_frames(cfg)
+            frames = desired_frames(cfg, self.registry)
         except ValueError as e:
             self._dl_bad.add(dev_eui)
             log.error("device %s (%s): invalid downlink settings in config, auto-downlink "
                       "disabled until the next config reload: %s", dev_eui, cfg.name, e)
             return
         now = utc_now()
-        profile = get_profile(cfg.family)
+        profile = self.registry.get_profile(cfg.family)
         pending = []
         status = []  # console summary: what the device reports vs. the config
         for f in frames:
@@ -358,7 +362,8 @@ class Engine:
                 continue
             # frequency is shown in Hz (wire code/index in parens), the rest as ints
             if spec.kind == "frequency":
-                rep_s, want_s = _freq_str(rep_wire, cfg.family), _freq_str(want, cfg.family)
+                rep_s = _freq_str(rep_wire, cfg.family, self.registry)
+                want_s = _freq_str(want, cfg.family, self.registry)
             else:
                 rep_s, want_s = _fmt_num(reported), _fmt_num(want)
             if rep_wire == want:
@@ -388,7 +393,7 @@ class Engine:
     def _confirm_downlinks(self, dev_eui: str, cfg: DeviceConfig, obj: dict, ts: datetime) -> None:
         """Read-back: when the device's uplink reports the value of a downlink we
         sent, log it as applied. Call with the lock held, on sensor-data uplinks."""
-        for spec in get_profile(cfg.family).auto_settings():
+        for spec in self.registry.get_profile(cfg.family).auto_settings():
             port = spec.port
             rec = self._dl_sent.get((dev_eui, port))
             if rec is None:
@@ -441,8 +446,8 @@ class Engine:
             new_cfg = self.config.for_event(dev_eui, old_cfg.name, old_cfg.family)
             self.devices[dev_eui] = (new_cfg, state)
             try:
-                old = {(f.f_port, f.data) for f in desired_frames(old_cfg)}
-                new_frames = desired_frames(new_cfg)
+                old = {(f.f_port, f.data) for f in desired_frames(old_cfg, self.registry)}
+                new_frames = desired_frames(new_cfg, self.registry)
             except ValueError:
                 continue  # invalid new values: keep the old ones until fixed
             changed = [f for f in new_frames if (f.f_port, f.data) not in old]
@@ -468,7 +473,7 @@ class Engine:
         try:
             payload = json.loads(msg.payload)
             dev_eui, cfg = self.resolve_device(identifier)
-            frames = parse_command_message(payload, cfg.family)
+            frames = parse_command_message(payload, cfg.family, registry=self.registry)
             sent = self.send_downlinks(dev_eui, frames, source=f"mqtt {msg.topic}")
             log.info("downlink command on %s: sent %d frame(s) to %s (%s)",
                      msg.topic, len(sent), cfg.name, dev_eui)
@@ -486,7 +491,7 @@ class Engine:
         # (and the notifier only enqueues, so it cannot block either)
         if self.notifier:
             try:
-                self.notifier.notify(cfg, t.kind.value, t.active, t.detail)
+                self.notifier.notify(cfg, t.kind.value, t.active, t.detail, registry=self.registry)
             except Exception:
                 log.exception("enqueue notification failed for %s %s", cfg.dev_eui, t.kind.value)
         self._log_event(ts, cfg.dev_eui, cfg.name, t.kind.value, t.active, t.detail)

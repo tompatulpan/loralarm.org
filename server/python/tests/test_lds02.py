@@ -8,11 +8,13 @@ from datetime import timedelta
 from loralarm.alarms import AlarmKind
 from loralarm.downlink import desired_frames
 from loralarm.event import Uplink
-from loralarm.profiles import get_profile
+from loralarm.frame import build_values
 from loralarm.service import Engine
 
-from .common import T0, make_cfg, make_config
+from .common import REG, T0, make_cfg, make_config
 from .test_engine import RecordingNotifier
+
+get_profile = REG.get_profile
 
 LDS02_EUI = "a84041a5d7598dd0"
 PROFILE = "Dragino Switch LDS02"
@@ -40,10 +42,13 @@ class Lds02ProfileTest(unittest.TestCase):
         dc = make_config(devices={}).for_event(LDS02_EUI, "Door1", PROFILE)
         self.assertEqual((dc.kind, dc.batt_warn_v), ("door", 2.5))   # family layer beats defaults
 
-    def test_normalize_adds_canonical_fields_and_keeps_originals(self):
-        out = get_profile(PROFILE).normalize(OPEN)
-        self.assertEqual((out["door_open"], out["battery_voltage"]), (1, 2.952))
-        self.assertEqual(out["DOOR_OPEN_TIMES"], 15119)
+    def test_fields_map_the_codec_names_and_keep_the_rest(self):
+        cfg = make_config(devices={}).for_event(LDS02_EUI, "Door1", PROFILE)
+        values = build_values(get_profile(PROFILE).fields, OPEN, cfg, REG)
+        self.assertEqual((values["door_open"], values["battery_voltage"]), (1, 2.952))
+        self.assertEqual(values["DOOR_OPEN_TIMES"], 15119)          # undeclared fields pass through
+        self.assertEqual(values["battery_status"], "ok")            # standard derived field
+        self.assertNotIn("temperature", values)                     # the device has none
 
     def test_no_downlink_settings(self):
         self.assertEqual(desired_frames(make_cfg(family=PROFILE, kind="door", threshold=8)), [])

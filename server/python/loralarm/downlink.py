@@ -46,8 +46,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .profiles import (PORT_COMMAND, PORT_DURATION, PORT_FREQUENCY, PORT_THRESHOLD,  # noqa: F401
-                       get_profile)
+from .profiles import PORT_COMMAND, PORT_DURATION, PORT_FREQUENCY, PORT_THRESHOLD  # noqa: F401
+from .registry import Registry
 
 log = logging.getLogger(__name__)
 
@@ -56,14 +56,22 @@ MAX_VALUE = 255       # firmware: DOWNLINK_MAX_VALUE, 3 ASCII digits
 DEFAULT_DL_TOPIC = "loralarm/down/+"   # <prefix>/<devEui-or-name>
 
 
-def desired_frames(cfg) -> list[DownlinkFrame]:
+def _reg(registry: Registry | None) -> Registry:
+    """The given registry, else the built-in one (CLI/tests without a Config)."""
+    if registry is not None:
+        return registry
+    from .definitions import builtin_registry   # lazy: definitions imports config
+    return builtin_registry()
+
+
+def desired_frames(cfg, registry: Registry | None = None) -> list[DownlinkFrame]:
     """Frames for the per-device desired settings from the config
     (cfg.threshold / cfg.frequency / cfg.duration, or cfg.params[key] for
     profile-specific settings); empty when none are set or the device kind
     takes no settings. Raises ValueError on out-of-range values — callers
     log and skip."""
     family = getattr(cfg, "family", "")
-    profile = get_profile(family)
+    profile = _reg(registry).get_profile(family)
     if getattr(cfg, "kind", "sensor") not in profile.settings_kinds:
         return []
     frames: list[DownlinkFrame] = []
@@ -72,7 +80,7 @@ def desired_frames(cfg) -> list[DownlinkFrame]:
         if value is None:
             value = (getattr(cfg, "params", None) or {}).get(spec.key)
         if value is not None:
-            frames.append(settings_frame(spec.key, value, family))
+            frames.append(settings_frame(spec.key, value, family, registry=registry))
     return frames
 
 _EUI_RE = re.compile(r"^[0-9a-f]{16}$")
@@ -94,7 +102,8 @@ def ascii3(value: int | str) -> bytes:
     return f"{v:03d}".encode("ascii")
 
 
-def parse_frequency(value: int | str, family: str = "") -> int:
+def parse_frequency(value: int | str, family: str = "",
+                    registry: Registry | None = None) -> int:
     """Translate a frequency request to the wire value for `family`.
 
     Accepted inputs: Hz, a wire value (RAK4631 register code, RUI3 index) or
@@ -102,10 +111,12 @@ def parse_frequency(value: int | str, family: str = "") -> int:
     that family's wire value; with an unknown family wire values pass through
     unchanged and Hz is an error. See profiles.DeviceProfile.frequency_to_wire.
     """
-    return get_profile(family).frequency_to_wire(value)
+    reg = _reg(registry)
+    return reg.get_profile(family).frequency_to_wire(value, reg.freq_tables())
 
 
-def wire_to_hz(value: int | str, family: str = "") -> float | None:
+def wire_to_hz(value: int | str, family: str = "",
+               registry: Registry | None = None) -> float | None:
     """Wire value (e.g. RAK4631 register code or RUI3 ODR index) -> Hz, else None.
     With an unknown family every registered encoding is accepted."""
     try:
@@ -115,7 +126,8 @@ def wire_to_hz(value: int | str, family: str = "") -> float | None:
         v = int(f)
     except (TypeError, ValueError):
         return None
-    hz = get_profile(family).wire_to_hz(v)
+    reg = _reg(registry)
+    hz = reg.get_profile(family).wire_to_hz(v, reg.freq_tables())
     return float(hz) if hz is not None else None
 
 
@@ -142,14 +154,15 @@ class DownlinkFrame:
 
 
 def settings_frame(key: str, value: int | str, family: str = "",
-                   confirmed: bool = False) -> DownlinkFrame:
+                   confirmed: bool = False, registry: Registry | None = None) -> DownlinkFrame:
     """Build one settings/command frame for the device family's profile.
 
     key: a setting of the profile (standard: threshold | frequency | duration |
     command); raw frames go through parse_command_message (port + value).
     """
     k = str(key).strip().lower()
-    profile = get_profile(family)
+    reg = _reg(registry)
+    profile = reg.get_profile(family)
     spec = profile.setting(k)
     if spec is None:
         if k == "port":
@@ -157,8 +170,8 @@ def settings_frame(key: str, value: int | str, family: str = "",
         keys = " | ".join(s.key for s in profile.settings)
         raise ValueError(f"unknown downlink key {key!r} ({keys} | port+value)")
     if spec.kind == "frequency":
-        v = profile.frequency_to_wire(value)
-        hz = wire_to_hz(v, family)
+        v = profile.frequency_to_wire(value, reg.freq_tables())
+        hz = wire_to_hz(v, family, reg)
         note = f"frequency wire={v}" + (f" ({hz:g} Hz)" if hz is not None else "")
         return DownlinkFrame(spec.port, ascii3(v), confirmed, note)
     v = _int(str(value), k)
@@ -167,7 +180,8 @@ def settings_frame(key: str, value: int | str, family: str = "",
 
 
 def parse_command_message(payload: Any, family: str = "",
-                          confirmed: bool = False) -> list[DownlinkFrame]:
+                          confirmed: bool = False,
+                          registry: Registry | None = None) -> list[DownlinkFrame]:
     """Parse a downlink command payload (JSON object) into frames.
 
     Accepted shape: {"threshold": 16, "frequency": 50, "duration": 2,
@@ -190,10 +204,10 @@ def parse_command_message(payload: Any, family: str = "",
         if rest:
             raise ValueError(f"cannot mix raw port/value with settings keys: {sorted(rest)}")
         return frames
-    keys = [spec.key for spec in get_profile(family).settings]
+    keys = [spec.key for spec in _reg(registry).get_profile(family).settings]
     for key in keys:
         if key in payload:
-            frames.append(settings_frame(key, payload[key], family, conf))
+            frames.append(settings_frame(key, payload[key], family, conf, registry))
     unknown = sorted(set(payload) - set(keys) - {"confirmed"})
     if unknown:
         raise ValueError(f"unknown downlink keys: {unknown}")
@@ -345,15 +359,16 @@ def main(argv: list[str] | None = None) -> int:
             key, sep, val = kv.partition("=")
             if not sep:
                 ap.error(f"--set expects KEY=VALUE, got {kv!r}")
-            frames.extend(parse_command_message({key: val}, family, args.confirmed))
+            frames.extend(parse_command_message({key: val}, family, args.confirmed,
+                                                registry=config.registry))
         if args.raw:
             if args.fport is None or args.value is None:
                 ap.error("--raw needs --fport N and --value V")
             frames.extend(parse_command_message({"port": args.fport, "value": args.value},
-                                                family, args.confirmed))
+                                                family, args.confirmed, registry=config.registry))
         if not frames:
             # no explicit command: push the desired settings from the config
-            frames = desired_frames(cfg)
+            frames = desired_frames(cfg, config.registry)
             if not frames:
                 ap.error(f"nothing to send: no --set/--raw given and no "
                          f"threshold/frequency/duration configured for {args.dev}")

@@ -1,0 +1,60 @@
+{
+  "_readme": [
+    "EXAMPLE: RAK3172 (RUI3 / Cayenne) sensor. Not read by the service; copy from here.",
+    "1. Copy the block under \"devices\" into the \"devices\" object of server/python/devices.json.",
+    "2. Replace the devEUI key (lowercase, 16 hex chars) with your sensor's, and change name and ntfy_topic.",
+    "3. \"family\" must be the ChirpStack device-profile name: RAK3172 (aliases rui3, cayenne also work).",
+    "4. application_id is the ChirpStack application UUID, needed only for downlinks; the service also",
+    "   learns it from the first uplink. Secrets stay as ${ENV_VAR} placeholders.",
+    "5. Save devices.json: it is hot-reloaded, no restart. The settings below are pushed on the next uplink.",
+    "TWO DEVICES: settings shared by every RAK3172 live once under \"families\"; sensor16 and sensor17 only",
+    "   list what is theirs. sensor17 is the minimal case plus two overrides (5 C limit, 25 Hz).",
+    "   Precedence, later wins: the type's built-in defaults, \"defaults\", \"families\", the device entry.",
+    "Everything except name and family is optional; the type's defaults fill the gaps.",
+    "temp_alarm_limit_c: alarm at or below this temperature (no correction on RUI3, tk_correction_c is 0).",
+    "motion_min_detections: 1 = every detection alarms; 3 with motion_window_s 30 = 3 hits within 30 s.",
+    "circuit_mode level: the switch state is in every heartbeat, so open fires and closed clears.",
+    "frequency 10 means 10 Hz; for RUI3 it is sent as ODR index 2. Hz, wire codes and index:N all work.",
+    "application_id is set per device (not in \"families\"): devices of one type can sit in different ChirpStack applications."
+  ],
+  "defaults": {
+    "watchdog_hours": 24,
+    "ntfy_topic": "loralarm",
+    "pushover_user": "${LORALARM_PUSHOVER_USER}",
+    "pushover_token": "${LORALARM_PUSHOVER_TOKEN}"
+  },
+  "families": {
+    "RAK3172": {
+      "temp_alarm_limit_c": 2.0,
+      "batt_warn_v": 2.9,
+      "batt_empty_v": 2.8,
+
+      "motion_mode": "event",
+      "motion_window_s": 30,
+      "motion_min_detections": 1,
+      "tilt_sense_g": 0.3,
+      "circuit_mode": "level",
+
+      "threshold": 16,
+      "frequency": 10,
+      "duration": 1
+    }
+  },
+  "devices": {
+    "ac1f09fffe12da63": {
+      "name": "sensor16",
+      "family": "RAK3172",
+      "application_id": "${LORALARM_CS_APP_SUBLARM}",
+      "ntfy_topic": "sensor16",
+      "watchdog_hours": 0.5
+    },
+    "ac1f09fffe12da64": {
+      "name": "sensor17",
+      "family": "RAK3172",
+      "application_id": "${LORALARM_CS_APP_SUBLARM}",
+      "ntfy_topic": "sensor17",
+      "temp_alarm_limit_c": 5.0,
+      "frequency": 25
+    }
+  }
+}

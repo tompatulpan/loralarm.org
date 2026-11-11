@@ -3,7 +3,10 @@
   "description": "Dragino LDS02 door switch (third-party codec, fPort 10): DOOR_OPEN_STATUS 1 = open / 0 = closed, sent on every change plus a heartbeat. No temperature, no downlink settings. Battery is 2 x AAA (~3.0 V fresh): limits are an assumption, tune per device.",
   "aliases": ["lds02"],
   "data_ports": [10],
-  "field_map": {"BAT_V": "battery_voltage", "DOOR_OPEN_STATUS": "door_open"},
+  "fields": {
+    "battery_voltage": {"from": "BAT_V", "unit": "V", "type": "number"},
+    "door_open": {"from": "DOOR_OPEN_STATUS"}
+  },
   "settings": [],
   "settings_kinds": [],
   "defaults": {

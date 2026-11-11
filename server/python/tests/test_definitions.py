@@ -4,22 +4,24 @@ from __future__ import annotations
 
 import unittest
 
-from loralarm.alarms import AlarmState, evaluate, rule_for
+from loralarm.alarms import AlarmKind
 from loralarm.config import Config
-from loralarm.definitions import FAMILIES_DIR, apply_user_definitions, rule_from_dict
+from loralarm.definitions import FAMILIES_DIR, builtin_registry, rule_from_dict
 from loralarm.downlink import parse_frequency
-from loralarm.profiles import get_profile
 from loralarm.service import Engine
 
-from .common import make_cfg, make_config, make_uplink, sensor_obj
+from .common import REG, AlarmState, evaluate, make_cfg, make_config, make_uplink, sensor_obj
 from .test_engine import RecordingNotifier
+
+get_profile = REG.get_profile
+rule_for = REG.rule_for
 
 NEW_EUI = "0102030405060708"
 
 HUMIDITY_DEF = {
     "aliases": ["hum1"],
     "data_ports": [3],
-    "field_map": {"RH": "humidity", "VBAT": "battery_voltage"},
+    "fields": {"humidity": {"from": "RH"}, "battery_voltage": {"from": "VBAT", "type": "number"}},
     "settings": [{"key": "interval", "port": 10, "lo": 1, "hi": 60, "obj_field": "report_interval"}],
     "defaults": {"kind": "humidity", "batt_warn_v": 3.3, "ntfy_topic": "fukt"},
     "rules": [{"kind": "humidity", "label": "Fuktlarm", "field": "humidity", "when": "gt",
@@ -32,7 +34,8 @@ HUMIDITY_DEF = {
 class BuiltinFamiliesTest(unittest.TestCase):
     def test_one_json_file_per_family(self):
         names = sorted(p.name for p in FAMILIES_DIR.glob("*.json"))
-        self.assertEqual(names, ["dragino_lds02.json", "rak3172.json", "rak4631.json"])
+        self.assertEqual(names, ["browan_tbwl100.json", "dragino_lds02.json", "rak3172.json",
+                                  "rak4631.json"])
 
     def test_builtin_profiles_loaded_from_json(self):
         rak = get_profile("rak4631")
@@ -46,9 +49,6 @@ class BuiltinFamiliesTest(unittest.TestCase):
 
 
 class UserProfilesTest(unittest.TestCase):
-    def tearDown(self):
-        apply_user_definitions(None)
-
     def _config(self, profiles=None) -> Config:
         data = {"defaults": {}, "devices": {NEW_EUI: {"name": "fukt1", "family": "HUM-1",
                                                       "params": {"humidity_max": 70}}}}
@@ -57,62 +57,74 @@ class UserProfilesTest(unittest.TestCase):
         return Config(data)
 
     def test_new_device_defined_only_in_json(self):
-        cfg = self._config({"HUM-1": HUMIDITY_DEF}).for_event(NEW_EUI, "fukt1", "HUM-1")
+        conf = self._config({"HUM-1": HUMIDITY_DEF})
+        cfg = conf.for_event(NEW_EUI, "fukt1", "HUM-1")
         self.assertEqual((cfg.kind, cfg.ntfy_topic, cfg.batt_warn_v), ("humidity", "fukt", 3.3))
-        self.assertEqual(get_profile("hum1").name, "HUM-1")
+        self.assertEqual(conf.registry.get_profile("hum1").name, "HUM-1")
         up = make_uplink(dev_eui=NEW_EUI, profile="HUM-1", f_port=3,
-                         obj=get_profile("HUM-1").normalize({"RH": 75, "VBAT": 3.6}))
-        _, fired = evaluate(cfg, up)
+                         obj={"RH": 75, "VBAT": 3.6})
+        _, fired = evaluate(cfg, up, conf.registry)
         self.assertEqual([(t.kind, t.detail) for t in fired], [("humidity", "75 % > 70 %")])
-        _, quiet = evaluate(cfg, make_uplink(obj={"humidity": 60, "battery_voltage": 3.6}))
+        _, quiet = evaluate(cfg, make_uplink(obj={"humidity": 60, "battery_voltage": 3.6}),
+                            conf.registry)
         self.assertEqual(quiet, [])
 
     def test_profile_settings_and_clear_text(self):
-        cfg = self._config({"HUM-1": HUMIDITY_DEF}).for_event(NEW_EUI, "fukt1", "HUM-1")
-        self.assertEqual(get_profile("HUM-1").setting("interval").port, 10)
+        conf = self._config({"HUM-1": HUMIDITY_DEF})
+        cfg = conf.for_event(NEW_EUI, "fukt1", "HUM-1")
+        self.assertEqual(conf.registry.get_profile("HUM-1").setting("interval").port, 10)
         st = AlarmState()
-        st.update(cfg, make_uplink(obj={"humidity": 75}))
-        _, t = st.update(cfg, make_uplink(obj={"humidity": 60}))
+        st.update(cfg, make_uplink(obj={"humidity": 75}), conf.registry)
+        _, t = st.update(cfg, make_uplink(obj={"humidity": 60}), conf.registry)
         self.assertEqual([(x.kind, x.active, x.detail) for x in t], [("humidity", False, "under 70 %")])
 
-    def test_removing_the_section_removes_the_profile_and_rule(self):
-        self._config({"HUM-1": HUMIDITY_DEF})
-        self.assertEqual(get_profile("HUM-1").name, "HUM-1")
-        self.assertIsNotNone(rule_for("humidity"))
-        self._config()                                   # hot reload without "profiles"
-        self.assertEqual(get_profile("HUM-1").name, "")
-        self.assertIsNone(rule_for("humidity"))
+    def test_each_config_has_its_own_registry(self):
+        with_section = self._config({"HUM-1": HUMIDITY_DEF})
+        self.assertEqual(with_section.registry.get_profile("HUM-1").name, "HUM-1")
+        self.assertIsNotNone(with_section.registry.rule_for("humidity"))
+        reloaded = self._config()                        # hot reload without "profiles"
+        self.assertEqual(reloaded.registry.get_profile("HUM-1").name, "")
+        self.assertIsNone(reloaded.registry.rule_for("humidity"))
+        # nothing leaked into the shared built-in registry
+        self.assertEqual(REG.get_profile("HUM-1").name, "")
+        self.assertIsNone(REG.rule_for("humidity"))
 
-    def test_user_definition_overrides_builtin_and_restores_it(self):
+    def test_user_definition_overrides_builtin_only_in_its_config(self):
         override = {"data_ports": [2, 10], "defaults": {"batt_warn_v": 2.0}, "settings": []}
-        cfg = self._config({"Dragino Switch LDS02": override}).for_event(
-            NEW_EUI, "x", "Dragino Switch LDS02")
-        self.assertEqual(get_profile("Dragino Switch LDS02").data_ports, frozenset({2, 10}))
+        conf = self._config({"Dragino Switch LDS02": override})
+        cfg = conf.for_event(NEW_EUI, "x", "Dragino Switch LDS02")
+        self.assertEqual(conf.registry.get_profile("Dragino Switch LDS02").data_ports, frozenset({2, 10}))
         self.assertEqual(cfg.batt_warn_v, 2.0)
-        apply_user_definitions(None)
-        self.assertEqual(get_profile("Dragino Switch LDS02").data_ports, frozenset({10}))
+        self.assertEqual(REG.get_profile("Dragino Switch LDS02").data_ports, frozenset({10}))
         self.assertEqual(self._config().for_event(NEW_EUI, "x", "Dragino Switch LDS02").batt_warn_v, 2.5)
 
-    def test_user_rule_replacing_builtin_rule_is_restored(self):
+    def test_user_rule_replacing_builtin_rule_stays_in_its_config(self):
         door = {"rules": [{"kind": "door", "label": "Port", "field": "x", "when": "truthy"}]}
-        self._config({"Dragino Switch LDS02": door})
-        self.assertEqual(rule_for("door").label, "Port")
-        self._config()
-        self.assertEqual(rule_for("door").label, "Dörrlarm")
+        conf = self._config({"Dragino Switch LDS02": door})
+        self.assertEqual(conf.registry.rule_for("door").label, "Port")
+        self.assertEqual(self._config().registry.rule_for("door").label, "Dörrlarm")
+        self.assertEqual(REG.rule_for("door").label, "Dörrlarm")
 
     def test_bad_definitions_are_skipped_with_an_error(self):
         bad = {"A": {"typo_key": 1}, "B": {"rules": [{"kind": "k", "label": "L", "field": "f",
                                                       "when": "bigger"}]},
                "C": "not an object", "D": {"frequency": {"table": {"x": 1}}}}
         with self.assertLogs("loralarm.definitions", level="ERROR") as cm:
-            self._config({**bad, "HUM-1": HUMIDITY_DEF})
+            conf = self._config({**bad, "HUM-1": HUMIDITY_DEF})
         self.assertEqual(len(cm.records), 4)
-        self.assertEqual(get_profile("HUM-1").name, "HUM-1")        # the good one still applied
-        self.assertEqual(get_profile("A").name, "")
+        self.assertEqual(conf.registry.get_profile("HUM-1").name, "HUM-1")   # the good one still applied
+        self.assertEqual(conf.registry.get_profile("A").name, "")
 
     def test_profiles_section_of_wrong_type_is_ignored(self):
         with self.assertLogs("loralarm.definitions", level="ERROR"):
             self._config([1, 2])
+
+    def test_engine_hot_reload_swaps_the_registry(self):
+        engine = Engine(self._config({"HUM-1": HUMIDITY_DEF}))
+        self.assertEqual(engine.registry.get_profile("HUM-1").name, "HUM-1")
+        engine.config = self._config()                  # what a reload does
+        self.assertEqual(engine.registry.get_profile("HUM-1").name, "")
+        self.assertIs(engine.config.base_registry, builtin_registry())
 
 
 class RuleOperatorsTest(unittest.TestCase):

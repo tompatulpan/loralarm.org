@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from .profiles import profiles
+from .registry import Registry
 
 log = logging.getLogger(__name__)
 
@@ -126,16 +126,19 @@ def _type_names(types: tuple[type, ...]) -> str:
 
 
 class Config:
-    def __init__(self, data: dict[str, Any]):
+    def __init__(self, data: dict[str, Any], registry: Registry | None = None):
         data = _expand(data, "config")
-        # device definitions in devices.json ("profiles") must be in place before
-        # the family defaults below are read; imported here to avoid an import cycle
-        from .definitions import apply_user_definitions
-        apply_user_definitions(data.get("profiles"))
+        # imported here to avoid an import cycle (definitions imports this module)
+        from .definitions import apply_user_definitions, builtin_registry
+        # this config's own registry: the built-ins plus the "profiles" section of
+        # devices.json. A reload builds a new Config, hence a new fork — nothing to undo.
+        self.base_registry = registry if registry is not None else builtin_registry()
+        self.registry = self.base_registry.fork()
+        apply_user_definitions(self.registry, data.get("profiles"))
         self.defaults = data.get("defaults", {})
         # merge per family so a partial override keeps the built-in keys
         user_families = data.get("families", {})
-        family_defaults = {p.name: p.defaults for p in profiles() if p.name}
+        family_defaults = {p.name: p.defaults for p in self.registry.profiles() if p.name}
         self.families = {name: {**family_defaults.get(name, {}), **user_families.get(name, {})}
                          for name in {**family_defaults, **user_families}}
         # devEUIs are lowercased on the wire (Uplink lowercases them), so the
@@ -163,8 +166,8 @@ class Config:
                 log.warning("config %s: unknown key %r ignored (typo?)", where, key)
 
     @classmethod
-    def load(cls, path: str | Path) -> "Config":
-        return cls(json.loads(Path(path).read_text()))
+    def load(cls, path: str | Path, registry: Registry | None = None) -> "Config":
+        return cls(json.loads(Path(path).read_text()), registry)
 
     def for_event(self, dev_eui: str, device_name: str = "", family: str = "") -> DeviceConfig:
         dev_eui = dev_eui.lower()

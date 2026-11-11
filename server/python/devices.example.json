@@ -1,4 +1,38 @@
 {
+  "_readme": [
+    "TEMPLATE for devices.json: every section the config supports, in one file. Copy what you need; the service",
+    "never reads this file. Smaller per-type starting points are in examples/. Save devices.json to reload it.",
+    "",
+    "\"profiles\": define a NEW device type in JSON, no Python (here a CO2 sensor): data_ports, fields (codec field",
+    "   -> measurement, with calibration such as $co2_scale), rules (alarm when a value passes a limit) and the",
+    "   type's own defaults. The three built-in types (RAK3172, RAK4631, Dragino Switch LDS02) need no entry.",
+    "\"defaults\": applies to every device. Secrets are ${ENV_VAR} placeholders, set once here (Pushover) so no",
+    "   device needs its own copy.",
+    "\"families\": applies to every device of one type (key = ChirpStack device-profile name, exact spelling).",
+    "\"devices\": one entry per sensor, keyed by lowercase devEUI. Only name and family are required.",
+    "Precedence, later wins: the type's built-in defaults, defaults, families, the device entry. \"params\" merge",
+    "   key by key; a dict such as notify_fire is replaced as a whole by the more specific layer.",
+    "application_id is set per device (not in a shared layer): devices of one type can use different applications.",
+    "Not available yet (planned): hysteresis on temperature/battery, several recipients per device, time windows."
+  ],
+  "profiles": {
+    "CO2-1": {
+      "description": "Example CO2 meter: raw ppm / 2 from the codec field CO2RAW on fPort 8, no downlink settings",
+      "aliases": ["co2"],
+      "data_ports": [8],
+      "settings": [],
+      "fields": {
+        "co2_ppm": {"from": "CO2RAW", "unit": "ppm", "type": "number",
+                    "transform": [{"op": "multiply", "by": "$co2_scale"}, {"op": "round", "n": 0}]}
+      },
+      "defaults": {"kind": "air", "watchdog_hours": 2, "params": {"co2_scale": 2}},
+      "rules": [{"kind": "co2", "label": "CO2-larm", "field": "co2_ppm", "when": "gt",
+                 "param": "co2_max", "value": 1500,
+                 "fire": "{value} ppm > {limit} ppm", "clear": "under {limit} ppm",
+                 "device_kinds": ["air"],
+                 "notify_fire": "💨 CO2-LARM: {name} — {detail}"}]
+    }
+  },
   "defaults": {
     "kind": "sensor",
     "tilt_sense_g": 0.3,
@@ -7,6 +41,8 @@
     "motion_window_s": 30,
     "motion_min_detections": 1,
     "ntfy_topic": "loralarm",
+    "pushover_user": "${LORALARM_PUSHOVER_USER}",
+    "pushover_token": "${LORALARM_PUSHOVER_TOKEN}",
     "notify_title": "loralarm {name}",
     "notify_fire": {
       "temp": "{label} på {name}: {detail}",
@@ -27,6 +63,16 @@
       "stale": "Kommunikationen med {name} är återupptagen"
     }
   },
+  "families": {
+    "RAK3172": {"temp_alarm_limit_c": 2.0},
+    "RAK4631": {"circuit_hold_s": 30},
+    "Dragino Switch LDS02": {
+      "watchdog_hours": 12,
+      "batt_full_v": 3.0,
+      "batt_warn_v": 2.5,
+      "batt_empty_v": 2.2
+    }
+  },
   "devices": {
     "ac1f09fffe1003ae": {
       "name": "sensor3",
@@ -34,36 +80,45 @@
       "application_id": "${LORALARM_CS_APP_LARM}",
       "ntfy_topic": "sensor3",
       "watchdog_hours": 0.5,
+
+      "tk_correction_c": 8.0,
+      "temp_alarm_limit_c": 2.0,
+      "batt_full_v": 4.2,
+      "batt_warn_v": 3.5,
+      "batt_empty_v": 3.2,
+      "motion_min_detections": 3,
+      "circuit_mode": "event",
+
       "threshold": 8,
       "frequency": 10,
       "duration": 1,
-      "pushover_user": "${LORALARM_PUSHOVER_USER}",
-      "pushover_token": "${LORALARM_PUSHOVER_TOKEN}"
+
+      "notify_fire": {"motion": "🚨 RÖRELSE på {name}: {detail}"}
     },
     "ac1f09fffe12da63": {
       "name": "sensor16",
       "family": "RAK3172",
       "application_id": "${LORALARM_CS_APP_SUBLARM}",
       "ntfy_topic": "sensor16",
-      "watchdog_hours": 0.5,
-      "pushover_user": "${LORALARM_PUSHOVER_USER}",
-      "pushover_token": "${LORALARM_PUSHOVER_TOKEN}"
+      "watchdog_hours": 0.5
     },
     "a84041a5d7598dd0": {
       "name": "Door1",
       "family": "Dragino Switch LDS02",
-      "ntfy_topic": "door1",
-      "watchdog_hours": 12,
-      "pushover_user": "${LORALARM_PUSHOVER_USER}",
-      "pushover_token": "${LORALARM_PUSHOVER_TOKEN}"
+      "ntfy_topic": "door1"
     },
     "a84041e3d189503d": {
       "name": "Door2",
       "family": "Dragino Switch LDS02",
       "ntfy_topic": "door2",
-      "watchdog_hours": 12,
-      "pushover_user": "${LORALARM_PUSHOVER_USER}",
-      "pushover_token": "${LORALARM_PUSHOVER_TOKEN}"
+      "watchdog_hours": 2,
+      "notify_fire": {"door": "🚪 {name} är öppen — {detail}"}
+    },
+    "0a0b0c0d0e0f1011": {
+      "name": "co2-hall",
+      "family": "CO2-1",
+      "ntfy_topic": "co2-hall",
+      "params": {"co2_max": 1000}
     }
   }
 }

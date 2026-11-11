@@ -3,13 +3,37 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+from loralarm import alarms as _alarms
 from loralarm.config import Config, DeviceConfig
+from loralarm.definitions import builtin_registry
 from loralarm.event import Uplink
 
 DEV_EUI = "ac1f09fffe1003ae"
 OTHER_EUI = "ac1f09fffe12da63"
 
 T0 = datetime(2026, 11, 9, 15, 33, 14, 527766, tzinfo=timezone.utc)
+
+# the shared built-in registry: tests only *read* it; anything that registers
+# rules/profiles must work on `builtin_registry().fork()`
+REG = builtin_registry()
+
+
+def evaluate(cfg, up, registry=REG):
+    return _alarms.evaluate(cfg, up, registry)
+
+
+def clear_detail(kind, cfg, reading, registry=REG):
+    return _alarms.clear_detail(kind, cfg, reading, registry)
+
+
+class AlarmState(_alarms.AlarmState):
+    """AlarmState bound to the built-in registry unless a test passes its own."""
+
+    def update(self, cfg, up, registry=REG):
+        return super().update(cfg, up, registry)
+
+    def restore(self, snap, registry=REG):
+        return super().restore(snap, registry)
 
 
 def make_uplink(dev_eui: str = DEV_EUI, device_name: str = "sensor3",
@@ -40,6 +64,7 @@ def make_cfg(**overrides) -> DeviceConfig:
 
 
 def make_config(devices: dict | None = None, defaults: dict | None = None,
-                families: dict | None = None) -> Config:
+                families: dict | None = None, registry=None) -> Config:
     return Config({"defaults": defaults or {}, "families": families or {},
-                   "devices": devices if devices is not None else {DEV_EUI: {"name": "sensor3"}}})
+                   "devices": devices if devices is not None else {DEV_EUI: {"name": "sensor3"}}},
+                  registry)

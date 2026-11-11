@@ -29,6 +29,8 @@ from typing import Any, Callable, ClassVar
 
 from .config import DeviceConfig
 from .event import Uplink
+from .frame import Frame, build_values
+from .registry import Registry
 
 log = logging.getLogger(__name__)
 
@@ -66,16 +68,6 @@ TILT_REBASELINE_AFTER = 10
 
 
 @dataclass
-class Reading:
-    temp_c: float | None
-    batt_v: float | None
-    batt_percent: float | None
-    batt_status: str         # ok | low | empty | unknown
-    rssi: int | None
-    snr: float | None
-
-
-@dataclass
 class Transition:
     kind: AlarmKind
     active: bool             # True = alarm fired, False = cleared
@@ -104,10 +96,11 @@ SENSOR = frozenset({"sensor"})
 class AlarmRule:
     """One alarm kind.
 
-    check(cfg, reading, obj) returns the fire detail while the condition holds,
-    else None; None as `check` itself marks a stateful detector that AlarmState
-    runs (tilt, watchdog) and that only contributes label/texts/group.
-    clear(cfg, reading) builds the clear text from the *current* reading.
+    check(cfg, frame, values) returns the fire detail while the condition holds,
+    else None (`values` is `frame.values`); None as `check` itself marks a
+    stateful detector that AlarmState runs (tilt, watchdog) and that only
+    contributes label/texts/group.
+    clear(cfg, frame) builds the clear text from the *current* frame.
     `device_kinds` limits the rule to those `DeviceConfig.kind` values
     (None = every kind). `group` ties severities of one quantity together:
     moving within a group is an escalation, not a clear. Rule-specific
@@ -115,164 +108,138 @@ class AlarmRule:
     """
     kind: AlarmKind
     label: str
-    check: Callable[[DeviceConfig, "Reading", dict], str | None] | None = None
-    clear: Callable[[DeviceConfig, "Reading"], str] | None = None
+    check: Callable[[DeviceConfig, Frame, dict], str | None] | None = None
+    clear: Callable[[DeviceConfig, Frame], str] | None = None
     device_kinds: frozenset[str] | None = None
     group: str | None = None
     notify_fire: str = ""       # fallback texts for kinds notify.DEFAULT_TEXT lacks;
     notify_clear: str = ""      # {name} {detail} {label}; empty -> generic text
 
 
-_RULES: list[AlarmRule] = []
-# user-facing Swedish labels for every registered alarm kind (notification text + console)
-LABELS: dict[str, str] = {}
-_warned_kinds: set[str] = set()
-
-
-def register_rule(rule: AlarmRule) -> AlarmRule:
-    """Add (or replace, by kind) an alarm rule."""
-    unregister_rule(rule.kind)
-    _RULES.append(rule)
-    LABELS[str(rule.kind)] = rule.label
-    return rule
-
-
-def unregister_rule(kind: str) -> None:
-    _RULES[:] = [r for r in _RULES if r.kind != kind]
-    LABELS.pop(str(kind), None)
-
-
-def rule_for(kind: str) -> AlarmRule | None:
-    return next((r for r in _RULES if r.kind == kind), None)
-
-
-def label_for(kind: str) -> str:
-    return LABELS.get(str(kind), str(kind))
-
-
-def known_device_kinds() -> set[str]:
+def known_device_kinds(registry: Registry) -> set[str]:
     kinds = set(SENSOR)
-    for r in _RULES:
+    for r in registry.rules():
         kinds |= r.device_kinds or set()
     return kinds
 
 
-def rule_applies(kind: str, cfg: DeviceConfig) -> bool:
+def rule_applies(registry: Registry, kind: str, cfg: DeviceConfig) -> bool:
     """True if the alarm kind is evaluated for this device's `kind`."""
-    r = rule_for(kind)
+    r = registry.rule_for(kind)
     return r is None or r.device_kinds is None or cfg.kind in r.device_kinds
 
 
-def _warn_unknown_kind(cfg: DeviceConfig) -> None:
-    if cfg.kind not in known_device_kinds() and cfg.kind not in _warned_kinds:
-        _warned_kinds.add(cfg.kind)
+def _warn_unknown_kind(registry: Registry, cfg: DeviceConfig) -> None:
+    known = known_device_kinds(registry)
+    if cfg.kind not in known and cfg.kind not in registry.warned_kinds:
+        registry.warned_kinds.add(cfg.kind)
         log.warning("device %s: unknown kind %r (known: %s); only rules that apply to "
-                    "every kind will run", cfg.dev_eui, cfg.kind, sorted(known_device_kinds()))
+                    "every kind will run", cfg.dev_eui, cfg.kind, sorted(known))
 
 
-def _known_kind(value: str) -> AlarmKind:
+def _known_kind(registry: Registry, value: str) -> AlarmKind:
     """AlarmKind for a persisted key; ValueError if no rule is registered for it
     (corrupt snapshot, or a rule that has since been removed)."""
-    if rule_for(value) is None:
+    if registry.rule_for(value) is None:
         raise ValueError(f"unknown alarm kind {value!r}")
     return AlarmKind(value)
 
 
-def _group(kind: AlarmKind) -> str | None:
-    r = rule_for(kind)
+def _group(registry: Registry, kind: AlarmKind) -> str | None:
+    r = registry.rule_for(kind)
     return r.group if r else None
 
 
-def _temp_check(cfg: DeviceConfig, r: "Reading", obj: dict) -> str | None:
-    if r.temp_c is not None and r.temp_c <= cfg.temp_alarm_limit_c:
-        return f"{r.temp_c} °C ≤ gräns {cfg.temp_alarm_limit_c} °C"
+def _temp_check(cfg: DeviceConfig, frame: Frame, obj: dict) -> str | None:
+    temp = frame.values.get("temperature")
+    if temp is not None and temp <= cfg.temp_alarm_limit_c:
+        return f"{temp} °C ≤ gräns {cfg.temp_alarm_limit_c} °C"
     return None
 
 
-def _pct_txt(r: "Reading") -> str:
-    return f"{r.batt_percent} %" if r.batt_percent is not None else "–"
+def _pct_txt(frame: Frame) -> str:
+    pct = frame.values.get("battery_pct")
+    return f"{pct} %" if pct is not None else "–"
 
 
-def _batt_low_check(cfg: DeviceConfig, r: "Reading", obj: dict) -> str | None:
-    if r.batt_status == "low":
-        return f"{r.batt_v:.2f} V ({_pct_txt(r)}) ≤ varningsgräns {cfg.batt_warn_v} V"
+def _batt_low_check(cfg: DeviceConfig, frame: Frame, obj: dict) -> str | None:
+    if frame.values.get("battery_status") == "low":
+        return (f"{frame.values['battery_voltage']:.2f} V ({_pct_txt(frame)}) "
+                f"≤ varningsgräns {cfg.batt_warn_v} V")
     return None
 
 
-def _batt_empty_check(cfg: DeviceConfig, r: "Reading", obj: dict) -> str | None:
-    if r.batt_status == "empty":
-        return f"{r.batt_v:.2f} V ({_pct_txt(r)}) < tomt {cfg.batt_empty_v} V"
+def _batt_empty_check(cfg: DeviceConfig, frame: Frame, obj: dict) -> str | None:
+    if frame.values.get("battery_status") == "empty":
+        return (f"{frame.values['battery_voltage']:.2f} V ({_pct_txt(frame)}) "
+                f"< tomt {cfg.batt_empty_v} V")
     return None
 
 
-register_rule(AlarmRule(
-    AlarmKind.TEMP, "Temperaturalarm", _temp_check,
-    lambda cfg, r: (f"{r.temp_c} °C > gräns {cfg.temp_alarm_limit_c} °C"
-                    if r.temp_c is not None else "inom gräns")))
-register_rule(AlarmRule(
-    AlarmKind.BATTERY_LOW, "Batterinivå låg", _batt_low_check,
-    lambda cfg, r: (f"{r.batt_v:.2f} V > varningsgräns {cfg.batt_warn_v} V"
-                    if r.batt_v is not None else "över varningsgräns"),
-    group="battery"))
-register_rule(AlarmRule(
-    AlarmKind.BATTERY_EMPTY, "Batteri tomt", _batt_empty_check,
-    lambda cfg, r: (f"{r.batt_v:.2f} V ≥ tomt {cfg.batt_empty_v} V"
-                    if r.batt_v is not None else "över tomt"),
-    group="battery"))
-# motion/circuit: the level check below is the `level` mode; in `event` mode
-# AlarmState replaces it with the pulse detectors (still gated by device_kinds)
-register_rule(AlarmRule(
-    AlarmKind.MOTION, "Rörelselarm",
-    lambda cfg, r, obj: "rörelse upptäckt" if obj.get("motion_alert") else None,
-    lambda cfg, r: "ingen rörelse", device_kinds=SENSOR))
-register_rule(AlarmRule(
-    AlarmKind.CIRCUIT, "Kretsalarm",
-    lambda cfg, r, obj: "krets öppen" if obj.get("motion_switch") else None,
-    lambda cfg, r: "krets sluten", device_kinds=SENSOR | {"door"}))
-register_rule(AlarmRule(
-    AlarmKind.TILT, "Tiltlarm", None,
-    lambda cfg, r: f"inom baslinje ± {cfg.tilt_sense_g} g", device_kinds=SENSOR))
-register_rule(AlarmRule(AlarmKind.STALE, "Ingen kontakt (watchdog)"))
+def _clear_temp(cfg: DeviceConfig, frame: Frame) -> str:
+    temp = frame.values.get("temperature")
+    return f"{temp} °C > gräns {cfg.temp_alarm_limit_c} °C" if temp is not None else "inom gräns"
 
 
-def evaluate(cfg: DeviceConfig, up: Uplink) -> tuple[Reading, list[Transition]]:
-    o = up.obj
-    _warn_unknown_kind(cfg)
+def _clear_batt_low(cfg: DeviceConfig, frame: Frame) -> str:
+    v = frame.values.get("battery_voltage")
+    return f"{v:.2f} V > varningsgräns {cfg.batt_warn_v} V" if v is not None else "över varningsgräns"
 
-    temp = o.get("temperature")
-    temp_c = round(temp - cfg.tk_correction_c, 2) if isinstance(temp, (int, float)) else None
 
-    batt_v = o.get("battery_voltage")
-    if isinstance(batt_v, (int, float)):
-        span = cfg.batt_full_v - cfg.batt_empty_v
-        if span > 0:
-            pct = (batt_v - cfg.batt_empty_v) / span * 100
-            batt_percent: float | None = round(min(max(pct, 0.0), 100.0), 1)
-        else:  # misconfigured thresholds (full == empty): percent is meaningless
-            batt_percent = None
-        batt_status = "ok" if batt_v > cfg.batt_warn_v else ("low" if batt_v >= cfg.batt_empty_v else "empty")
-    else:
-        batt_v = None
-        batt_percent, batt_status = None, "unknown"
+def _clear_batt_empty(cfg: DeviceConfig, frame: Frame) -> str:
+    v = frame.values.get("battery_voltage")
+    return f"{v:.2f} V ≥ tomt {cfg.batt_empty_v} V" if v is not None else "över tomt"
 
-    reading = Reading(temp_c=temp_c, batt_v=batt_v,
-                      batt_percent=batt_percent, batt_status=batt_status, rssi=up.rssi, snr=up.snr)
+
+BUILTIN_RULES: list[AlarmRule] = [
+    AlarmRule(AlarmKind.TEMP, "Temperaturalarm", _temp_check, _clear_temp),
+    AlarmRule(AlarmKind.BATTERY_LOW, "Batterinivå låg", _batt_low_check, _clear_batt_low,
+              group="battery"),
+    AlarmRule(AlarmKind.BATTERY_EMPTY, "Batteri tomt", _batt_empty_check, _clear_batt_empty,
+              group="battery"),
+    # motion/circuit: the level check below is the `level` mode; in `event` mode
+    # AlarmState replaces it with the pulse detectors (still gated by device_kinds)
+    AlarmRule(
+        AlarmKind.MOTION, "Rörelselarm",
+        lambda cfg, f, values: "rörelse upptäckt" if values.get("motion_alert") else None,
+        lambda cfg, f: "ingen rörelse", device_kinds=SENSOR),
+    AlarmRule(
+        AlarmKind.CIRCUIT, "Kretsalarm",
+        lambda cfg, f, values: "krets öppen" if values.get("motion_switch") else None,
+        lambda cfg, f: "krets sluten", device_kinds=SENSOR | {"door"}),
+    AlarmRule(
+        AlarmKind.TILT, "Tiltlarm", None,
+        lambda cfg, f: f"inom baslinje ± {cfg.tilt_sense_g} g", device_kinds=SENSOR),
+    AlarmRule(AlarmKind.STALE, "Ingen kontakt (watchdog)"),
+]
+
+
+def register_builtin_rules(registry: Registry) -> None:
+    for rule in BUILTIN_RULES:
+        registry.register_rule(rule)
+
+
+def evaluate(cfg: DeviceConfig, up: Uplink, registry: Registry) -> tuple[Frame, list[Transition]]:
+    _warn_unknown_kind(registry, cfg)
+    profile = registry.get_profile(cfg.family)
+    frame = Frame(values=build_values(profile.fields, up.obj, cfg, registry),
+                  rssi=up.rssi, snr=up.snr)
 
     fired: list[Transition] = []
-    for rule in _RULES:
-        if rule.check is None or not rule_applies(rule.kind, cfg):
+    for rule in registry.rules():
+        if rule.check is None or not rule_applies(registry, rule.kind, cfg):
             continue
-        detail = rule.check(cfg, reading, o)
+        detail = rule.check(cfg, frame, frame.values)
         if detail is not None:
             fired.append(Transition(rule.kind, True, detail))
-    return reading, fired
+    return frame, fired
 
 
-def clear_detail(kind: AlarmKind, cfg: DeviceConfig, reading: Reading) -> str:
-    """Clear text built from the *current* reading, not the stale fire detail."""
-    rule = rule_for(kind)
+def clear_detail(kind: AlarmKind, cfg: DeviceConfig, frame: Frame, registry: Registry) -> str:
+    """Clear text built from the *current* frame, not the stale fire detail."""
+    rule = registry.rule_for(kind)
     if rule is not None and rule.clear is not None:
-        return rule.clear(cfg, reading)
+        return rule.clear(cfg, frame)
     return "kvitterad"
 
 
@@ -301,18 +268,23 @@ class AlarmState:
     last_circuit_event: datetime | None = None                      # event-mode circuit dedup
     motion_events: list[datetime] = field(default_factory=list)     # event-mode motion: detections within the window
     motion_burst_active: bool = False                               # event mode, min>1: already alarmed for this burst
+    last_values: dict[str, Any] = field(default_factory=dict)       # measurements of the last evaluated frame
+    last_rssi: int | None = None
+    last_snr: float | None = None
 
     def touch(self, up: Uplink) -> None:
         """Non-sensor frame (settings fPort 4-7, codec failure, ...): only refresh
         last_seen so the watchdog stays quiet; never evaluate or clear alarms."""
         self.last_seen = up.time
 
-    def update(self, cfg: DeviceConfig, up: Uplink) -> tuple[Reading, list[Transition]]:
-        reading, fired = evaluate(cfg, up)
+    def update(self, cfg: DeviceConfig, up: Uplink, registry: Registry) -> tuple[Frame, list[Transition]]:
+        frame, fired = evaluate(cfg, up, registry)
         self.last_seen = up.time
+        self.last_values = dict(frame.values)
+        self.last_rssi, self.last_snr = frame.rssi, frame.snr
 
-        acc = up.obj.get("accelerometer")
-        if rule_applies(AlarmKind.TILT, cfg) and isinstance(acc, dict) and all(isinstance(v, (int, float)) for v in acc.values()):
+        acc = frame.values.get("accelerometer")
+        if rule_applies(registry, AlarmKind.TILT, cfg) and isinstance(acc, dict) and all(isinstance(v, (int, float)) for v in acc.values()):
             axis = tilt_deviation(acc, self.accel_baseline, cfg.tilt_sense_g)
             if axis is not None:
                 self.tilt_streak += 1
@@ -332,9 +304,9 @@ class AlarmState:
                     self.accel_baseline[k] = float(v) if k not in self.accel_baseline else 0.7 * self.accel_baseline[k] + 0.3 * float(v)
 
         transitions_pre: list[Transition] = []
-        if cfg.circuit_mode == "event" and rule_applies(AlarmKind.CIRCUIT, cfg):
+        if cfg.circuit_mode == "event" and rule_applies(registry, AlarmKind.CIRCUIT, cfg):
             fired = [t for t in fired if t.kind != AlarmKind.CIRCUIT]
-            circuit = self._circuit_event(cfg, up)
+            circuit = self._circuit_event(cfg, up, frame)
             if circuit:
                 transitions_pre.append(circuit)
         if cfg.motion_mode == "event":
@@ -361,14 +333,14 @@ class AlarmState:
         for kind in self.active - now_active:
             # escalation within a group (battery low <-> empty) is not a clear:
             # suppress the "OK" notification while the other severity fires
-            group = _group(kind)
-            if group and any(_group(t.kind) == group for t in fired):
+            group = _group(registry, kind)
+            if group and any(_group(registry, t.kind) == group for t in fired):
                 self.last_detail.pop(kind, None)
                 continue
-            transitions.append(Transition(kind, False, clear_detail(kind, cfg, reading)))
+            transitions.append(Transition(kind, False, clear_detail(kind, cfg, frame, registry)))
             self.last_detail.pop(kind, None)
         self.active = now_active
-        return reading, transitions
+        return frame, transitions
 
     def _motion_event(self, cfg: DeviceConfig, up: Uplink) -> Transition | None:
         """Event-mode motion: the firmware sends motion_alert=1 in one frame per
@@ -397,12 +369,12 @@ class AlarmState:
                           f"rörelse upptäckt — {n} detekteringar inom {window} "
                           f"(gräns {cfg.motion_min_detections})")
 
-    def _circuit_event(self, cfg: DeviceConfig, up: Uplink) -> Transition | None:
+    def _circuit_event(self, cfg: DeviceConfig, up: Uplink, frame: Frame) -> Transition | None:
         """Event-mode circuit (RAK4631): the firmware sends bit 0 in one uplink when
         the contact opens and nothing when it closes, so a frame without the bit
         says nothing about the circuit. Each pulse is a fire-only alarm; pulses
         within circuit_hold_s (retransmits, contact bounce) count as one."""
-        if not up.obj.get("motion_switch"):
+        if not frame.values.get("motion_switch"):
             return None
         last = self.last_circuit_event
         if last is not None and abs((up.time - last).total_seconds()) < cfg.circuit_hold_s:
@@ -438,16 +410,23 @@ class AlarmState:
             "last_circuit_event": self.last_circuit_event.isoformat() if self.last_circuit_event else None,
             "motion_events": [t.isoformat() for t in self.motion_events],
             "motion_burst_active": self.motion_burst_active,
+            "last_values": self.last_values,
+            "last_rssi": self.last_rssi,
+            "last_snr": self.last_snr,
         }
 
-    def restore(self, snap: dict[str, Any]) -> None:
-        self.active = {_known_kind(v) for v in snap.get("active", [])}
+    def restore(self, snap: dict[str, Any], registry: Registry) -> None:
+        self.active = {_known_kind(registry, v) for v in snap.get("active", [])}
         ls = snap.get("last_seen")
         self.last_seen = datetime.fromisoformat(ls) if ls else None
         self.accel_baseline = {k: float(v) for k, v in snap.get("accel_baseline", {}).items()}
-        self.last_detail = {_known_kind(k): v for k, v in snap.get("last_detail", {}).items()}
+        self.last_detail = {_known_kind(registry, k): v for k, v in snap.get("last_detail", {}).items()}
         self.tilt_streak = int(snap.get("tilt_streak", 0))
         lc = snap.get("last_circuit_event")
         self.last_circuit_event = datetime.fromisoformat(lc) if lc else None
         self.motion_events = [datetime.fromisoformat(s) for s in snap.get("motion_events", [])]
         self.motion_burst_active = bool(snap.get("motion_burst_active", False))
+        values = snap.get("last_values", {})
+        self.last_values = dict(values) if isinstance(values, dict) else {}
+        self.last_rssi = snap.get("last_rssi")
+        self.last_snr = snap.get("last_snr")

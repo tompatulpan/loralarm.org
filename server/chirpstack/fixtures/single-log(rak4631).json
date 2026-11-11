@@ -1,0 +1,81 @@
+{
+    "deduplicationId": "743c67e1-ad91-4bf9-b91c-0086a4e43f8a",
+    "time": "2026-11-09T15:32:55.215615429+00:00",
+    "deviceInfo": {
+        "tenantId": "52f14cd4-c6f1-4fbd-8f87-4025e1d49242",
+        "tenantName": "LoRaLarm",
+        "applicationId": "1d7d3417-e6bf-4e85-ab60-fb422fecdf90",
+        "applicationName": "Larm",
+        "deviceProfileId": "b67807c1-166d-42da-9660-222c9b74caa3",
+        "deviceProfileName": "RAK4631",
+        "deviceName": "sensor3",
+        "devEui": "ac1f09fffe1003ae",
+        "deviceClassEnabled": "CLASS_A",
+        "tags": {}
+    },
+    "devAddr": "01ff6a22",
+    "adr": true,
+    "dr": 5,
+    "fCnt": 1492,
+    "fPort": 2,
+    "confirmed": false,
+    "data": "Czn/8P/Q/DAgAB8CAi8=",
+    "object": {
+        "status_raw": 0,
+        "version_byte": 31,
+        "motion_alert": 0,
+        "acc_frequency_hz": 10,
+        "acc_duration": 2,
+        "acc_threshold": 2,
+        "battery_voltage": 3.578095238095238,
+        "temperature": 32,
+        "motion_switch": 0,
+        "accelerometer": {
+            "z": -0.976,
+            "y": -0.048,
+            "x": -0.016
+        },
+        "acc_frequency": 47
+    },
+    "rxInfo": [
+        {
+            "gatewayId": "60c5a8fffe76149c",
+            "uplinkId": 26853,
+            "nsTime": "2026-11-09T15:32:54.986608272+00:00",
+            "rssi": -40,
+            "snr": 8.3,
+            "channel": 1,
+            "rfChain": 1,
+            "location": {
+                "latitude": 59.283356024213454,
+                "longitude": 17.796732165346832
+            },
+            "context": "m2odWw==",
+            "crcStatus": "CRC_OK"
+        },
+        {
+            "gatewayId": "ac1f09fffe14411b",
+            "uplinkId": 1449391271,
+            "nsTime": "2026-11-09T15:32:54.986145077+00:00",
+            "rssi": -32,
+            "snr": 13.5,
+            "channel": 6,
+            "rfChain": 1,
+            "location": {
+                "source": "GPS"
+            },
+            "context": "u0zhuw=="
+        }
+    ],
+    "txInfo": {
+        "frequency": 868300000,
+        "modulation": {
+            "lora": {
+                "bandwidth": 125000,
+                "spreadingFactor": 7,
+                "codeRate": "CR_4_5"
+            }
+        }
+    },
+    "regionConfigId": "eu868"
+}
