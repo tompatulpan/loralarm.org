@@ -1,5 +1,22 @@
 <footer>
-  <div class="wrap">
-    <p>LoRaLarm – byggs på fritid med öppen källkod. Webbplatsen byggd med Hugo och publicerad via Cloudflare Pages.</p>
+  <div class="wrap-wide cols">
+    <div>
+      <a class="logo" href="{{ "" | relLangURL }}"><span class="dot"></span><span><span class="lora">LoRa</span>Larm</span></a>
+      <p>{{ i18n "footerTagline" }}<br />{{ i18n "footerBuiltBy" }}<br />{{ i18n "footerColophon" }}</p>
+    </div>
+    <div class="foot-cols">
+      <div>
+        <div class="col-title">{{ i18n "footerSiteHeading" }}</div>
+        <a href="{{ "installation/" | relURL }}">{{ i18n "docsLink" }}</a><br />
+        <a href="{{ "testadeenheter/" | relURL }}">{{ i18n "testedDevicesLink" }}</a><br />
+        <a href="{{ "om/" | relURL }}">{{ i18n "footerAboutLink" }}</a>
+      </div>
+      <div>
+        <div class="col-title">{{ i18n "footerProjectHeading" }}</div>
+        <a href="{{ site.Params.github }}" rel="noopener">GitHub</a><br />
+        <a href="{{ site.Params.github }}/issues" rel="noopener">Issues</a><br />
+        <a href="{{ site.Params.github }}/blob/main/LICENSE" rel="noopener">License</a>
+      </div>
+    </div>
   </div>
 </footer>

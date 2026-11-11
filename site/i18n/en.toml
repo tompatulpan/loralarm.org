@@ -1,0 +1,210 @@
+# English UI strings (add new keys to i18n/sv.toml too)
+
+[switchLanguage]
+other = "Switch language"
+
+[notTranslated]
+other = "This page is currently only available in Swedish."
+
+[getStarted]
+other = "Get started"
+
+[viewOnGitHub]
+other = "View on GitHub"
+
+# --- Hero ---
+[kicker]
+other = "Open source · LoRaWAN · long range, low power"
+
+[heroTitle]
+other = "Know what happens at home, <span class=\"status-word\">before it becomes a problem.</span>"
+
+[heroLede]
+other = "LoRaLarm is an open-source IoT alarm and control system. Battery-powered sensors talk LoRaWAN over kilometers of range, and you decide what happens next: get notified, log it, or switch things remotely."
+
+[metaLicense]
+other = "MIT licensed"
+
+[metaOwnHardware]
+other = "Runs on your hardware"
+
+[metaNoCloud]
+other = "No cloud required"
+
+# --- Status panel ---
+[statusPanelTitle]
+other = "system.status"
+
+[statusPill]
+other = "ARMED · 3 DEVICES ONLINE"
+
+# --- What it does ---
+[whatKicker]
+other = "What it does"
+
+[whatTitle]
+other = "Monitor. Alert. Control."
+
+[whatSub]
+other = "Three verbs, one system. Every part is open, inspectable, and yours to modify."
+
+[cardMonitorTag]
+other = "monitor"
+
+[cardMonitorTitle]
+other = "Sense anything"
+
+[cardMonitorText]
+other = "Door contacts, motion, water leaks, temperature, or your own sensor firmware. Battery life measured in years, not days."
+
+[cardAlertTag]
+other = "alert"
+
+[cardAlertTitle]
+other = "Alert on your terms"
+
+[cardAlertText]
+other = "Push, email, or MQTT into your existing home automation. Alerts are rules you own, not a subscription."
+
+[cardControlTag]
+other = "control"
+
+[cardControlTitle]
+other = "Act, remotely"
+
+[cardControlText]
+other = "Toggle relays, arm or disarm zones, and supervise it all over a link that reaches the far end of the property."
+
+# --- Architecture ---
+[archKicker]
+other = "Architecture"
+
+[archTitle]
+other = "Sensor to server, fully open"
+
+[archSub]
+other = "A standard LoRaWAN stack. Build it from our guides, or bring the parts you already run."
+
+[nodeSensor]
+other = "sensor / node"
+
+[nodeSensorSub]
+other = "DIY LoRa nodes, battery powered"
+
+[nodeGateway]
+other = "gateway"
+
+[nodeGatewaySub]
+other = "RAK / any LoRaWAN gateway"
+
+[nodeServer]
+other = "server"
+
+[nodeServerSub]
+other = "ChirpStack + Mosquitto, self-hosted"
+
+# --- Design language ---
+[designKicker]
+other = "Design language"
+
+[designTitle]
+other = "Status at a glance"
+
+[designSub]
+other = "Every LED and color on the site means the same thing as it does on your device. Documentation, dashboards, and hardware share one vocabulary."
+
+[legendOkName]
+other = "OK / ARMED"
+
+[legendOkDesc]
+other = "Healthy, nominal, reporting on schedule."
+
+[legendWarnName]
+other = "WARNING"
+
+[legendWarnDesc]
+other = "Weak signal, low battery, missed check-in."
+
+[legendAlertName]
+other = "ALERT"
+
+[legendAlertDesc]
+other = "Triggered event. Needs your attention now."
+
+[legendOfflineName]
+other = "OFFLINE"
+
+[legendOfflineDesc]
+other = "No contact within the expected interval."
+
+# --- Docs ---
+[docsKicker]
+other = "Docs"
+
+[docsTitle]
+other = "Start from any level"
+
+[docsSub]
+other = "Written from a real build, including the gotchas."
+
+[docsColGuide]
+other = "Guide"
+
+[docsColPath]
+other = "Path"
+
+[docsColStatus]
+other = "Status"
+
+[docsStatusOk]
+other = "up to date"
+
+[docsStatusWip]
+other = "being restored"
+
+[docsRowInstallation]
+other = "Set up the system: gateway, server, and your first sensor"
+
+[docsRowNtfy]
+other = "Notifications via ntfy"
+
+[docsRowPushover]
+other = "Notifications via Pushover"
+
+[docsRowTested]
+other = "Tested hardware – devices proven to work in the field"
+
+# --- Open source ---
+[osKicker]
+other = "Open source"
+
+[osTitle]
+other = "Yours to run, fork, and improve"
+
+[osSub]
+other = "Devices, server, and this site live in one repo. Issues and PRs welcome, whether it is code, docs, or translations."
+
+# --- Footer ---
+[footerTagline]
+other = "Open-source LoRaWAN alarm and control."
+
+[footerBuiltBy]
+other = "Built by Tomas and contributors in their spare time."
+
+[footerColophon]
+other = "Site built with Hugo and published via Cloudflare Pages."
+
+[footerSiteHeading]
+other = "Site"
+
+[footerProjectHeading]
+other = "Project"
+
+[docsLink]
+other = "Docs"
+
+[testedDevicesLink]
+other = "Tested devices"
+
+[footerAboutLink]
+other = "About the project"

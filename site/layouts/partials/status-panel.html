@@ -1,0 +1,21 @@
+{{- /* Statuspanel i hero-kortet.
+       Demo-läge: server-side-renderad data från data/statusdemo.json
+       (per språk). Fas 5 (se docs/homepage_overhaul_plan.md):
+       js/status-panel.js ersätter innehållet med live-data från
+       LoRaLarm-PWA:ns API om det svarar, annars står demonstrationsraderna
+       kvar. */ -}}
+{{ $demo := index hugo.Data.statusdemo .Site.Language.Lang }}
+<div class="panel" id="status-panel">
+  <div class="panel-head">
+    <span class="panel-title">{{ i18n "statusPanelTitle" }}</span>
+    <span class="pill pill-ok">{{ i18n "statusPill" }}</span>
+  </div>
+  {{ range $demo.devices }}
+  <div class="device">
+    <span class="led led-{{ .led }}"></span>
+    <span class="name">{{ .name }}</span>
+    <span class="signal{{ if .weak }} weak{{ end }}"><i></i><i></i><i></i><i></i></span>
+    <span class="state{{ if eq .led "alert" }} state-alert{{ end }}">{{ .state }}</span>
+  </div>
+  {{ end }}
+</div>

@@ -1,32 +1,109 @@
 /* Layout: sidstruktur */
 .wrap { max-width: var(--max); margin: 0 auto; padding: 0 1.25rem; }
 
-header {
-  background: var(--card);
+/* Bred wrap för hemsidans sektioner (hero, kort, flöde, tabell) */
+.wrap-wide { max-width: var(--max-wide); margin: 0 auto; padding: 0 1.5rem; }
+
+/* Sidhuvud (sticky). Observera: hero-blocket på startsidan är också ett
+   <header>-element – reglerna här måste därför scope:as till .site-header,
+   annars fastnar hero:n över hela sidan vid scroll. */
+header.site-header {
+  background: rgba(11, 15, 20, 0.92);
   border-bottom: 1px solid var(--border);
   position: sticky;
   top: 0;
   z-index: 10;
 }
-header .wrap {
+header .site-nav {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 32px;
   flex-wrap: wrap;
-  gap: 0.5rem;
-  padding: 0.8rem 1.25rem;
+  padding: 20px 0;
 }
 
 main { padding: 1.5rem 0 3rem; }
 
 footer {
-  background: var(--card);
-  border-top: 1px solid var(--border);
-  color: var(--muted);
-  font-size: 0.9rem;
+  border-top: 1px solid var(--line);
+  padding: 40px 0 64px;
+  color: var(--text-muted);
+  font-size: 13px;
 }
-footer .wrap { padding: 1rem 1.25rem; }
+footer .cols { display: flex; justify-content: space-between; gap: 32px; flex-wrap: wrap; }
+footer .foot-cols { display: flex; gap: 40px; }
+footer .col-title {
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+footer a { color: var(--text-muted); }
+footer a:hover { color: var(--accent); }
 
-@media (max-width: 640px) {
-  header .wrap { justify-content: center; }
+/* --- Hemsida: hero och sektioner (dark mockup) ---
+   Hero:n och sektionerna är helbreda (full bredd); innehållet centreras med
+   --gutter, som motsvarar .wrap-wide. Hero:n är sticky ("overlay") på stora
+   skärmar: den står still medan sektionerna glider upp över den och tonar ut
+   (js/hero-fade.js). Sektionerna ligger över hero:n (z-index) och har opak
+   bakgrund med samma fasta rutnät som body, så att hero:n inte syns igenom. */
+body.is-home main { padding: 0; }
+
+:root { --gutter: max(1.5rem, calc((100% - var(--max-wide)) / 2 + 1.5rem)); }
+
+.hero {
+  padding: 96px var(--gutter) 72px;
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 48px;
+  align-items: center;
+}
+.hero h1 {
+  font-size: clamp(34px, 5vw, 48px);
+  line-height: 1.12;
+  letter-spacing: -0.02em;
+  margin: 0 0 20px;
+}
+.hero .status-word { color: var(--alert); }
+
+.home-section {
+  position: relative;
+  z-index: 1;
+  padding: 72px var(--gutter);
+  border-top: 1px solid var(--line);
+  background-color: var(--bg);
+  background-image:
+    linear-gradient(var(--line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line) 1px, transparent 1px);
+  background-size: 48px 48px;
+  background-position: center top;
+  background-attachment: fixed;
+}
+
+/* Sticky endast när hero:n ryms i vyn. Själva täckningen är ingen animation och
+   gäller därför även vid prefers-reduced-motion (då utan tonad/parallax, se
+   js/hero-fade.js). --header-h sätts av skriptet till sidhuvudets höjd. */
+@media (min-width: 861px) and (min-height: 640px) {
+  .hero {
+    position: sticky;
+    top: var(--header-h, 72px);
+    z-index: 0;
+  }
+}
+.home-section h2 {
+  font-size: 30px;
+  letter-spacing: -0.01em;
+  margin: 0 0 8px;
+  border: none;
+  padding: 0;
+}
+
+@media (max-width: 860px) {
+  .hero, .cards, .flow, .legend { grid-template-columns: 1fr; }
+  .flow .arrow { transform: rotate(90deg); padding: 4px 0; }
+  .hero { padding: 56px var(--gutter) 48px; }
+  header nav.links { display: none; }
+  .site-nav { gap: 16px; }
 }

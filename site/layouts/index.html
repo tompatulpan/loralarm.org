@@ -1,7 +1,144 @@
 {{ define "main" }}
-<div class="wrap">
-  <article>
-    {{ .Content }}
-  </article>
-</div>
+<header class="hero">
+  <div>
+    <div class="kicker">{{ i18n "kicker" }}</div>
+    <h1>{{ i18n "heroTitle" | safeHTML }}</h1>
+    <p class="lede">{{ i18n "heroLede" }}</p>
+    <div class="hero-ctas">
+      <a class="btn btn-primary" href="{{ "installation/" | relURL }}">{{ i18n "getStarted" }}</a>
+      <a class="btn btn-ghost" href="{{ site.Params.github }}" rel="noopener">{{ i18n "viewOnGitHub" }}</a>
+    </div>
+    <div class="meta-row">
+      <span>{{ i18n "metaLicense" }}</span>
+      <span>{{ i18n "metaOwnHardware" }}</span>
+      <span>{{ i18n "metaNoCloud" }}</span>
+    </div>
+  </div>
+  {{ partial "status-panel.html" . }}
+</header>
+
+<section class="home-section">
+  <div class="section-kicker">{{ i18n "whatKicker" }}</div>
+  <h2>{{ i18n "whatTitle" }}</h2>
+  <p class="section-sub">{{ i18n "whatSub" }}</p>
+  <div class="cards">
+    <div class="card">
+      <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2dd4bf" stroke-width="2" stroke-linecap="round"><path d="M2 12h4l3-8 4 16 3-8h6"/></svg></div>
+      <span class="tag">{{ i18n "cardMonitorTag" }}</span>
+      <h3>{{ i18n "cardMonitorTitle" }}</h3>
+      <p>{{ i18n "cardMonitorText" }}</p>
+    </div>
+    <div class="card">
+      <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2dd4bf" stroke-width="2" stroke-linecap="round"><path d="M12 3v10"/><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/><circle cx="12" cy="2.5" r="0.5" fill="#2dd4bf"/></svg></div>
+      <span class="tag">{{ i18n "cardAlertTag" }}</span>
+      <h3>{{ i18n "cardAlertTitle" }}</h3>
+      <p>{{ i18n "cardAlertText" }}</p>
+    </div>
+    <div class="card">
+      <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2dd4bf" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3" fill="none"/></svg></div>
+      <span class="tag">{{ i18n "cardControlTag" }}</span>
+      <h3>{{ i18n "cardControlTitle" }}</h3>
+      <p>{{ i18n "cardControlText" }}</p>
+    </div>
+  </div>
+</section>
+
+<section class="home-section">
+  <div class="section-kicker">{{ i18n "archKicker" }}</div>
+  <h2>{{ i18n "archTitle" }}</h2>
+  <p class="section-sub">{{ i18n "archSub" }}</p>
+  <div class="flow">
+    <div class="node">
+      <div class="mono-label">{{ i18n "nodeSensor" }}</div>
+      <div class="node-sub">{{ i18n "nodeSensorSub" }}</div>
+    </div>
+    <div class="arrow">&#8594;</div>
+    <div class="node">
+      <div class="mono-label">{{ i18n "nodeGateway" }}</div>
+      <div class="node-sub">{{ i18n "nodeGatewaySub" }}</div>
+    </div>
+    <div class="arrow">&#8594;</div>
+    <div class="node">
+      <div class="mono-label">{{ i18n "nodeServer" }}</div>
+      <div class="node-sub">{{ i18n "nodeServerSub" }}</div>
+    </div>
+  </div>
+</section>
+
+<section class="home-section">
+  <div class="section-kicker">{{ i18n "designKicker" }}</div>
+  <h2>{{ i18n "designTitle" }}</h2>
+  <p class="section-sub">{{ i18n "designSub" }}</p>
+  <div class="legend">
+    <div class="legend-item">
+      <span class="led led-ok"></span>
+      <div class="l-name" style="color:var(--ok)">{{ i18n "legendOkName" }}</div>
+      <div class="l-desc">{{ i18n "legendOkDesc" }}</div>
+    </div>
+    <div class="legend-item">
+      <span class="led led-warn"></span>
+      <div class="l-name" style="color:var(--warn)">{{ i18n "legendWarnName" }}</div>
+      <div class="l-desc">{{ i18n "legendWarnDesc" }}</div>
+    </div>
+    <div class="legend-item">
+      <span class="led led-alert"></span>
+      <div class="l-name" style="color:var(--alert)">{{ i18n "legendAlertName" }}</div>
+      <div class="l-desc">{{ i18n "legendAlertDesc" }}</div>
+    </div>
+    <div class="legend-item">
+      <span class="led led-offline"></span>
+      <div class="l-name" style="color:var(--text-muted)">{{ i18n "legendOfflineName" }}</div>
+      <div class="l-desc">{{ i18n "legendOfflineDesc" }}</div>
+    </div>
+  </div>
+</section>
+
+<section class="home-section">
+  <div class="section-kicker">{{ i18n "docsKicker" }}</div>
+  <h2>{{ i18n "docsTitle" }}</h2>
+  <p class="section-sub">{{ i18n "docsSub" }}</p>
+  <table>
+    <thead>
+      <tr><th>{{ i18n "docsColGuide" }}</th><th>{{ i18n "docsColPath" }}</th><th>{{ i18n "docsColStatus" }}</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><a href="{{ "installation/" | relURL }}">{{ i18n "docsRowInstallation" }}</a></td>
+        <td class="mono">/installation/</td>
+        <td>{{ i18n "docsStatusOk" }}</td>
+      </tr>
+      <tr>
+        <td><a href="{{ "ntfy/" | relURL }}">{{ i18n "docsRowNtfy" }}</a></td>
+        <td class="mono">/ntfy/</td>
+        <td>{{ i18n "docsStatusOk" }}</td>
+      </tr>
+      <tr>
+        <td><a href="{{ "pushover/" | relURL }}">{{ i18n "docsRowPushover" }}</a></td>
+        <td class="mono">/pushover/</td>
+        <td>{{ i18n "docsStatusOk" }}</td>
+      </tr>
+      <tr>
+        <td><a href="{{ "testadeenheter/" | relURL }}">{{ i18n "docsRowTested" }}</a></td>
+        <td class="mono">/testadeenheter/</td>
+        <td>{{ i18n "docsStatusWip" }}</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="home-section">
+  <div class="os-band">
+    <div>
+      <div class="section-kicker">{{ i18n "osKicker" }}</div>
+      <h2>{{ i18n "osTitle" }}</h2>
+      <p class="section-sub">{{ i18n "osSub" }}</p>
+    </div>
+    <div class="badges">
+      <span class="badge">license <b>MIT</b></span>
+      <span class="badge">stack <b>LoRaWAN</b></span>
+      <span class="badge">server <b>ChirpStack</b></span>
+      <span class="badge">mqtt <b>Mosquitto</b></span>
+    </div>
+  </div>
+</section>
 {{ end }}

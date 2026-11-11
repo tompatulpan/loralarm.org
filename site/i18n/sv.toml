@@ -1,0 +1,210 @@
+# Svenska gränssnittssträngar (nya nycklar läggs även i i18n/en.toml)
+
+[switchLanguage]
+other = "Byt språk"
+
+[notTranslated]
+other = "Denna sida finns för närvarande bara på svenska."
+
+[getStarted]
+other = "Kom igång"
+
+[viewOnGitHub]
+other = "Se på GitHub"
+
+# --- Hero ---
+[kicker]
+other = "Öppen källkod · LoRaWAN · lång räckvidd, låg effekt"
+
+[heroTitle]
+other = "Vet vad som händer hemma, <span class=\"status-word\">innan det blir ett problem.</span>"
+
+[heroLede]
+other = "LoRaLarm är ett öppet IoT-larm- och styrsystem. Batteridrivna sensorer pratar LoRaWAN flera kilometer – och du bestämmer vad som händer sen: bli varnad, logga, eller styr på distans."
+
+[metaLicense]
+other = "MIT-licens"
+
+[metaOwnHardware]
+other = "Kör på din egen hårdvara"
+
+[metaNoCloud]
+other = "Inget moln krävs"
+
+# --- Statuspanel ---
+[statusPanelTitle]
+other = "system.status"
+
+[statusPill]
+other = "LARMAT · 3 ENHETER ONLINE"
+
+# --- Vad systemet gör ---
+[whatKicker]
+other = "Vad systemet gör"
+
+[whatTitle]
+other = "Övervaka. Varna. Styr."
+
+[whatSub]
+other = "Tre verb, ett system. Allt är öppet, granskbart och ditt att förändra."
+
+[cardMonitorTag]
+other = "övervaka"
+
+[cardMonitorTitle]
+other = "Känn av vad som helst"
+
+[cardMonitorText]
+other = "Dörrkontakter, rörelse, vattenläckage, temperatur – eller din egen sensorfirmware. Batteritid mätt i år, inte dagar."
+
+[cardAlertTag]
+other = "varna"
+
+[cardAlertTitle]
+other = "Varning på dina villkor"
+
+[cardAlertText]
+other = "Push, e-post eller MQTT in i din befintliga hemautomation. Larmen är regler du äger – ingen prenumeration."
+
+[cardControlTag]
+other = "styr"
+
+[cardControlTitle]
+other = "Agera på distans"
+
+[cardControlText]
+other = "Växla reläer, larma av och på zoner, och övervaka allt över en länk som når ända ut på tomten."
+
+# --- Arkitektur ---
+[archKicker]
+other = "Arkitektur"
+
+[archTitle]
+other = "Sensor till server, helt öppet"
+
+[archSub]
+other = "En standardiserad LoRaWAN-stack. Bygg den efter våra guider, eller ta med delarna du redan har."
+
+[nodeSensor]
+other = "sensor / nod"
+
+[nodeSensorSub]
+other = "DIY-LoRa-noder på batteri"
+
+[nodeGateway]
+other = "gateway"
+
+[nodeGatewaySub]
+other = "RAK eller valfri LoRaWAN-gateway"
+
+[nodeServer]
+other = "server"
+
+[nodeServerSub]
+other = "ChirpStack + Mosquitto, egenhostat"
+
+# --- Designspråk ---
+[designKicker]
+other = "Designspråk"
+
+[designTitle]
+other = "Status i en överblick"
+
+[designSub]
+other = "Varje LED och färg på webbplatsen betyder samma sak som på din utrustning. Dokumentation, paneler och hårdvara talar samma språk."
+
+[legendOkName]
+other = "OK / LARMAT"
+
+[legendOkDesc]
+other = "Frisk, normal, rapporterar enligt schema."
+
+[legendWarnName]
+other = "VARNING"
+
+[legendWarnDesc]
+other = "Svag signal, lågt batteri, missad incheckning."
+
+[legendAlertName]
+other = "LARM"
+
+[legendAlertDesc]
+other = "Utlöst händelse. Kräver omedelbar uppmärksamhet."
+
+[legendOfflineName]
+other = "OFFLINE"
+
+[legendOfflineDesc]
+other = "Ingen kontakt inom det förväntade intervallet."
+
+# --- Guider ---
+[docsKicker]
+other = "Guider"
+
+[docsTitle]
+other = "Börja var du vill"
+
+[docsSub]
+other = "Skrivet utifrån en riktig installation – inklusive fallgroparna."
+
+[docsColGuide]
+other = "Guide"
+
+[docsColPath]
+other = "Sida"
+
+[docsColStatus]
+other = "Status"
+
+[docsStatusOk]
+other = "aktuell"
+
+[docsStatusWip]
+other = "återställs"
+
+[docsRowInstallation]
+other = "Sätt upp systemet: basenhet, server och första sensorn"
+
+[docsRowNtfy]
+other = "Notiser via ntfy"
+
+[docsRowPushover]
+other = "Notiser via Pushover"
+
+[docsRowTested]
+other = "Testad hårdvara – enheter som fungerar i verkligheten"
+
+# --- Öppen källkod ---
+[osKicker]
+other = "Öppen källkod"
+
+[osTitle]
+other = "Din att köra, forka och förbättra"
+
+[osSub]
+other = "Sensorer, server och webbplats lever i samma repot. Issue och PR välkomnas – kod, dokumentation eller översättningar."
+
+# --- Sidfot ---
+[footerTagline]
+other = "Öppen källkod, LoRaWAN-baserat larm och fjärrstyrning."
+
+[footerBuiltBy]
+other = "Byggs av Tomas och bidragsgivare på fritiden."
+
+[footerColophon]
+other = "Webbplatsen byggd med Hugo och publicerad via Cloudflare Pages."
+
+[footerSiteHeading]
+other = "Webbplatsen"
+
+[footerProjectHeading]
+other = "Projektet"
+
+[docsLink]
+other = "Dokumentation"
+
+[testedDevicesLink]
+other = "Testade enheter"
+
+[footerAboutLink]
+other = "Om projektet"

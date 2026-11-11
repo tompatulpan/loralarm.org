@@ -1,0 +1,22 @@
+{{- /* Språkväljare: länkar till sidans översättning, annars till
+       andra språkets startsida. Standardspråket (sv) ligger på "/",
+       engelskan i "/en/". */ -}}
+{{- $current := .Site.Language.Lang }}
+<span class="lang" aria-label="{{ i18n "switchLanguage" }}">
+{{- $first := true }}
+{{- range $site := hugo.Sites }}
+  {{- if not $first }}<span class="sep">/</span>{{ end }}
+  {{- $first = false }}
+  {{- $target := $site.Language.Lang }}
+  {{- if eq $target $current }}
+    <b>{{ $target | upper }}</b>
+  {{- else }}
+    {{- $url := "" }}
+    {{- range $.Translations }}
+      {{- if eq .Language.Lang $target }}{{ $url = .RelPermalink }}{{ end }}
+    {{- end }}
+    {{- if not $url }}{{ $url = $site.Home.RelPermalink }}{{ end }}
+    <a href="{{ $url }}" hreflang="{{ $target }}">{{ $target | upper }}</a>
+  {{- end }}
+{{- end }}
+</span>

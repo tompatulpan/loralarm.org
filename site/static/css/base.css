@@ -1,14 +1,24 @@
 /* Grund: reset och typografi */
 * { box-sizing: border-box; }
 
-html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: no-preference) {
+  html { scroll-behavior: smooth; }
+}
 
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  color: var(--fg);
+  font-family: var(--sans);
+  color: var(--text);
   background: var(--bg);
-  line-height: 1.65;
+  line-height: 1.6;
+  /* Ritpappersrutnät från designmockupen */
+  background-image:
+    linear-gradient(var(--line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line) 1px, transparent 1px);
+  background-size: 48px 48px;
+  background-position: center top;
+  /* Fast rutnät: hemsidans opaka sektioner linjerar då sömlöst med bakgrunden */
+  background-attachment: fixed;
 }
 
 h1 { font-size: 1.7rem; line-height: 1.3; }

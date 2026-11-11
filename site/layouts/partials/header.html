@@ -1,10 +1,12 @@
-<header>
-  <div class="wrap">
-    <a class="brand" href="{{ "" | relURL }}">LoRaLarm</a>
-    <nav>
+<header class="site-header">
+  <div class="wrap-wide site-nav">
+    <a class="logo" href="{{ "" | relLangURL }}"><span class="dot"></span><span><span class="lora">LoRa</span>Larm</span></a>
+    <nav class="links">
       {{ range .Site.Menus.main }}
       <a href="{{ .URL }}"{{ if $.IsMenuCurrent "main" . }} class="active"{{ end }}>{{ .Name }}</a>
       {{ end }}
     </nav>
+    {{ partial "lang.html" . }}
+    <a class="btn btn-primary nav-cta" href="{{ "installation/" | relURL }}">{{ i18n "getStarted" }}</a>
   </div>
 </header>

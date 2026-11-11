@@ -1,17 +1,39 @@
-/* Design-tokens – ändra färg/typografi här, allt annat följer */
+/* Design-tokens – mörkt tema (site/docs/dark_mockup.html). Ändra färg/typografi
+   här, allt annat följer. Namnen --line/--text/… är det kanoniska mörka set
+   som hemsidans komponenter använder; aliasen --fg/--card/--border/… finns
+   kvar för dokumentssidornas mallar. */
 :root {
-  --fg: #1f2933;
-  --bg: #f8fafc;
-  --card: #ffffff;
-  --accent: #0f766e;
-  --accent-dark: #115e59;
-  --accent-soft: #ccfbf1;
-  --muted: #64748b;
-  --border: #e2e8f0;
-  --code-bg: #0f172a;
-  --code-fg: #e2e8f0;
-  --code-inline-bg: #edf2f7;
+  color-scheme: dark;
+
+  --bg: #0b0f14;
+  --bg-panel: #11161f;
+  --bg-panel-2: #0e131b;
+  --line: #1d2632;
+  --text: #e6edf3;
+  --text-muted: #8b98a5;
+
+  --accent: #2dd4bf;
+  --accent-dim: #164e4a;
+  --ok: #22c55e;
+  --warn: #fbbf24;
+  --alert: #f87171;
+
+  --mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+  --sans: system-ui, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+
+  /* Aliaser för äldre temanamn (layout.css/components.css/base.css) */
+  --fg: var(--text);
+  --muted: var(--text-muted);
+  --card: var(--bg-panel);
+  --border: var(--line);
+  --accent-dark: #5eead4;               /* hover: ljusare accentyta i mörkt tema */
+  --accent-soft: rgba(45, 212, 191, 0.12);
+  --code-bg: var(--bg-panel-2);
+  --code-fg: var(--text);
+  --code-inline-bg: #1a2330;
+
   --max: 46rem;
-  --radius: 8px;
-  --shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  --max-wide: 1080px;
+  --radius: 12px;
+  --shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
 }

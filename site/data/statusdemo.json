@@ -1,0 +1,18 @@
+{
+  "sv": {
+    "devices": [
+      { "led": "ok", "name": "dorrkontakt.lora", "state": "stängd · 07:41", "weak": false },
+      { "led": "ok", "name": "vattenmatare.kallare", "state": "normal · 07:39", "weak": false },
+      { "led": "warn", "name": "temp.garage", "state": "svag signal · 06:58", "weak": true },
+      { "led": "alert", "name": "lackage.kok", "state": "FUKT · 07:43", "weak": false }
+    ]
+  },
+  "en": {
+    "devices": [
+      { "led": "ok", "name": "door-sensor.lora", "state": "closed · 07:41", "weak": false },
+      { "led": "ok", "name": "water-meter.basement", "state": "nominal · 07:39", "weak": false },
+      { "led": "warn", "name": "temp.garage", "state": "low signal · 06:58", "weak": true },
+      { "led": "alert", "name": "leak-detector.kitchen", "state": "MOISTURE · 07:43", "weak": false }
+    ]
+  }
+}

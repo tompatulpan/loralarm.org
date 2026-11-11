@@ -1,36 +1,91 @@
 baseURL = "https://loralarm.org/"
-languageCode = "sv-SE"
 defaultContentLanguage = "sv"
+defaultContentLanguageInSubdir = false
 title = "LoRaLarm"
 
 [params]
-  description = "Ett öppet och fritt larmsystem – en IoT-lösning byggt på LoRaWAN."
-
-[[menus.main]]
-  name = "Hem"
-  pageRef = "/"
-  weight = 1
-
-[[menus.main]]
-  name = "Installation"
-  pageRef = "/installation"
-  weight = 2
-
-[[menus.main]]
-  name = "ntfy"
-  pageRef = "/ntfy"
-  weight = 3
-
-[[menus.main]]
-  name = "Pushover"
-  pageRef = "/pushover"
-  weight = 4
-
-[[menus.main]]
-  name = "Testade enheter"
-  pageRef = "/testadeenheter"
-  weight = 5
+  github = "https://github.com/tompatulpan/loralarm.org"
 
 # --minify kollapsar i övrigt radbrytningar inuti <pre>-kodblock
 [minify.tdewolff.html]
   keepWhitespace = true
+
+[languages.sv]
+locale = "sv-SE"
+label = "Svenska"
+weight = 1
+title = "LoRaLarm"
+
+[languages.sv.params]
+description = "Ett öppet och fritt larmsystem – en IoT-lösning byggt på LoRaWAN."
+
+[[languages.sv.menus.main]]
+  name = "Hem"
+  pageRef = "/"
+  weight = 1
+
+[[languages.sv.menus.main]]
+  name = "Installation"
+  pageRef = "/installation"
+  weight = 2
+
+[[languages.sv.menus.main]]
+  name = "ntfy"
+  pageRef = "/ntfy"
+  weight = 3
+
+[[languages.sv.menus.main]]
+  name = "Pushover"
+  pageRef = "/pushover"
+  weight = 4
+
+[[languages.sv.menus.main]]
+  name = "Testade enheter"
+  pageRef = "/testadeenheter"
+  weight = 5
+
+[languages.en]
+locale = "en"
+label = "English"
+weight = 2
+title = "LoRaLarm"
+
+[languages.en.params]
+description = "An open and free alarm system – an IoT solution built on LoRaWAN."
+
+# Sidorna Utöver hemsidan finns ännu bara på svenska; menyerna länkar dit
+# tills de är översatta.
+[[languages.en.menus.main]]
+  name = "Home"
+  pageRef = "/"
+  weight = 1
+
+[[languages.en.menus.main]]
+  name = "Installation"
+  url = "/installation/"
+  weight = 2
+
+[[languages.en.menus.main]]
+  name = "ntfy"
+  url = "/ntfy/"
+  weight = 3
+
+[[languages.en.menus.main]]
+  name = "Pushover"
+  url = "/pushover/"
+  weight = 4
+
+[[languages.en.menus.main]]
+  name = "Tested devices"
+  url = "/testadeenheter/"
+  weight = 5
+
+[[languages.sv.menus.main]]
+  name = "Om"
+  pageRef = "/om"
+  weight = 6
+
+[[languages.en.menus.main]]
+  name = "About"
+  url = "/om/"
+  weight = 6
