@@ -6,11 +6,11 @@
   color-scheme: dark;
 
   --bg: #0b0f14;
-  --bg-panel: #11161f;
-  --bg-panel-2: #0e131b;
-  --line: #1d2632;
-  --text: #e6edf3;
-  --text-muted: #8b98a5;
+  --bg-panel: #19212a;   /* panels (cards) – ljusare än tidigare #11161f */
+  --bg-panel-2: #171f28; /* inner cards – ljusare än tidigare #0e131b */
+  --line: #242e3a;      /* ljusare än tidigare #1d2632 */
+  --text: #eef2f7;       /* ljusare än tidigare #e6edf3 */
+  --text-muted: #96a3b0; /* ljusare än tidigare #8b98a5 */
 
   --accent: #2dd4bf;
   --accent-dim: #164e4a;

@@ -55,7 +55,7 @@ other = "monitor"
 other = "Sense anything"
 
 [cardMonitorText]
-other = "Door contacts, motion, water leaks, temperature, or your own sensor firmware. Battery life measured in years, not days."
+other = "Door contacts, motion, water leaks, temperature, or your own sensor firmware. Battery life measured in years, <strong>not days.</strong>"
 
 [cardAlertTag]
 other = "alert"
@@ -64,7 +64,7 @@ other = "alert"
 other = "Alert on your terms"
 
 [cardAlertText]
-other = "Push, email, or MQTT into your existing home automation. Alerts are rules you own, not a subscription."
+other = "Push, email, or MQTT into your existing home automation. Alerts are rules you own, <strong>not a subscription.</strong>"
 
 [cardControlTag]
 other = "control"
@@ -73,7 +73,7 @@ other = "control"
 other = "Act, remotely"
 
 [cardControlText]
-other = "Toggle relays, arm or disarm zones, and supervise it all over a link that reaches the far end of the property."
+other = "Toggle relays, arm or disarm zones, and supervise it all over a link <strong>that reaches the far end of the property.</strong>"
 
 # --- Architecture ---
 [archKicker]
@@ -189,7 +189,7 @@ other = "Devices, server, and this site live in one repo. Issues and PRs welcome
 other = "Open-source LoRaWAN alarm and control."
 
 [footerBuiltBy]
-other = "Built by Tomas and contributors in their spare time."
+other = "Built by contributors in their spare time."
 
 [footerColophon]
 other = "Site built with Hugo and published via Cloudflare Pages."

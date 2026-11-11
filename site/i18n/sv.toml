@@ -55,7 +55,7 @@ other = "övervaka"
 other = "Känn av vad som helst"
 
 [cardMonitorText]
-other = "Dörrkontakter, rörelse, vattenläckage, temperatur – eller din egen sensorfirmware. Batteritid mätt i år, inte dagar."
+other = "Dörrkontakter, rörelse, vattenläckage, temperatur – eller din egen sensorfirmware. <strong>Batteritid mätt i år, inte dagar.</strong>"
 
 [cardAlertTag]
 other = "varna"
@@ -64,7 +64,7 @@ other = "varna"
 other = "Varning på dina villkor"
 
 [cardAlertText]
-other = "Push, e-post eller MQTT in i din befintliga hemautomation. Larmen är regler du äger – ingen prenumeration."
+other = "Push, e-post eller MQTT in i din befintliga hemautomation. Larmen är regler du äger <strong>– ingen prenumeration.</strong>"
 
 [cardControlTag]
 other = "styr"
@@ -73,7 +73,7 @@ other = "styr"
 other = "Agera på distans"
 
 [cardControlText]
-other = "Växla reläer, larma av och på zoner, och övervaka allt över en länk som når ända ut på tomten."
+other = "Växla reläer, larma av och på zoner, och övervaka allt över en länk <strong>som når ända ut på tomten.</strong>"
 
 # --- Arkitektur ---
 [archKicker]
@@ -189,7 +189,7 @@ other = "Sensorer, server och webbplats lever i samma repot. Issue och PR välko
 other = "Öppen källkod, LoRaWAN-baserat larm och fjärrstyrning."
 
 [footerBuiltBy]
-other = "Byggs av Tomas och bidragsgivare på fritiden."
+other = "Byggs av bidragsgivare på fritiden."
 
 [footerColophon]
 other = "Webbplatsen byggd med Hugo och publicerad via Cloudflare Pages."
