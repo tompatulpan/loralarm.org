@@ -55,7 +55,7 @@ other = "monitor"
 other = "Sense anything"
 
 [cardMonitorText]
-other = "Door contacts, motion, water leaks, temperature, or your own sensor firmware. Battery life measured in years, <strong>not days.</strong>"
+other = "Door contacts, motion, water leaks, temperature, or your own LoRa sensors. Battery life measured in years, <strong>not days.</strong>"
 
 [cardAlertTag]
 other = "alert"
