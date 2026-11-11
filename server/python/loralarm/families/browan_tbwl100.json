@@ -1,0 +1,32 @@
+{
+  "name": "Browan Water sensor",
+  "description": "Browan TBWL100 water-leak sensor (codec payload_codec_browan_tbwl100.js, fPort 106): `status` 1 = leak / 0 = dry, re-sent while wet, plus a 60 min keep-alive with temperature and humidity. No downlink settings (config is on fPort 204, not pushed from here). Battery is a 3.6 V Li-SOCl2 cell (datasheet 3.6 V max / 3.1 V min, 0.1 V steps): warn/empty limits are an assumption, tune per device.",
+  "aliases": ["tbwl100", "browan"],
+  "data_ports": [106],
+  "fields": {
+    "battery_voltage": {"from": "battery", "unit": "V", "type": "number"},
+    "humidity": {"from": "humidity", "unit": "%", "type": "number"},
+    "water_leak": {"from": "status"}
+  },
+  "settings": [],
+  "settings_kinds": [],
+  "defaults": {
+    "kind": "water",
+    "batt_full_v": 3.6,
+    "batt_warn_v": 3.4,
+    "batt_empty_v": 3.1
+  },
+  "rules": [
+    {
+      "kind": "water_leak",
+      "label": "Vattenläcka",
+      "field": "water_leak",
+      "when": "truthy",
+      "fire": "vatten upptäckt",
+      "clear": "torrt",
+      "device_kinds": ["water"],
+      "notify_fire": "💧 VATTENLARM: {name} — {detail}",
+      "notify_clear": "✔️ Torrt igen: {name} — {detail}"
+    }
+  ]
+}
