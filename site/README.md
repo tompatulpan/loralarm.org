@@ -38,7 +38,7 @@ i både Production- och Preview-miljön.
 
 - [ ] Lägg in bilderna i `static/images/` (se `static/images/README.md`) – referenserna i Markdown är klara
 - [ ] Fyll i TODO-markörerna i `content/_index.md` (git-repo-länk, e-post)
-- [ ] Återställ `content/testadeenheter.md` från en lokal kopia av Grav-exporten (sidan arkiverades aldrig av Wayback Machine)
+- [x] Återställ/Bygg `content/testadeenheter.md` (skriven på nytt utifrån enheterna i repot – Grav-exporten behövs inte längre)
 - [ ] Nyhetssektion (`content/news/` – listmallen finns redan)
 - [ ] Engelsk version (multi-language: lägg `[languages.en]` i `hugo.toml` och `_index.en.md`)
 - [ ] Docs/guider (`content/docs/`)

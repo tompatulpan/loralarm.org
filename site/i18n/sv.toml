@@ -55,7 +55,7 @@ other = "övervaka"
 other = "Känn av vad som helst"
 
 [cardMonitorText]
-other = "Dörrkontakter, rörelse, vattenläckage, temperatur – eller dina egena LoRa sensorer. <strong>Batteritid mätt i år, inte dagar.</strong>"
+other = "Dörrkontakter, rörelse, vattenläckage, temperatur – eller dina egna LoRa sensorer. <strong>Batteritid mätt i år, inte dagar.</strong>"
 
 [cardAlertTag]
 other = "varna"
