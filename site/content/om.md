@@ -35,7 +35,7 @@ En komplett uppsättning av hårdvara och mjukvara för att enkelt kunna sätta 
 
 LoRaWAN är ett långdistans, lågenergi kommunikationsnätverk som används för Internet of Things (IoT). Här är en kort beskrivning av de viktigaste komponenterna:
 
-![Signalflöde från LoRa-enheter via gateway till ChirpStack, som skriver avkodade fält till InfluxDB (som Grafana visualiserar) och publicerar upplänkar via MQTT; loralarm-python-tjänsten utvärderar larm, loggar till SQLite och skickar push-notiser till telefonen; Node-RED lyssnar på samma flöde som äldre parallell väg](/images/loralarm-flow.svg "wide")
+![Signalflöde från LoRa-enheter via gateway till ChirpStack, som skriver avkodade fält till InfluxDB (som Grafana visualiserar) och publicerar upplänkar via MQTT; loralarm-python-tjänsten utvärderar larm, loggar till SQLite och skickar push-notiser till telefonen, och Grafana kan även larma till telefonen; Node-RED lyssnar på samma flöde som äldre parallell väg](/images/loralarm-flow.svg "wide")
 
 ### Sensorer
 

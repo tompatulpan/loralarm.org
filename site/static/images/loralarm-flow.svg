@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="1460" height="720" viewBox="0 0 1460 720" role="img" aria-labelledby="title desc">
   <title id="title">LoRaLarm data flow</title>
-  <desc id="desc">Signal path from LoRa devices through a gateway to ChirpStack. ChirpStack writes decoded fields and metadata to InfluxDB, which Grafana dashboards query, and publishes every uplink via the Mosquitto MQTT broker. The loralarm Python service subscribes to that feed, evaluates alarm rules, logs events to SQLite, sends downlinks back and pushes notifications (ntfy, Pushover) to phones. Node-RED consumes the same feed as the legacy parallel path. An admin console configures the gateway, ChirpStack and InfluxDB.</desc>
+  <desc id="desc">Signal path from LoRa devices through a gateway to ChirpStack. ChirpStack writes decoded fields and metadata to InfluxDB, which Grafana dashboards query, and publishes every uplink via the Mosquitto MQTT broker. The loralarm Python service subscribes to that feed, evaluates alarm rules, logs events to SQLite, sends downlinks back and pushes notifications (ntfy, Pushover) to phones, and Grafana can also send its own alerts to phones. Node-RED consumes the same feed as the legacy parallel path. An admin console configures the gateway, ChirpStack and InfluxDB.</desc>
 
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
@@ -113,12 +113,12 @@
 
   <!-- Phone -->
   <g>
-    <rect x="660" y="580" width="170" height="110" rx="12" class="box"/>
-    <rect x="728" y="596" width="36" height="56" rx="8" fill="none" stroke="#0f766e" stroke-width="3"/>
-    <rect x="736" y="604" width="20" height="24" rx="3" class="icon"/>
-    <rect x="736" y="634" width="20" height="6" rx="2" fill="#94a3b8"/>
-    <text x="745" y="662" class="name" text-anchor="middle">Phone</text>
-    <text x="745" y="680" class="sub" text-anchor="middle">ntfy · Pushover</text>
+    <rect x="1150" y="580" width="170" height="110" rx="12" class="box"/>
+    <rect x="1218" y="596" width="36" height="56" rx="8" fill="none" stroke="#0f766e" stroke-width="3"/>
+    <rect x="1226" y="604" width="20" height="24" rx="3" class="icon"/>
+    <rect x="1226" y="634" width="20" height="6" rx="2" fill="#94a3b8"/>
+    <text x="1235" y="662" class="name" text-anchor="middle">Phone</text>
+    <text x="1235" y="680" class="sub" text-anchor="middle">ntfy · Pushover</text>
   </g>
 
   <!-- SQLite -->
@@ -132,11 +132,11 @@
 
   <!-- Grafana -->
   <g>
-    <rect x="1150" y="580" width="170" height="110" rx="12" class="box"/>
-    <path d="M 1220 608 v 34 h 36" stroke="#0f766e" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-    <path d="M 1224 636 l 8 -12 l 8 6 l 10 -16" stroke="#0f766e" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-    <text x="1235" y="662" class="name" text-anchor="middle">Grafana</text>
-    <text x="1235" y="680" class="sub" text-anchor="middle">Dashboards</text>
+    <rect x="1150" y="430" width="170" height="110" rx="12" class="box"/>
+    <path d="M 1220 458 v 34 h 36" stroke="#0f766e" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M 1224 486 l 8 -12 l 8 6 l 10 -16" stroke="#0f766e" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="1235" y="512" class="name" text-anchor="middle">Grafana</text>
+    <text x="1235" y="530" class="sub" text-anchor="middle">Dashboards</text>
   </g>
 
   <!-- Arrows: ingest path -->
@@ -146,9 +146,10 @@
     <line x1="764" y1="210" x2="1140" y2="210"/>
     <line x1="675" y1="270" x2="675" y2="424"/>
     <line x1="764" y1="485" x2="864" y2="485"/>
-    <line x1="920" y1="540" x2="780" y2="574"/>
+    <line x1="920" y1="540" x2="1190" y2="574"/>
     <line x1="955" y1="540" x2="955" y2="574"/>
-    <line x1="1235" y1="270" x2="1235" y2="574"/>
+    <line x1="1235" y1="270" x2="1235" y2="424"/>
+    <line x1="1235" y1="540" x2="1235" y2="574"/>
   </g>
 
   <!-- Arrows: legacy and downlink (dashed) -->
@@ -163,13 +164,14 @@
     <text x="535" y="190">IP / Internet</text>
     <text x="950" y="190">Decoded fields + metadata</text>
     <text x="815" y="472">Subscribe</text>
-    <text x="838" y="554">Push</text>
+    <text x="1055" y="560">Push</text>
     <text x="538" y="472">Legacy</text>
   </g>
   <g class="link" text-anchor="start">
     <text x="690" y="350">Every uplink on MQTT</text>
     <text x="968" y="560">Events</text>
-    <text x="1250" y="425">Flux queries</text>
+    <text x="1250" y="350">Flux queries</text>
+    <text x="1248" y="562">Alerts</text>
   </g>
   <g class="link" text-anchor="middle">
     <text x="818" y="524">Downlinks</text>
