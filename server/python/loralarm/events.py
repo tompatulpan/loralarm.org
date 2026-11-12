@@ -152,7 +152,7 @@ class EventLog:
         since = utc_now() - timedelta(hours=hours)
         with self._lock:
             return self._conn.execute(
-                "SELECT ts, device_name, kind, active, detail FROM events "
+                "SELECT ts, device_name, kind, active, detail, user FROM events "
                 "WHERE ts >= ? ORDER BY id DESC LIMIT ?",
                 (self._utc(since), limit)).fetchall()
 
@@ -390,6 +390,14 @@ class EventLog:
             self._conn.commit()
             return self._conn.execute(
                 "SELECT id FROM push_endpoints WHERE endpoint = ?", (endpoint,)).fetchone()[0]
+
+    def endpoint_id(self, endpoint: str) -> int | None:
+        """endpoint -> row id (webpush_log/push_ack reference the id, never the
+        raw endpoint, which is a secret)."""
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT id FROM push_endpoints WHERE endpoint = ?", (endpoint,)).fetchone()
+        return row[0] if row else None
 
     def remove_endpoint(self, endpoint: str) -> bool:
         """Logout: delete this browser's subscription so a second user on a

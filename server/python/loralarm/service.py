@@ -747,9 +747,18 @@ def main() -> int:
                          '({"threshold":16,"frequency":50} or {"port":6,"value":"002"}); '
                          "default loralarm/down/+; pass '' to disable downlinks")
     ap.add_argument("--web", action="store_true",
-                    help="enable the Web Push (PWA) channel on its own worker; VAPID keys "
-                         "from LORALARM_VAPID_PRIVATE_KEY / LORALARM_VAPID_SUB "
-                         "(pywebpush, requirements-web.txt)")
+                    help="enable the web layer: Web Push channel on its own worker plus the "
+                         "FastAPI/PWA app in a uvicorn thread on --web-host:--web-port "
+                         "(VAPID keys from LORALARM_VAPID_PRIVATE_KEY / LORALARM_VAPID_SUB; "
+                         "fastapi/uvicorn/pywebpush from requirements-web.txt)")
+    ap.add_argument("--web-host", default=os.environ.get("LORALARM_WEB_HOST", "127.0.0.1"),
+                    help="web app bind address (default 127.0.0.1 — the Cloudflare tunnel "
+                         "forwards to it; never bind 0.0.0.0)")
+    ap.add_argument("--web-port", type=int, default=int(os.environ.get("LORALARM_WEB_PORT", "8080")),
+                    help="web app port (default 8080)")
+    ap.add_argument("--static", default=os.environ.get("LORALARM_WEB_STATIC", ""),
+                    help="directory with the PWA static files (index.html, sw.js, "
+                         "manifest.webmanifest); API-only when empty")
     ap.add_argument("--dry-run", action="store_true",
                     help="log notifications instead of sending ntfy/Pushover")
     args = ap.parse_args()
@@ -787,6 +796,14 @@ def main() -> int:
     engine = Engine(config, event_log, notifier, config_path=args.config, dl_topic=dl_topic)
     engine.seed()
     notifier.start()
+    web_server = None
+    if args.web:
+        from .webapp import WebServer, create_app
+        app = create_app(engine, event_log, webpush=webpush, static_dir=args.static or None,
+                         cookie_secure=args.web_host not in ("127.0.0.1", "localhost", "::1"))
+        web_server = WebServer(app, host=args.web_host, port=args.web_port)
+        web_server.start()
+        log.info("web app listening on %s:%d", args.web_host, args.web_port)
 
     client = mqttclient.make_client(
         args.mqtt, args.port, args.user, password,
@@ -831,6 +848,8 @@ def main() -> int:
                     return 1
     finally:
         engine.persist_all()
+        if web_server is not None:
+            web_server.stop()
         if webpush is not None:
             webpush.close()
         notifier.close()
