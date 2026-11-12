@@ -74,12 +74,13 @@ Values layer **defaults < family < device**, the most specific one wins — Door
 
 ## Data flow
 
-![Signal path from LoRa devices through a gateway and ChirpStack to Node-RED, which sends notifications to phones and updates the web dashboard](docs/loralarm-flow.svg)
+![Signal path: LoRa devices via a gateway to ChirpStack, which writes decoded fields to InfluxDB (queried by Grafana) and publishes uplinks on MQTT; the loralarm Python service evaluates alarms, writes the SQLite event log, sends downlinks and pushes notifications to phones; Node-RED consumes the same feed as the legacy path](docs/loralarm-flow.svg)
 
 1. **Devices** (battery-powered RAK nodes) send uplinks — heartbeats and event-triggered frames — over 868 MHz LoRaWAN.
 2. A **gateway** forwards them to **ChirpStack**, where the per-family payload codec decodes the frame into an `object`.
-3. ChirpStack publishes every uplink on MQTT; the **loralarm service** (and the original Node-RED flows) consume the feed, evaluate alarm rules against per-device configuration and persist state to SQLite.
-4. Alarm transitions fan out as **push notifications** (ntfy / Pushover) and update the web dashboard.
+3. ChirpStack writes the decoded fields and metadata to **InfluxDB** — visualized in **Grafana** dashboards — and publishes every uplink on MQTT (**Mosquitto**).
+4. The **loralarm Python service** (with Node-RED as the legacy parallel consumer) subscribes to that feed, evaluates alarm rules against per-device configuration, and logs events and state to **SQLite**; downlink commands go back over the same broker.
+5. Alarm transitions fan out as **push notifications** (ntfy / Pushover) to your phone.
 
 See [`server/python/ARCHITECTURE.md`](server/python/ARCHITECTURE.md) for the design of the service and [`server/chirpstack/loralarm-node-red-→-chirpstack-+-influxdb-+-python-migration-spec.md`](server/chirpstack/loralarm-node-red-%E2%86%92-chirpstack-+-influxdb-+-python-migration-spec.md) for the migration story behind it.
 

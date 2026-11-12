@@ -70,13 +70,18 @@
   },
   "families": {
     "RAK3172": {
-      "temp_alarm_limit_c": 2.0
+      "batt_full_v": 3.3,
+      "batt_warn_v": 2.8,
+      "batt_empty_v": 2.5
     },
     "RAK4631": {
-      "circuit_hold_s": 30
+      "circuit_hold_s": 30,
+      "batt_full_v": 4.2,
+      "batt_warn_v": 3.5,
+      "batt_empty_v": 3.2
     },
     "Dragino Switch LDS02": {
-      "watchdog_hours": 1,
+      "watchdog_hours": 24,
       "batt_full_v": 3.0,
       "batt_warn_v": 2.5,
       "batt_empty_v": 2.2
@@ -94,6 +99,8 @@
       "name": "sensor3",
       "family": "RAK4631",
       "application_id": "${LORALARM_CS_APP_LARM}",
+      "pushover_user": "${LORALARM_PUSHOVER_USER}",
+      "pushover_token": "${LORALARM_PUSHOVER_TOKEN}",
       "ntfy_topic": "sensor3",
       "watchdog_hours": 0.5,
 
@@ -115,12 +122,16 @@
       "name": "sensor16",
       "family": "RAK3172",
       "application_id": "${LORALARM_CS_APP_SUBLARM}",
+      "pushover_user": "${LORALARM_PUSHOVER_USER}",
+      "pushover_token": "${LORALARM_PUSHOVER_TOKEN}",
       "ntfy_topic": "sensor16",
       "watchdog_hours": 0.5
     },
     "a84041a5d7598dd0": {
       "name": "Door1",
       "family": "Dragino Switch LDS02",
+      "pushover_user": "${LORALARM_PUSHOVER_USER}",
+      "pushover_token": "${LORALARM_PUSHOVER_TOKEN}",
       "ntfy_topic": "door1"
     },
     "a84041e3d189503d": {
