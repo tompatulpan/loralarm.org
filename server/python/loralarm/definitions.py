@@ -45,6 +45,7 @@ from __future__ import annotations
 import json
 import logging
 import operator
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Callable
 
@@ -221,7 +222,13 @@ def register_definition(registry: Registry, name: str,
                         d: dict[str, Any]) -> tuple[DeviceProfile, list[AlarmRule]]:
     """Validate first, register after: a bad definition changes nothing."""
     profile = profile_from_dict(name, d)
-    rules = [rule_from_dict(r) for r in d.get("rules", [])]
+    rules = [replace(rule_from_dict(r), family=name) for r in d.get("rules", [])]
+    for r in rules:
+        owner = getattr(registry.rule_for(r.kind), "family", "")
+        if owner and owner.lower() != name.lower():
+            raise ValueError(f"profile {name!r}: alarm kind {r.kind!r} is already defined by "
+                             f"{owner!r}; give the rule its own kind (alarm kinds are shared "
+                             f"across device types)")
     registry.register_profile(profile)
     for r in rules:
         registry.register_rule(r)

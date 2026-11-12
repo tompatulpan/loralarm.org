@@ -5,7 +5,7 @@
     "",
     "\"profiles\": define a NEW device type in JSON, no Python (here a CO2 sensor): data_ports, fields (codec field",
     "   -> measurement, with calibration such as $co2_scale), rules (alarm when a value passes a limit) and the",
-    "   type's own defaults. The five built-in types (RAK3172, RAK4631, Dragino Switch LDS02, Browan Water sensor, Smart Button [Milesight])",
+    "   type's own defaults. The built-in types (one file each in loralarm/families/)",
     "   need no entry.",
     "\"defaults\": applies to every device. Secrets are ${ENV_VAR} placeholders, set once here (Pushover) so no",
     "   device needs its own copy. \"timezone\" (default Europe/Stockholm) is used by alarm_window.",

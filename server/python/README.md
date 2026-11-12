@@ -14,7 +14,7 @@ Verify on the lora box with `mosquitto_sub -h localhost -t 'application/+/device
 | File | Role |
 |---|---|
 | `loralarm/event.py` | Parse a ChirpStack up event → `Uplink` (devEUI, fPort, `object`, rssi/snr; fPort 4–7 ASCII settings frames parsed here, not by the codec) |
-| `loralarm/families/*.json` | One built-in device-family definition per file (RAK3172, RAK4631, Dragino LDS02, Browan TBWL100, Milesight WS101): config defaults (spec §4), data ports, measurement `fields`, downlink settings, frequency table, alarm rules. See "Adding a device" |
+| `loralarm/families/*.json` | One built-in device-family definition per file (adding a device = adding one file here; `tests/test_families.py` checks every file): config defaults (spec §4), data ports, measurement `fields`, downlink settings, frequency table, alarm rules. See "Adding a device" |
 | `loralarm/registry.py` | `Registry`: the alarm rules, device profiles, field transforms and derivations known to one config, as an **instance** (no module-level globals). `fork()` gives an independent copy |
 | `loralarm/definitions.py` | Loads those files and the `"profiles"` section of `devices.json` into a registry (validated); `builtin_registry()` is the shared read-only base, every `Config` works on its own fork, so a hot reload has nothing to undo |
 | `loralarm/profiles.py` | `DeviceProfile` / `SettingSpec` classes and the standard fields; unknown families get `GENERIC` |
@@ -64,8 +64,7 @@ is left out of the values — never a silent 0 — and a field that cannot be bu
 ## Adding a device or sensor
 
 Devices are **data, not code**: one JSON file per family in
-[`loralarm/families/`](loralarm/families) (`rak3172.json`, `rak4631.json`,
-`dragino_lds02.json`), and the same schema works in a top-level `"profiles"`
+[`loralarm/families/`](loralarm/families), and the same schema works in a top-level `"profiles"`
 object of `devices.json` (a definition there overrides a built-in of the same
 name for that config; `devices.json` is hot-reloaded and a bad definition is
 logged and skipped). Full schema: `loralarm/definitions.py`.
@@ -97,6 +96,14 @@ logged and skipped). Full schema: `loralarm/definitions.py`.
    [{"op": "multiply", "by": "$co2_scale"}, {"op": "round", "n": 0}]}}`, a rule
    on `co2_ppm` with `"param": "co2_max"`, and `co2_scale` / `co2_max` in the
    device's `params`) — `tests/test_frame.py` runs exactly this.
+
+   Conventions (`tests/test_families.py` enforces them for every built-in file):
+   the family's default `kind` must be in each rule's `device_kinds`, a rule
+   reads a field the family declares, and every family gives its alarm
+   `kind`s their own name — alarm kinds are global, a second family reusing one
+   is rejected at load. `from` accepts a dotted path into a nested codec object
+   (`"button_event.status"`), and a rule with `"release"` is latching (see the
+   Milesight WS101 below).
 
    - `settings` omitted = the standard ACC settings, `[]` = none, else a list of
      `{key, port, lo, hi, obj_field, kind}` (desired values go in the device's
@@ -235,7 +242,7 @@ no downlinks. Battery arrives as a percentage (`battery` → `battery_pct`), so
 there are no battery alarms. The `Knapplarm` rule is **latching** (`release` in
 the rule): a short press = ON raises it, a long press = OFF clears it, a double
 press is unused, and battery/status frames or a repeated short press change
-nothing. Real captured uplinks: `chirpstack/button_logs/`. Starting point:
+nothing. Real captured uplinks: `chirpstack/fixtures/single-log(ws101 *).json`. Starting point:
 `examples/milesight_ws101.json` (`watchdog_hours` 0: the button only reports on
 a press and on a long interval).
 

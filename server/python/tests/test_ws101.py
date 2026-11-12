@@ -18,14 +18,15 @@ from .test_engine import RecordingNotifier
 
 get_profile = REG.get_profile
 
-LOG_DIR = Path(__file__).resolve().parent.parent.parent / "chirpstack" / "button_logs"
+LOG_DIR = Path(__file__).resolve().parent.parent.parent / "chirpstack" / "fixtures"
+LOGS = {"double": "double press", "long": "long press", "short": "short press"}
 BTN_EUI = "24e124535d243458"
 PROFILE = "Smart Button [Milesight]"
 BUTTON = AlarmKind("button")
 
 
-def real(n: int) -> Uplink:
-    return Uplink.from_file(LOG_DIR / f"single-log({n}).json")
+def real(name: str) -> Uplink:
+    return Uplink.from_file(LOG_DIR / f"single-log(ws101 {name}).json")
 
 
 def press(status: str, seconds: int = 0) -> Uplink:
@@ -43,10 +44,9 @@ def battery(pct: int, seconds: int = 0) -> Uplink:
 
 class Ws101ProfileTest(unittest.TestCase):
     def test_real_logs_parse(self):
-        self.assertEqual([real(n).obj["button_event"]["status"] for n in (5, 6, 7)],
-                         ["double press", "long press", "short press"])
-        for n in (5, 6, 7):
-            up = real(n)
+        for name, status in LOGS.items():
+            up = real(name)
+            self.assertEqual(up.obj["button_event"]["status"], status)
             self.assertEqual((up.f_port, up.device_profile_name, up.dev_eui),
                              (85, PROFILE, BTN_EUI))
 
@@ -61,7 +61,7 @@ class Ws101ProfileTest(unittest.TestCase):
 
     def test_fields(self):
         cfg = make_config(devices={}).for_event(BTN_EUI, "Button 1", PROFILE)
-        values = build_values(get_profile(PROFILE).fields, real(7).obj, cfg, REG)
+        values = build_values(get_profile(PROFILE).fields, real("short").obj, cfg, REG)
         self.assertEqual(values["button"], "short press")
         values = build_values(get_profile(PROFILE).fields, {"battery": 87}, cfg, REG)
         self.assertEqual(values["battery_pct"], 87)
@@ -106,8 +106,8 @@ class Ws101EngineTest(unittest.TestCase):
 
     def test_real_logs_in_sequence(self):
         # logged order: double, long (both quiet), then short -> ON
-        for n in (5, 6, 7):
-            self.engine.on_uplink(real(n))
+        for name in ("double", "long", "short"):
+            self.engine.on_uplink(real(name))
         self.assertEqual([(c[1], c[2]) for c in self.notifier.calls], [("button", True)])
 
 

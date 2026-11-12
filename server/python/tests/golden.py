@@ -80,7 +80,11 @@ def door(seconds: float, open_: int, batt: float = 2.95, f_port: int = 10) -> Up
 
 
 def fixture_uplinks() -> list[Uplink]:
-    return [Uplink.from_file(p) for p in sorted(FIXTURES.glob("*.json"))]
+    """Captured uplinks of the devices base_config() defines; fixtures of other
+    device types have their own tests and must not change this scenario."""
+    known = set(base_config()["devices"])
+    ups = [Uplink.from_file(p) for p in sorted(FIXTURES.glob("*.json"))]
+    return [u for u in ups if u.dev_eui in known]
 
 
 def scenarios() -> dict[str, tuple[dict, list[Any]]]:

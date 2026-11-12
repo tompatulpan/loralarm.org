@@ -2,6 +2,7 @@
 of devices.json (declarative profile + rules, hot reload, bad input)."""
 from __future__ import annotations
 
+import json
 import unittest
 
 from loralarm.alarms import AlarmKind
@@ -32,10 +33,13 @@ HUMIDITY_DEF = {
 
 
 class BuiltinFamiliesTest(unittest.TestCase):
-    def test_one_json_file_per_family(self):
-        names = sorted(p.name for p in FAMILIES_DIR.glob("*.json"))
-        self.assertEqual(names, ["browan_tbwl100.json", "dragino_lds02.json",
-                                  "milesight_ws101.json", "rak3172.json", "rak4631.json"])
+    def test_every_family_file_is_registered_under_its_name(self):
+        files = sorted(FAMILIES_DIR.glob("*.json"))
+        self.assertTrue(files)
+        for path in files:
+            name = json.loads(path.read_text(encoding="utf-8"))["name"]
+            with self.subTest(family=path.name):
+                self.assertEqual(get_profile(name).name, name)
 
     def test_builtin_profiles_loaded_from_json(self):
         rak = get_profile("rak4631")

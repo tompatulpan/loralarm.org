@@ -120,6 +120,9 @@ class AlarmRule:
     # latching rule (button): once fired it stays active across frames that say
     # nothing about it, and clears only when release(cfg, frame, values) is True
     release: Callable[[DeviceConfig, Frame, dict], bool] | None = None
+    # name of the device family whose definition declared the rule ("" = built-in
+    # core rule); register_definition refuses two families sharing an alarm kind
+    family: str = ""
 
 
 def known_device_kinds(registry: Registry) -> set[str]:

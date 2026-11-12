@@ -1,0 +1,67 @@
+{
+    "deduplicationId": "671e4e11-d6bb-48fe-ab10-6f4f87225444",
+    "time": "2026-11-12T13:01:38.555854682+00:00",
+    "deviceInfo": {
+        "tenantId": "52f14cd4-c6f1-4fbd-8f87-4025e1d49242",
+        "tenantName": "LoRaLarm",
+        "applicationId": "9717742d-df1e-4f57-988c-d5cb1f5ade35",
+        "applicationName": "Buttons",
+        "deviceProfileId": "a16164b6-0e2d-469d-9078-818bfe8b163f",
+        "deviceProfileName": "Smart Button [Milesight]",
+        "deviceName": "Button 1",
+        "devEui": "24e124535d243458",
+        "deviceClassEnabled": "CLASS_A",
+        "tags": {}
+    },
+    "devAddr": "003221bd",
+    "adr": true,
+    "dr": 5,
+    "fCnt": 1301,
+    "fPort": 85,
+    "confirmed": true,
+    "data": "/y4D",
+    "object": {
+        "button_event": {
+            "msgid": 854656,
+            "status": "double press"
+        }
+    },
+    "rxInfo": [
+        {
+            "gatewayId": "60c5a8fffe76149c",
+            "uplinkId": 25078,
+            "nsTime": "2026-11-12T13:01:38.335496465+00:00",
+            "rssi": -61,
+            "snr": 9.3,
+            "channel": 3,
+            "location": {
+                "latitude": 59.283356024213454,
+                "longitude": 17.796732165346832
+            },
+            "context": "1+yjWw==",
+            "crcStatus": "CRC_OK"
+        },
+        {
+            "gatewayId": "ac1f09fffe14411b",
+            "uplinkId": 3724993472,
+            "nsTime": "2026-11-12T13:01:38.335263142+00:00",
+            "rssi": -88,
+            "snr": 10,
+            "location": {
+                "source": "GPS"
+            },
+            "context": "jChl+A=="
+        }
+    ],
+    "txInfo": {
+        "frequency": 867100000,
+        "modulation": {
+            "lora": {
+                "bandwidth": 125000,
+                "spreadingFactor": 7,
+                "codeRate": "CR_4_5"
+            }
+        }
+    },
+    "regionConfigId": "eu868"
+}
