@@ -6,6 +6,7 @@ from __future__ import annotations
 import importlib.util
 import unittest
 from datetime import timedelta
+from pathlib import Path
 
 from loralarm.alarms import AlarmKind
 from loralarm.events import EventLog, hash_token
@@ -361,6 +362,56 @@ class PushApiTest(unittest.TestCase):
         self.assertEqual(client.post("/api/push/test", json={}).status_code, 403)  # no header
         self.assertEqual(TestClient(client.app).post("/api/push/test", json={},
                                                      headers=HEADERS).status_code, 401)
+
+
+PWA_DIR = Path(__file__).resolve().parents[3] / "PWA" / "web"
+
+
+@needs_web
+class HeadersAndStaticTest(unittest.TestCase):
+    def setUp(self):
+        from fastapi.testclient import TestClient
+        _, engine, log = make_client()
+        self.client = TestClient(create_app(engine, log, static_dir=PWA_DIR, cookie_secure=False))
+
+    def test_security_headers_everywhere(self):
+        for path in ("/", "/app.js", "/sw.js", "/api/health", "/api/me"):   # /api/me is a 401
+            h = self.client.get(path).headers
+            self.assertIn("frame-ancestors 'none'", h["content-security-policy"], path)
+            self.assertEqual(h["x-content-type-options"], "nosniff", path)
+            self.assertEqual(h["x-frame-options"], "DENY", path)
+            self.assertEqual(h["referrer-policy"], "no-referrer", path)
+
+    def test_api_is_never_cached_and_static_always_revalidates(self):
+        self.assertEqual(self.client.get("/api/health").headers["cache-control"], "no-store")
+        for path in ("/", "/app.js", "/styles.css", "/sw.js", "/manifest.webmanifest"):
+            r = self.client.get(path)
+            self.assertEqual(r.status_code, 200, path)
+            self.assertEqual(r.headers["cache-control"], "no-cache", path)
+
+    def test_pwa_files_satisfy_the_csp(self):
+        # style-src/script-src 'self' only: no inline handlers, styles or scripts
+        import re
+        for name in ("index.html", "app.js"):
+            text = (PWA_DIR / name).read_text(encoding="utf-8")
+            self.assertNotRegex(text, r"\sstyle=", name)
+            self.assertNotRegex(text, r"\son[a-z]+=", name)
+        html = (PWA_DIR / "index.html").read_text(encoding="utf-8")
+        self.assertEqual(re.findall(r"<script(?![^>]*\ssrc=)[^>]*>", html), [])
+        self.assertNotIn("<style", html)
+
+    def test_bad_vapid_key_is_logged_once_not_per_request(self):
+        from fastapi.testclient import TestClient
+
+        class Worker:
+            vapid_private_key = "not-a-key"
+        _, engine, log = make_client()
+        client = TestClient(create_app(engine, log, webpush=Worker(), cookie_secure=False))
+        login(client, USER["token"])
+        with self.assertLogs("loralarm.webapp", level="ERROR") as cm:
+            self.assertEqual(client.get("/api/push/key").status_code, 503)
+            self.assertEqual(client.get("/api/push/key").status_code, 503)
+        self.assertEqual(len(cm.records), 1)
 
 
 @needs_web

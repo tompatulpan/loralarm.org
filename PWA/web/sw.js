@@ -18,6 +18,7 @@ self.addEventListener('push', (e) => {
       body: d.body || '',
       tag,
       renotify: true,
+      silent: d.active === false,    // a clear replaces its fire notification quietly
       data: { dev_eui: d.dev_eui || '', event_id: d.event_id || null },
     }).then(() => ackDelivery(d))
   );
@@ -43,6 +44,8 @@ self.addEventListener('notificationclick', (e) => {
   e.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((wins) => {
       for (const w of wins) {
+        // an open app navigates itself (no reload) to the device
+        w.postMessage({ type: 'open', dev });
         if ('focus' in w) return w.focus();
       }
       return self.clients.openWindow(target);

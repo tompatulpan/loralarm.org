@@ -54,6 +54,9 @@ input.pin:focus{outline:none;border-color:#1f6feb}
 .banner.ok{background:linear-gradient(135deg,#12261f,#0f1a17);border-color:#2ea04355}
 .banner .dot{width:10px;height:10px;border-radius:50%;background:#f85149;box-shadow:0 0 10px #f85149;flex:none}
 .banner.ok .dot{background:#2ea043;box-shadow:0 0 10px #2ea043}
+.banner.warn{background:linear-gradient(135deg,#4a3a12,#2e2410);border-color:#d2992255;margin-bottom:8px}
+.banner.warn .dot{background:#d29922;box-shadow:0 0 10px #d29922}
+.card.dimmed{opacity:.55}
 .banner .t{font-size:.8rem;font-weight:700}
 .banner .d{font-size:.68rem;color:#c9d1d9;opacity:.85;margin-top:1px}
 

@@ -40,6 +40,7 @@ try:  # optional dependency: requirements-web.txt; module must import without it
     from fastapi import Depends, FastAPI, HTTPException, Request
     from fastapi.responses import JSONResponse, Response
     from fastapi.staticfiles import StaticFiles
+    from starlette.datastructures import MutableHeaders
     _HAS_FASTAPI = True
 except ImportError:  # pragma: no cover
     _HAS_FASTAPI = False
@@ -59,6 +60,43 @@ MAX_KEY_LEN = 256
 # arbitrary https URL would be a server-side request forgery primitive
 PUSH_HOST_SUFFIXES = ("fcm.googleapis.com", "push.services.mozilla.com",
                       "push.apple.com", "notify.windows.com")
+
+
+# The PWA is same-origin only: no inline script/style, no third parties. frame-
+# ancestors blocks clickjacking of the arm/disarm screen.
+CSP = ("default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; "
+       "connect-src 'self'; manifest-src 'self'; worker-src 'self'; "
+       "base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
+
+
+class _SecurityHeaders:
+    """Pure ASGI middleware (no body buffering): security headers on every
+    response, `no-store` on the API, and `no-cache` (always revalidate, cheap
+    with ETags) on static files so a deploy reaches users immediately."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        api = scope.get("path", "").startswith("/api/")
+
+        async def send_with_headers(message):
+            if message["type"] == "http.response.start":
+                h = MutableHeaders(scope=message)
+                h["Content-Security-Policy"] = CSP
+                h["X-Content-Type-Options"] = "nosniff"
+                h["X-Frame-Options"] = "DENY"
+                h["Referrer-Policy"] = "no-referrer"
+                if api:
+                    h["Cache-Control"] = "no-store"
+                else:
+                    h.setdefault("Cache-Control", "no-cache")
+            await send(message)
+
+        await self.app(scope, receive, send_with_headers)
 
 
 def push_endpoint_allowed(endpoint: str) -> bool:
@@ -150,6 +188,7 @@ def create_app(engine: Engine, event_log: EventLog, webpush: Any = None,
                            "(pip install fastapi uvicorn)")
 
     app = FastAPI(title="loralarm", docs_url=None, redoc_url=None, openapi_url=None)
+    app.add_middleware(_SecurityHeaders)
     limiter = _Limiter()
 
     def _user(request: Request) -> dict[str, Any]:
@@ -365,16 +404,24 @@ def create_app(engine: Engine, event_log: EventLog, webpush: Any = None,
               and event_log.log_push_ack(user["id"], int(event_id), eid))
         return {"ok": ok}
 
+    vapid_cache: dict[str, str | None] = {}
+
     def _vapid_public_key() -> str | None:
         """The applicationServerKey the PWA subscribes with: explicit
         LORALARM_VAPID_PUBLIC_KEY, else derived from the private key
-        (cryptography, already a pywebpush dependency)."""
+        (cryptography, already a pywebpush dependency). Derived once: a key
+        that cannot be derived is logged once, not on every request."""
         env = os.environ.get("LORALARM_VAPID_PUBLIC_KEY", "").strip()
         if env:
             return env
         key = getattr(webpush, "vapid_private_key", None) if webpush is not None else None
         if not key:
             return None
+        if key not in vapid_cache:
+            vapid_cache[key] = _derive_vapid_public(key)
+        return vapid_cache[key]
+
+    def _derive_vapid_public(key: str) -> str | None:
         try:
             import base64
             from cryptography.hazmat.primitives import serialization
