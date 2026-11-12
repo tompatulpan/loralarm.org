@@ -197,6 +197,20 @@ function pillFor(d) {
   return '<span class="pill ok">OK</span>';
 }
 
+// 4-bar signal meter: bar count from RSSI (−60/−80/−100 dBm thresholds),
+// color from SNR (>= 5 ok, >= 0 warn, else bad; RSSI alone when SNR unknown).
+// Classes only — the CSP (style-src 'self') blocks inline style attributes.
+function sigMeter(d) {
+  if (d.rssi == null) return '';
+  const bars = d.rssi >= -60 ? 4 : d.rssi >= -80 ? 3 : d.rssi >= -100 ? 2 : 1;
+  const cls = d.snr != null
+    ? (d.snr >= 5 ? 'ok' : d.snr >= 0 ? 'warn' : 'bad')
+    : (d.rssi >= -80 ? 'ok' : d.rssi >= -100 ? 'warn' : 'bad');
+  let h = '';
+  for (let i = 1; i <= 4; i++) h += `<i class="h${i}${i <= bars ? ' on' : ''}"></i>`;
+  return `<span class="sig ${cls}" title="RSSI ${d.rssi} dBm · SNR ${d.snr ?? '—'} dB">${h}</span>`;
+}
+
 function battLine(d) {
   const parts = [];
   if (d.battery_voltage != null) parts.push(`${d.battery_voltage.toFixed(2)} V`);
@@ -226,7 +240,7 @@ function renderFleet() {
         </div>
         <div class="meta">${esc(d.family)}${d.group ? ' · ' + esc(d.group) : ''}${d.following ? '' : ' · följs ej'}</div>
       </div>
-      <div class="right">${pillFor(d)}${battLine(d)}</div>
+      <div class="right">${pillFor(d)} ${sigMeter(d)}${battLine(d)}</div>
     </div>`).join('');
   $('#fleet').querySelectorAll('.card').forEach((c) =>
     c.addEventListener('click', () => { location.hash = '#/dev/' + c.dataset.eui; }));
@@ -241,11 +255,11 @@ function renderDevice(eui) {
     ['Batteri', d.battery_voltage != null
       ? `${d.battery_voltage.toFixed(2)} V${d.battery_pct != null ? ` · ${Math.round(d.battery_pct)} %` : ''}` : '—'],
     ['Senaste uplink', relTime(d.last_seen)],
-    ['RSSI / SNR', d.rssi != null ? `${d.rssi} dBm / ${d.snr ?? '—'}` : '—'],
+    ['RSSI / SNR', d.rssi != null ? `${sigMeter(d)} ${d.rssi} dBm / ${d.snr ?? '—'} dB` : '—', true],
     ['devEUI', d.dev_eui],
   ];
-  $('#dev-kv').innerHTML = rows.map(([k, v]) =>
-    `<div class="rowk"><span class="k">${esc(k)}</span><span class="v">${esc(v)}</span></div>`).join('');
+  $('#dev-kv').innerHTML = rows.map(([k, v, raw]) =>
+    `<div class="rowk"><span class="k">${esc(k)}</span><span class="v">${raw ? v : esc(v)}</span></div>`).join('');
   const tg = $('#follow-toggle');
   tg.classList.toggle('on', !!d.following);
   tg.onclick = () => toggleFollow(d);

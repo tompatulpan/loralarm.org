@@ -77,6 +77,13 @@ input.pin:focus{outline:none;border-color:#1f6feb}
 .pill.warn{background:#3d2d00;color:#d29922}
 .pill.alarm{background:#4a1010;color:#f85149}
 .pill.off{background:#21262d;color:#8b949e}
+/* signal meter: 4 bars, height via classes (CSP style-src 'self' blocks inline styles) */
+.sig{display:inline-flex;align-items:flex-end;gap:1.5px;height:11px;vertical-align:middle}
+.sig i{width:3px;border-radius:1px;background:#30363d}
+.sig i.on{background:#2ea043}
+.sig.warn i.on{background:#d29922}
+.sig.bad i.on{background:#f85149}
+.sig i.h1{height:4px}.sig i.h2{height:6px}.sig i.h3{height:8px}.sig i.h4{height:11px}
 .arm{display:inline-flex;align-items:center;gap:3px;font-size:.6rem;font-weight:600;padding:2px 7px;border-radius:999px;margin-left:5px;vertical-align:middle}
 .arm.on{background:#12261f;color:#2ea043}
 .arm.off{background:#2d2d35;color:#8b949e}
