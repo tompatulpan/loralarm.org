@@ -569,8 +569,8 @@ class Engine:
     def set_armed(self, dev_eui: str, armed: bool, until: datetime | None = None,
                   user: str = "") -> None:
         """Persist arm/disarm (SQLite, so a config hot-reload never resets it),
-        audit it as kind="armed" and notify the followers. The DB write happens
-        outside the engine lock so the web thread never blocks alarm evaluation."""
+        audit it as kind="armed" and notify the followers. The state write runs
+        before taking the engine lock; the audit-row insert runs under it."""
         if self.event_log:
             try:
                 self.event_log.set_armed(dev_eui, armed, until, user)
@@ -600,7 +600,7 @@ class Engine:
                                      registry=self.registry, event_id=event_id)
             except Exception:
                 log.exception("enqueue armed notification failed for %s", dev_eui)
-        if armed and old:
+        if armed and old and self.notifier:
             # re-arm with a condition still active: notify it again
             state = old[1]
             for kind in sorted(state.active, key=lambda k: k.value):
@@ -626,7 +626,9 @@ class Engine:
             try:
                 self.event_log.set_armed(dev_eui, True, None, "watchdog")
             except sqlite3.Error:
+                # still expired next tick: retry then, without notifying twice
                 log.exception("could not persist re-arm for %s", dev_eui)
+                continue
             self._set_armed_locked(dev_eui, True, None, user="watchdog")
 
     def _emit(self, cfg, ts: datetime, t, state: AlarmState) -> None:

@@ -110,6 +110,27 @@ class ArmedTest(unittest.TestCase):
         log._conn.close()
         self.assertTrue(engine.is_armed(DEV_EUI))   # fail safe: armed
 
+    def test_rearm_without_notifier_does_not_raise(self):
+        engine = Engine(make_config(defaults={"motion_mode": "level"}), EventLog(None), None)
+        engine.on_uplink(make_uplink(obj=sensor_obj(motion_alert=1)))
+        with self.assertNoLogs("loralarm.service", level="ERROR"):
+            engine.set_armed(DEV_EUI, False, user="t")
+            engine.set_armed(DEV_EUI, True, user="t")
+
+    def test_failed_rearm_persist_does_not_notify_every_tick(self):
+        import sqlite3
+        engine, log, notifier = make_engine()
+        engine.on_uplink(make_uplink(obj=sensor_obj()))
+        engine.set_armed(DEV_EUI, False, until=T0 + timedelta(hours=1), user="t")
+        notifier.calls.clear()
+
+        def boom(*a, **kw):
+            raise sqlite3.OperationalError("locked")
+        log.set_armed = boom
+        with self.assertLogs("loralarm.service", level="ERROR"):
+            engine._rearm_expired_snoozes(T0 + timedelta(hours=2))
+        self.assertEqual(notifier.calls, [])
+
     def test_no_event_log_means_armed(self):
         engine = Engine(make_config(), None, RecordingNotifier())
         self.assertTrue(engine.is_armed(DEV_EUI))

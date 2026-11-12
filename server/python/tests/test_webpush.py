@@ -102,6 +102,23 @@ class WebPushWorkerTest(unittest.TestCase):
             "select status, http_code from webpush_log").fetchone()
         self.assertEqual(row, ("failed", 500))
 
+    def test_bookkeeping_error_does_not_stop_remaining_endpoints(self):
+        add_endpoint(self.log, 1, "https://push.example/aaa")
+        add_endpoint(self.log, 1, "https://push.example/bbb")
+        sent = []
+
+        def send_fn(sub_info, payload, urgency, ttl, timeout):
+            sent.append(sub_info["endpoint"])
+            return 201
+
+        def boom(*a, **kw):
+            raise RuntimeError("db gone")
+        self.log.endpoint_ok = boom
+        w = self.make_worker(send_fn)
+        w.fan_out(self.cfg, "motion", True, "t", "m", 1)
+        self.drain(w)
+        self.assertEqual(len(sent), 2)
+
     def test_clear_uses_normal_urgency(self):
         add_endpoint(self.log, 1, "https://push.example/aaa")
         seen = []

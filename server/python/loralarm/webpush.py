@@ -69,6 +69,9 @@ class WebPushWorker:
         self._worker: threading.Thread | None = None
         self._closed = False
         self._no_pywebpush_warned = False
+        if not dry_run and send_fn is None and not vapid_private_key:
+            log.warning("Web Push has no VAPID private key "
+                        "(LORALARM_VAPID_PRIVATE_KEY); every push will fail")
 
     def start(self) -> None:
         if self._worker is None:
@@ -138,14 +141,7 @@ class WebPushWorker:
             try:
                 code = self._send_fn(sub_info, payload, urgency, PUSH_TTL_S, self.timeout)
             except WebPushError as e:
-                pruned = self.event_log.endpoint_failed(ep["id"], e.status)
-                self.event_log.webpush_log(job["event_id"], ep["id"],
-                                           "pruned" if pruned else "failed", e.status)
-                if pruned:
-                    log.info("pruned push endpoint #%d (status %d)", ep["id"], e.status)
-                else:
-                    log.warning("push to endpoint #%d failed (status %d)",
-                                ep["id"], e.status)
+                self._record(job, ep, "failed", e.status)
             except Exception as e:
                 if self._is_missing_dependency(e):
                     if not self._no_pywebpush_warned:
@@ -154,11 +150,26 @@ class WebPushWorker:
                         self._no_pywebpush_warned = True
                     return
                 log.exception("push to endpoint #%d failed", ep["id"])
-                self.event_log.endpoint_failed(ep["id"], None)
-                self.event_log.webpush_log(job["event_id"], ep["id"], "failed")
+                self._record(job, ep, "failed", None)
             else:
+                self._record(job, ep, "sent", code)
+
+    def _record(self, job: dict[str, Any], ep: dict[str, Any], status: str,
+                code: int | None) -> None:
+        """Per-endpoint bookkeeping; a DB error here must not stop delivery to
+        the remaining endpoints."""
+        try:
+            if status == "sent":
                 self.event_log.endpoint_ok(ep["id"])
-                self.event_log.webpush_log(job["event_id"], ep["id"], "sent", code)
+            else:
+                if self.event_log.endpoint_failed(ep["id"], code):
+                    status = "pruned"
+                    log.info("pruned push endpoint #%d (status %s)", ep["id"], code)
+                elif code is not None:
+                    log.warning("push to endpoint #%d failed (status %d)", ep["id"], code)
+            self.event_log.webpush_log(job["event_id"], ep["id"], status, code)
+        except Exception:
+            log.exception("webpush bookkeeping failed for endpoint #%d", ep["id"])
 
     @staticmethod
     def _is_missing_dependency(e: BaseException) -> bool:
