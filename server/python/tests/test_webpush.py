@@ -66,6 +66,28 @@ class WebPushWorkerTest(unittest.TestCase):
         self.assertEqual(self.log._conn.execute(
             "select fail_count from push_endpoints").fetchall(), [(0,), (0,)])
 
+    def test_test_push_goes_to_the_calling_users_own_endpoints_only(self):
+        e1 = add_endpoint(self.log, 1, "https://push.example/aaa")
+        self.log.seed_users([{"name": "bosse", "token": "t2"}])
+        add_endpoint(self.log, 2, "https://push.example/bbb")
+        sent = []
+
+        def send_fn(sub_info, payload, urgency, ttl, timeout):
+            sent.append((sub_info["endpoint"], json.loads(payload)))
+            return 201
+
+        w = self.make_worker(send_fn)
+        n = w.test_push(1, "Test", "hej")
+        self.drain(w)
+        self.assertEqual(n, 1)
+        self.assertEqual(len(sent), 1)
+        self.assertEqual(sent[0][0], "https://push.example/aaa")
+        self.assertEqual(sent[0][1]["kind"], "test")
+        self.assertIsNone(sent[0][1]["event_id"])
+        rows = self.log._conn.execute(
+            "select event_id, endpoint_id, status from webpush_log").fetchall()
+        self.assertEqual(rows, [(None, e1, "sent")])
+
     def test_404_prunes_endpoint_and_410_too(self):
         e1 = add_endpoint(self.log, 1, "https://push.example/gone")
         add_endpoint(self.log, 1, "https://push.example/ok")

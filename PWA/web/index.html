@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#0b0f14" />
+<title>LoRaLarm</title>
+<link rel="manifest" href="/manifest.webmanifest" />
+<link rel="icon" href="/icons/icon-192.png" />
+<link rel="apple-touch-icon" href="/icons/icon-192.png" />
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+
+<!-- ============ LOGIN ============ -->
+<section id="view-login" class="view hidden">
+  <div class="login-card">
+    <h1>LoRa<span>Larm</span></h1>
+    <p class="sub">Logga in med din inbjudnings-token.</p>
+    <div class="login">
+      <input id="login-token" class="pin" type="password" autocomplete="off"
+             placeholder="inbjudningstoken" autofocus />
+      <button id="login-btn" class="btn">Logga in</button>
+      <div id="login-err" class="err"></div>
+    </div>
+    <div class="foot">loralarm PWA</div>
+  </div>
+</section>
+
+<!-- ============ APP SHELL ============ -->
+<section id="view-app" class="view hidden">
+  <div class="appbar">
+    <h2 id="appbar-title">LoRaLarm</h2>
+    <span id="alarm-badge" class="badge hidden"></span>
+  </div>
+  <div class="content">
+
+    <!-- fleet / status -->
+    <div id="view-fleet">
+      <div id="banners"></div>
+      <div id="fleet"></div>
+    </div>
+
+    <!-- device detail -->
+    <div id="view-device" class="hidden">
+      <button id="dev-back" class="btn ghost">‹ Tillbaka</button>
+      <div id="dev-banners"></div>
+      <div id="dev-kv" class="kv"></div>
+      <div class="kv">
+        <div class="rowk">
+          <span class="k">Följer du enheten? <span class="dim">(bara du)</span></span>
+          <span id="follow-toggle" class="tg"></span>
+        </div>
+      </div>
+      <div class="sect">Gäller alla användare</div>
+      <div id="arm-row" class="armrow">
+        <div>
+          <div id="arm-lbl" class="lbl"></div>
+          <div id="arm-sub" class="sub2"></div>
+        </div>
+        <span id="arm-switch" class="armswitch"></span>
+      </div>
+      <div id="snooze-row" class="hidden">
+        <div class="sect">Stäng av larmet i…</div>
+        <div class="btnrow">
+          <button class="btn ghost snooze" data-h="1">1 h</button>
+          <button class="btn ghost snooze" data-h="8">8 h</button>
+          <button class="btn ghost snooze" data-h="24">24 h</button>
+          <button id="snooze-forever" class="btn ghost hidden">tills vidare</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- settings / notifications -->
+    <div id="view-settings" class="hidden">
+      <div class="sect">Push-notiser</div>
+      <div class="card">
+        <div class="ic">🔔</div>
+        <div>
+          <div class="nm" id="push-state">…</div>
+          <div class="meta" id="push-meta"></div>
+        </div>
+      </div>
+      <div class="btnrow">
+        <button id="push-enable" class="btn">Aktivera push på denna enhet</button>
+        <button id="push-test" class="btn ghost hidden">Skicka test-push</button>
+      </div>
+      <div id="ios-hint" class="ios-hint hidden">
+        📱 iPhone/iPad: lägg till på hemskärmen (Dela → ”Lägg till på hemskärmen”)
+        innan du kan ta emot push-notiser.
+      </div>
+      <div class="sect">Välj enheter</div>
+      <div id="mute-list"></div>
+      <div class="sect">Konto</div>
+      <div class="card">
+        <div class="ic">👤</div>
+        <div>
+          <div class="nm" id="me-name"></div>
+          <div class="meta">Nya enheter följs automatiskt. Logga ut tar bort push på den här telefonen.</div>
+        </div>
+        <button id="logout-btn" class="btn ghost small">Logga ut</button>
+      </div>
+    </div>
+
+  </div>
+  <div class="tabbar">
+    <div id="tab-fleet"><span class="ic">🏠</span>Status</div>
+    <div id="tab-settings"><span class="ic">🔔</span>Notiser</div>
+  </div>
+</section>
+
+<div id="toast" class="hidden"></div>
+<script src="/app.js" defer></script>
+</body>
+</html>

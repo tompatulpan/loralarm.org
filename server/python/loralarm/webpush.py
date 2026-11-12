@@ -96,6 +96,22 @@ class WebPushWorker:
             self._deliver({"cfg": cfg, "kind": kind, "active": active,
                            "title": title, "message": message, "event_id": event_id})
 
+    def test_push(self, user_id: int, title: str, body: str) -> int:
+        """Test notification to one user's own endpoints (PWA settings page),
+        regardless of which devices they follow. Returns the endpoint count."""
+        try:
+            endpoints = self.event_log.endpoints_for_users([user_id])
+        except Exception:
+            log.exception("could not resolve endpoints for test push")
+            endpoints = []
+        job = {"test": True, "endpoints": endpoints, "title": title,
+               "body": body, "event_id": None}
+        if self._worker is not None and not self._closed:
+            self._queue.put(job)
+        else:
+            self._deliver(job)
+        return len(endpoints)
+
     def _run(self) -> None:
         while True:
             job = self._queue.get()
@@ -112,6 +128,12 @@ class WebPushWorker:
                 self._queue.task_done()
 
     def _deliver(self, job: dict[str, Any]) -> None:
+        if job.get("test"):
+            payload = json.dumps({"title": job["title"], "body": job["body"],
+                                  "dev_eui": "", "kind": "test", "active": True,
+                                  "event_id": job["event_id"]})
+            self._send_to_endpoints(payload, "high", job["event_id"], job["endpoints"])
+            return
         cfg = job["cfg"]
         try:
             user_ids = self.event_log.subscribers(cfg.dev_eui)
@@ -130,18 +152,21 @@ class WebPushWorker:
                               "dev_eui": cfg.dev_eui, "kind": job["kind"],
                               "active": job["active"], "event_id": job["event_id"]})
         urgency = "high" if job["active"] else "normal"   # Android Doze
+        self._send_to_endpoints(payload, urgency, job["event_id"], endpoints)
+
+    def _send_to_endpoints(self, payload: str, urgency: str, event_id: int | None,
+                           endpoints: list[dict[str, Any]]) -> None:
         for ep in endpoints:
             sub_info = {"endpoint": ep["endpoint"],
                         "keys": {"p256dh": ep["p256dh"], "auth": ep["auth"]}}
             if self.dry_run:
-                log.info("[dry-run] webpush endpoint #%d (%s %s): %s | %s",
-                         ep["id"], cfg.name, job["kind"], job["title"], job["message"])
-                self.event_log.webpush_log(job["event_id"], ep["id"], "dry-run")
+                log.info("[dry-run] webpush endpoint #%d: %s", ep["id"], payload)
+                self.event_log.webpush_log(event_id, ep["id"], "dry-run")
                 continue
             try:
                 code = self._send_fn(sub_info, payload, urgency, PUSH_TTL_S, self.timeout)
             except WebPushError as e:
-                self._record(job, ep, "failed", e.status)
+                self._record(event_id, ep, "failed", e.status)
             except Exception as e:
                 if self._is_missing_dependency(e):
                     if not self._no_pywebpush_warned:
@@ -150,11 +175,11 @@ class WebPushWorker:
                         self._no_pywebpush_warned = True
                     return
                 log.exception("push to endpoint #%d failed", ep["id"])
-                self._record(job, ep, "failed", None)
+                self._record(event_id, ep, "failed", None)
             else:
-                self._record(job, ep, "sent", code)
+                self._record(event_id, ep, "sent", code)
 
-    def _record(self, job: dict[str, Any], ep: dict[str, Any], status: str,
+    def _record(self, event_id: int | None, ep: dict[str, Any], status: str,
                 code: int | None) -> None:
         """Per-endpoint bookkeeping; a DB error here must not stop delivery to
         the remaining endpoints."""
@@ -167,7 +192,7 @@ class WebPushWorker:
                     log.info("pruned push endpoint #%d (status %s)", ep["id"], code)
                 elif code is not None:
                     log.warning("push to endpoint #%d failed (status %d)", ep["id"], code)
-            self.event_log.webpush_log(job["event_id"], ep["id"], status, code)
+            self.event_log.webpush_log(event_id, ep["id"], status, code)
         except Exception:
             log.exception("webpush bookkeeping failed for endpoint #%d", ep["id"])
 

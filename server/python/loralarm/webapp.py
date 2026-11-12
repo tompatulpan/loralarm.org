@@ -23,6 +23,7 @@ from __future__ import annotations
 import json
 import logging
 import math
+import os
 import re
 import threading
 import time
@@ -198,6 +199,10 @@ def create_app(engine: Engine, event_log: EventLog, webpush: Any = None,
                         secure=cookie_secure, max_age=30 * 24 * 3600)
         return resp
 
+    @app.get("/api/me")
+    def me(user: dict = Depends(_guard)):
+        return {"name": user["name"], "role": user["role"]}
+
     @app.post("/api/logout", dependencies=[Depends(_csrf)])
     def logout(request: Request, user: dict = Depends(_user)):
         sid = request.cookies.get(COOKIE, "")
@@ -359,6 +364,44 @@ def create_app(engine: Engine, event_log: EventLog, webpush: Any = None,
         ok = (eid is not None and event_log.event_exists(int(event_id))
               and event_log.log_push_ack(user["id"], int(event_id), eid))
         return {"ok": ok}
+
+    def _vapid_public_key() -> str | None:
+        """The applicationServerKey the PWA subscribes with: explicit
+        LORALARM_VAPID_PUBLIC_KEY, else derived from the private key
+        (cryptography, already a pywebpush dependency)."""
+        env = os.environ.get("LORALARM_VAPID_PUBLIC_KEY", "").strip()
+        if env:
+            return env
+        key = getattr(webpush, "vapid_private_key", None) if webpush is not None else None
+        if not key:
+            return None
+        try:
+            import base64
+            from cryptography.hazmat.primitives import serialization
+            from cryptography.hazmat.primitives.asymmetric import ec
+            raw = base64.urlsafe_b64decode(key + "=" * (-len(key) % 4))
+            priv = ec.derive_private_key(int.from_bytes(raw, "big"), ec.SECP256R1())
+            pub = priv.public_key().public_bytes(
+                serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint)
+            return base64.urlsafe_b64encode(pub).rstrip(b"=").decode()
+        except Exception:
+            log.exception("could not derive VAPID public key from the private key")
+            return None
+
+    @app.get("/api/push/key")
+    def push_key(user: dict = Depends(_guard)):
+        key = _vapid_public_key()
+        if not key:
+            raise HTTPException(status_code=503, detail="web push not configured (no VAPID key)")
+        return {"public_key": key}
+
+    @app.post("/api/push/test", dependencies=[Depends(_csrf)])
+    def push_test(body: dict = Depends(_body), user: dict = Depends(_guard)):
+        if webpush is None:
+            raise HTTPException(status_code=503, detail="web push not enabled (--web)")
+        title = str(body.get("title") or "loralarm test")[:120]
+        message = str(body.get("body") or "Test-push från loralarm PWA")[:500]
+        return {"ok": True, "endpoints": webpush.test_push(user["id"], title, message)}
 
     @app.get("/api/health")
     def health():

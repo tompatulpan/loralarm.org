@@ -71,6 +71,14 @@ class AuthTest(unittest.TestCase):
         self.assertIn("secure", r.headers["set-cookie"].lower())
         self.assertIn("httponly", r.headers["set-cookie"].lower())
 
+    def test_me_returns_identity_and_needs_session(self):
+        client, _, _ = make_client()
+        self.assertEqual(client.get("/api/me").status_code, 401)
+        login(client, USER["token"])
+        r = client.get("/api/me")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json(), {"name": "bosse", "role": "user"})
+
     def test_good_token_sets_session_cookie_and_api_needs_it(self):
         client, _, _ = make_client()
         r = login(client, USER["token"])
@@ -273,6 +281,86 @@ class PushApiTest(unittest.TestCase):
         r = c2.request("DELETE", "/api/push/subscribe", json=sub, headers=HEADERS)
         self.assertFalse(r.json()["ok"])
         self.assertIsNotNone(log2.endpoint_id(PUSH))
+
+    def _client_with_webpush(self, webpush):
+        from fastapi.testclient import TestClient
+        from loralarm.webapp import create_app
+        log = EventLog(None)
+        log.seed_users([ADMIN, USER])
+        engine = Engine(make_config(), log, None)
+        app = create_app(engine, log, webpush=webpush, static_dir=None, cookie_secure=False)
+        return TestClient(app)
+
+    def test_push_key_from_env(self):
+        import os
+        from unittest import mock
+        with mock.patch.dict(os.environ, {"LORALARM_VAPID_PUBLIC_KEY": "BPubKey123"}):
+            client, _, _ = make_client()
+            login(client, USER["token"])
+            r = client.get("/api/push/key")
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json(), {"public_key": "BPubKey123"})
+
+    @unittest.skipUnless(importlib.util.find_spec("cryptography"),
+                         "VAPID derivation needs cryptography (pywebpush dep)")
+    def test_push_key_derived_from_private_key(self):
+        import base64
+        import os
+        from unittest import mock
+        from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.primitives.asymmetric import ec
+        priv = ec.generate_private_key(ec.SECP256R1())
+        raw = priv.private_numbers().private_value.to_bytes(32, "big")
+        key = base64.urlsafe_b64encode(raw).rstrip(b"=").decode()
+        expected = base64.urlsafe_b64encode(priv.public_key().public_bytes(
+            serialization.Encoding.X962,
+            serialization.PublicFormat.UncompressedPoint)).rstrip(b"=").decode()
+
+        class FakePush:
+            vapid_private_key = key
+        client = self._client_with_webpush(FakePush())
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("LORALARM_VAPID_PUBLIC_KEY", None)
+            login(client, USER["token"])
+            r = client.get("/api/push/key")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json()["public_key"], expected)
+
+    def test_push_key_503_without_any_key(self):
+        import os
+        from unittest import mock
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("LORALARM_VAPID_PUBLIC_KEY", None)
+            client, _, _ = make_client()      # webpush=None
+            login(client, USER["token"])
+            r = client.get("/api/push/key")
+            self.assertEqual(r.status_code, 503)
+
+    def test_push_test_503_without_webpush(self):
+        client, _, _ = make_client()
+        login(client, USER["token"])
+        r = client.post("/api/push/test", json={}, headers=HEADERS)
+        self.assertEqual(r.status_code, 503)
+
+    def test_push_test_enqueues_for_calling_user_and_needs_csrf_and_auth(self):
+        from fastapi.testclient import TestClient
+        calls = []
+
+        class FakePush:
+            vapid_private_key = None
+
+            def test_push(self, user_id, title, body):
+                calls.append((user_id, title, body))
+                return 1
+        client = self._client_with_webpush(FakePush())
+        login(client, USER["token"])
+        r = client.post("/api/push/test", json={"title": "t", "body": "b"}, headers=HEADERS)
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json(), {"ok": True, "endpoints": 1})
+        self.assertEqual(calls[0][1:], ("t", "b"))
+        self.assertEqual(client.post("/api/push/test", json={}).status_code, 403)  # no header
+        self.assertEqual(TestClient(client.app).post("/api/push/test", json={},
+                                                     headers=HEADERS).status_code, 401)
 
 
 @needs_web
