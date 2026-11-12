@@ -239,7 +239,7 @@ Built in as `families/milesight_ws101.json` (profile name = the ChirpStack
 device profile `Smart Button [Milesight]`, codec `chirpstack/ws101-decoder.js`):
 fPort 85, `button_event.status` → `button` (dotted `from` path), kind `button`,
 no downlinks. Battery arrives as a percentage (`battery` → `battery_pct`), so
-there are no battery alarms. The `Knapplarm` rule is **latching** (`release` in
+the volt-based battery alarms do not apply; `button_battery` alerts below 20 % (override per device with `"params": {"batt_low_pct": 30}`). The `Knapplarm` rule is **latching** (`release` in
 the rule): a short press = ON raises it, a long press = OFF clears it, a double
 press is unused, and battery/status frames or a repeated short press change
 nothing. Real captured uplinks: `chirpstack/fixtures/single-log(ws101 *).json`. Starting point:

@@ -104,6 +104,18 @@ class Ws101EngineTest(unittest.TestCase):
         self.assertEqual(self.notifier.calls, [])
         self.assertEqual(self.active(), set())
 
+    def test_low_battery_alarms_once_and_survives_press_frames(self):
+        self.engine.on_uplink(battery(80, 0))
+        self.engine.on_uplink(battery(15, 10))
+        self.engine.on_uplink(battery(14, 20))                 # still low: no repeat
+        self.engine.on_uplink(press("short press", 30))        # a press frame has no battery
+        self.assertEqual([(c[1], c[2]) for c in self.notifier.calls],
+                         [("button_battery", True), ("button", True)])
+        self.assertEqual(self.active(), {AlarmKind("button_battery"), BUTTON})
+        self.engine.on_uplink(battery(100, 40))                # new battery
+        self.assertEqual(self.notifier.calls[-1][1:3], ("button_battery", False))
+        self.assertEqual(self.active(), {BUTTON})
+
     def test_real_logs_in_sequence(self):
         # logged order: double, long (both quiet), then short -> ON
         for name in ("double", "long", "short"):

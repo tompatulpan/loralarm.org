@@ -1,6 +1,6 @@
 {
   "name": "Smart Button [Milesight]",
-  "description": "Milesight WS101 smart button (codec ws101-decoder.js, fPort 85): `button_event.status` is 'short press' / 'long press' / 'double press', sent once per press; `battery` is a percentage (not volts), so there are no battery alarms. Latching: short press = ON (alarm), long press = OFF (clears), double press = not used. Frames that carry no press (battery, status) change nothing.",
+  "description": "Milesight WS101 smart button (codec ws101-decoder.js, fPort 85): `button_event.status` is 'short press' / 'long press' / 'double press', sent once per press; `battery` is a percentage (not volts), so the standard volt-based battery alarms do not apply; `button_battery` alerts below 20 % (param `batt_low_pct`). Latching: short press = ON (alarm), long press = OFF (clears), double press = not used. Frames that carry no press (battery, status) change nothing.",
   "aliases": ["ws101", "milesight"],
   "data_ports": [85],
   "fields": {
@@ -25,6 +25,21 @@
       "device_kinds": ["button"],
       "notify_fire": "🔘 KNAPP PÅ: {name} — {detail}",
       "notify_clear": "⚪ KNAPP AV: {name} — {detail}"
+    },
+    {
+      "kind": "button_battery",
+      "label": "Batteri lågt (knapp)",
+      "field": "battery_pct",
+      "when": "lt",
+      "param": "batt_low_pct",
+      "value": 20,
+      "release": {"when": "ge", "param": "batt_low_pct", "value": 20},
+      "fire": "batteri {value} % < {limit} %",
+      "clear": "batteri över {limit} %",
+      "device_kinds": ["button"],
+      "windowed": false,
+      "notify_fire": "🪫 BATTERI LÅGT: {name} — {detail}",
+      "notify_clear": "🔋 Batteri OK: {name} — {detail}"
     }
   ]
 }
