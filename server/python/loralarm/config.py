@@ -164,13 +164,7 @@ class Config:
         # PWA accounts (devices.json top level): {"web_users": [{"name": "…",
         # "token": "${ENV}", "role": "admin"|"user"}]}; seeded into SQLite at
         # startup and on every hot reload — config stays the source of truth
-        self.web_users: list[dict[str, str]] = []
-        for u in data.get("web_users", []):
-            if isinstance(u, dict) and u.get("name") and u.get("token"):
-                self.web_users.append({"name": str(u["name"]), "token": str(u["token"]),
-                                       "role": str(u.get("role", "user"))})
-            else:
-                log.warning("config web_users: entry %r needs 'name' and 'token'; ignored", u)
+        self.web_users = self._parse_web_users(data.get("web_users", []))
         self._warn_unknown("defaults", self.defaults)
         for fam, fvals in data.get("families", {}).items():
             self._warn_unknown(f"families.{fam}", fvals)
@@ -185,6 +179,35 @@ class Config:
                 log.warning("config %s: application_id applies to every device in that layer; "
                             "with devices spread over several ChirpStack applications, set it "
                             "per device instead (devices.<devEui>.application_id)", where)
+
+    @staticmethod
+    def _parse_web_users(raw: Any) -> list[dict[str, str]]:
+        """Valid, unique web users. Never logs a token (not even of a rejected
+        entry): a bad entry is described by its name/position only."""
+        users: list[dict[str, str]] = []
+        names: set[str] = set()
+        tokens: set[str] = set()
+        for i, u in enumerate(raw if isinstance(raw, list) else []):
+            label = u.get("name") if isinstance(u, dict) and u.get("name") else f"#{i}"
+            if not (isinstance(u, dict) and u.get("name") and u.get("token")):
+                log.warning("config web_users: entry %s needs 'name' and 'token'; ignored", label)
+                continue
+            name, token = str(u["name"]), str(u["token"])
+            role = str(u.get("role", "user"))
+            if role not in ("user", "admin"):
+                log.warning("config web_users: %s has unknown role %r; ignored", name, role)
+                continue
+            if name in names or token in tokens:
+                log.warning("config web_users: %s duplicates another entry's name or "
+                            "token; ignored", name)
+                continue
+            if len(token) < 20:
+                log.warning("config web_users: token of %s is short (<20 chars); use a "
+                            "random one, e.g. `openssl rand -hex 16`", name)
+            names.add(name)
+            tokens.add(token)
+            users.append({"name": name, "token": token, "role": role})
+        return users
 
     @staticmethod
     def _warn_unknown(where: str, section: dict[str, Any]) -> None:

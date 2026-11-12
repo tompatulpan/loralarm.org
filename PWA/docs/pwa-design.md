@@ -29,7 +29,7 @@ flowchart TD
   CH --> P["Pushover (backstop, keep until PWA proven)"]
   CH -->|"separate queue + worker"| W["Web Push (new)"]
   W -->|"outbound to FCM / APNs / Mozilla only"| PH["Phone service worker"]
-  AP["PWA (static, served by FastAPI)"] --> SUB[("SQLite: users, device_subs, push_endpoints, sessions")]
+  AP["PWA (static, served by FastAPI)"] --> SUB[("SQLite: users, device_mutes, push_endpoints, sessions")]
   AP --> API["/api/* (FastAPI in a uvicorn thread)"]
   AP --> ST["Status view: live banner + fleet table"]
   PH -->|"notification tap"| AP
@@ -107,7 +107,7 @@ flowchart TD
 ```sql
 users            (id, name, token_hash, role, created_at, disabled)   -- invite token stored hashed
 sessions         (id, user_id, created_at, expires_at, revoked)       -- server-side, revocable
-device_subs      (user_id, dev_eui)                                   -- which devices a user follows
+device_mutes     (user_id, dev_eui)                                   -- devices a user muted (opt-out: default = follow all)
 push_endpoints   (id, user_id, endpoint UNIQUE, p256dh, auth, ua, created_at,
                   last_success, fail_count)                           -- Web Push subscription
 device_armed     (dev_eui PRIMARY KEY, armed, until, changed_by, changed_at)
@@ -219,7 +219,7 @@ Decision: build the custom PWA for UX and control; keep ntfy for automation.
 1. Cloudflare Tunnel to the service on blue-104, HTTPS live (optionally Access).
 2. FastAPI static serving + `/api/devices` + invite-token auth + sessions + CSRF.
 3. Web Push: VAPID keys, `/api/push/subscribe`, fan-out branch, `sw.js` handler, ack.
-4. Subscription UI: fleet list with toggles; per-user device_subs (default follow-all).
+4. Subscription UI: fleet list with toggles; per-user device_mutes (opt-out, so default = follow all).
 5. Arm/disarm with snooze, roles, audit, notifications to followers.
 6. Status views: banner + fleet table (status-page spec §9 applies to both surfaces).
 7. Delivery log + ack metric + 1 month parallel comparison with Pushover; then decision.

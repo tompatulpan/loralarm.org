@@ -38,6 +38,65 @@ class UserSeedTest(unittest.TestCase):
         log.seed_users([])
         self.assertIsNone(log.user_by_token_hash(hash_token("x")))
 
+    def test_swapping_tokens_between_users_works(self):
+        log = EventLog(None)
+        log.seed_users([{"name": "a", "token": "x"}, {"name": "b", "token": "y"}])
+        log.seed_users([{"name": "a", "token": "y"}, {"name": "b", "token": "x"}])
+        self.assertEqual(log.user_by_token_hash(hash_token("y"))["name"], "a")
+        self.assertEqual(log.user_by_token_hash(hash_token("x"))["name"], "b")
+
+    def test_duplicate_token_rolls_back_and_raises(self):
+        import sqlite3
+        log = EventLog(None)
+        log.seed_users([{"name": "a", "token": "x"}])
+        with self.assertRaises(sqlite3.Error):
+            log.seed_users([{"name": "a", "token": "x"}, {"name": "b", "token": "x"}])
+        self.assertEqual(log.user_by_token_hash(hash_token("x"))["name"], "a")
+        self.assertEqual(log._conn.execute("select count(*) from users").fetchone()[0], 1)
+
+    def test_seed_web_users_never_raises_into_the_service(self):
+        from loralarm.service import seed_web_users
+
+        class Cfg:
+            web_users = [{"name": "a", "token": "x"}, {"name": "b", "token": "x"}]
+        seed_web_users(EventLog(None), Cfg())   # logged, not raised
+        seed_web_users(None, Cfg())
+
+    def test_config_rejects_bad_entries_without_logging_tokens(self):
+        with self.assertLogs("loralarm.config", level="WARNING") as cm:
+            cfg = Config({"web_users": [
+                {"token": "SECRET-NO-NAME"},
+                {"name": "a", "token": "tok-1", "role": "Admin"},
+                {"name": "b", "token": "tok-2"},
+                {"name": "b", "token": "tok-3"},          # duplicate name
+                {"name": "c", "token": "tok-2"},          # duplicate token
+            ]})
+        self.assertEqual([u["name"] for u in cfg.web_users], ["b"])
+        self.assertNotIn("SECRET-NO-NAME", "\n".join(cm.output))
+        self.assertNotIn("tok-", "\n".join(cm.output))
+
+    def test_rotated_token_and_disabled_user_lose_their_sessions(self):
+        log = EventLog(None)
+        log.seed_users([{"name": "a", "token": "x"}, {"name": "b", "token": "y"}])
+        a = log.user_by_token_hash(hash_token("x"))["id"]
+        b = log.user_by_token_hash(hash_token("y"))["id"]
+        sa, sb = log.create_session(a), log.create_session(b)
+        log.seed_users([{"name": "a", "token": "x2"}])    # a rotated, b removed
+        log.seed_users([{"name": "a", "token": "x2"}, {"name": "b", "token": "y"}])  # b back
+        self.assertIsNone(log.resolve_session(sa))
+        self.assertIsNone(log.resolve_session(sb))         # not revived by re-adding
+
+    def test_unchanged_reseed_keeps_sessions_and_session_ids_are_hashed(self):
+        log = EventLog(None)
+        log.seed_users([{"name": "a", "token": "x"}])
+        a = log.user_by_token_hash(hash_token("x"))["id"]
+        sid = log.create_session(a)
+        log.seed_users([{"name": "a", "token": "x"}])
+        self.assertEqual(log.resolve_session(sid)["name"], "a")
+        stored = log._conn.execute("select id from sessions").fetchone()[0]
+        self.assertNotEqual(stored, sid)
+        self.assertEqual(stored, hash_token(sid))
+
     def test_config_parses_web_users(self):
         cfg = Config({"web_users": [{"name": "anna", "token": "t", "role": "admin"},
                                     {"name": "broken"}]})
@@ -79,15 +138,27 @@ class SessionTest(unittest.TestCase):
 
 
 class SubsEndpointAckTest(unittest.TestCase):
-    def test_subs_default_is_none_follow_all(self):
+    def test_default_is_follow_all_and_mutes_opt_out(self):
+        log = EventLog(None)
+        log.seed_users([{"name": "anna", "token": "t"}, {"name": "bosse", "token": "u"}])
+        anna = log.user_by_token_hash(hash_token("t"))["id"]
+        bosse = log.user_by_token_hash(hash_token("u"))["id"]
+        # nothing chosen: everyone gets every device, including new ones
+        self.assertEqual(sorted(log.subscribers(DEV_EUI)), sorted([anna, bosse]))
+        self.assertEqual(log.get_muted(anna), [])
+        log.set_muted(anna, [DEV_EUI])
+        self.assertEqual(log.get_muted(anna), [DEV_EUI])
+        self.assertEqual(log.subscribers(DEV_EUI), [bosse])
+        self.assertEqual(sorted(log.subscribers(OTHER_EUI)), sorted([anna, bosse]))
+        # clearing the mutes goes back to following everything
+        log.set_muted(anna, [])
+        self.assertEqual(sorted(log.subscribers(DEV_EUI)), sorted([anna, bosse]))
+
+    def test_disabled_users_are_not_subscribers(self):
         log = EventLog(None)
         log.seed_users([{"name": "anna", "token": "t"}])
-        uid = log.user_by_token_hash(hash_token("t"))["id"]
-        self.assertIsNone(log.get_subs(uid))
-        log.set_subs(uid, [DEV_EUI])
-        self.assertEqual(log.get_subs(uid), [DEV_EUI])
-        self.assertEqual(log.subscribers(DEV_EUI), [uid])
-        self.assertEqual(log.subscribers(OTHER_EUI), [])
+        log.seed_users([])
+        self.assertEqual(log.subscribers(DEV_EUI), [])
 
     def test_endpoint_upsert_and_remove(self):
         log = EventLog(None)
@@ -102,10 +173,17 @@ class SubsEndpointAckTest(unittest.TestCase):
         self.assertEqual(log.endpoints_for_users([uid]), [])
         self.assertFalse(log.remove_endpoint("https://push.example/aaa"))
 
-    def test_push_ack_idempotent(self):
+    def test_push_ack_idempotent_and_owner_checked(self):
         log = EventLog(None)
-        log.log_push_ack(7, 3)
-        log.log_push_ack(7, 3)
+        log.seed_users([{"name": "anna", "token": "t"}, {"name": "bosse", "token": "u"}])
+        anna = log.user_by_token_hash(hash_token("t"))["id"]
+        bosse = log.user_by_token_hash(hash_token("u"))["id"]
+        ep = log.add_endpoint(anna, "https://push.example/aaa", "p", "a")
+        self.assertTrue(log.log_push_ack(anna, 7, ep))
+        self.assertTrue(log.log_push_ack(anna, 7, ep))
+        self.assertEqual(log._conn.execute("select count(*) from push_ack").fetchone()[0], 1)
+        # bosse cannot ack on anna's endpoint
+        self.assertFalse(log.log_push_ack(bosse, 8, ep))
         self.assertEqual(log._conn.execute("select count(*) from push_ack").fetchone()[0], 1)
 
 

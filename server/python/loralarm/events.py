@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS device_state (
     updated  TEXT NOT NULL
 );
 -- PWA phase: per-device arm/disarm (survives config hot-reload), per-user device
--- subscriptions, Web Push endpoints (endpoint is a secret: never logged) and the
+-- mutes, Web Push endpoints (endpoint is a secret: never logged) and the
 -- delivery log, referenced by endpoint_id only
 CREATE TABLE IF NOT EXISTS device_armed (
     dev_eui     TEXT PRIMARY KEY,
@@ -47,7 +47,9 @@ CREATE TABLE IF NOT EXISTS device_armed (
     changed_by  TEXT NOT NULL DEFAULT '',
     changed_at  TEXT NOT NULL
 );
-CREATE TABLE IF NOT EXISTS device_subs (
+-- opt-out, so the default (no rows) is "everyone is notified of everything":
+-- a new user or a newly added device can never end up with silent alarms
+CREATE TABLE IF NOT EXISTS device_mutes (
     user_id INTEGER NOT NULL,
     dev_eui TEXT NOT NULL,
     PRIMARY KEY (user_id, dev_eui)
@@ -84,7 +86,7 @@ CREATE TABLE IF NOT EXISTS users (
     disabled   INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS sessions (
-    id         TEXT PRIMARY KEY,          -- random; this is the cookie value
+    id         TEXT PRIMARY KEY,          -- sha256 hex of the random cookie value
     user_id    INTEGER NOT NULL,
     created_at TEXT NOT NULL,
     expires_at TEXT NOT NULL,
@@ -222,9 +224,11 @@ class EventLog:
                 (self._utc(now),))]
 
     def subscribers(self, dev_eui: str) -> list[int]:
+        """Enabled users who have not muted the device (default: everyone)."""
         with self._lock:
             return [r[0] for r in self._conn.execute(
-                "SELECT user_id FROM device_subs WHERE dev_eui = ?", (dev_eui,))]
+                "SELECT id FROM users WHERE disabled = 0 AND id NOT IN "
+                "(SELECT user_id FROM device_mutes WHERE dev_eui = ?)", (dev_eui,))]
 
     def endpoints_for_users(self, user_ids: list[int]) -> list[dict[str, Any]]:
         if not user_ids:
@@ -271,24 +275,44 @@ class EventLog:
     def seed_users(self, users: list[dict]) -> None:
         """Config is the single source of truth for who may exist: upsert every
         listed user (enabled, current token/role), disable the rest. Tokens are
-        hashed before the lock is taken. Each entry: {name, token, role}."""
+        hashed before the lock is taken. Each entry: {name, token, role}.
+        A changed token or a disabled user loses all sessions (so re-adding a
+        user never revives old ones). Raises sqlite3.Error (e.g. a token shared
+        by two users) after rolling back; callers must not let that stop the service."""
         rows = [(u["name"], hash_token(u["token"]), u.get("role", "user")) for u in users]
         now = self._utc(utc_now())
         with self._lock:
-            for name, th, role in rows:
+            try:
+                for name, th, _role in rows:
+                    # free the old hash first: swapping tokens between two users
+                    # would otherwise collide on the UNIQUE column mid-statement
+                    self._revoke_where("name = ? AND token_hash != ?", (name, th))
+                    self._conn.execute(
+                        "UPDATE users SET token_hash = 'rotating-' || id "
+                        "WHERE name = ? AND token_hash != ?", (name, th))
+                names = [r[0] for r in rows]
+                marks = ",".join("?" for _ in names)
+                gone = f"disabled = 0 AND name NOT IN ({marks})" if names else "disabled = 0"
+                self._revoke_where(gone, names)
+                # a disabled user keeps no token hash, so it can be reused
                 self._conn.execute(
-                    "INSERT INTO users (name, token_hash, role, created_at, disabled) "
-                    "VALUES (?, ?, ?, ?, 0) ON CONFLICT(name) DO UPDATE SET "
-                    "token_hash=excluded.token_hash, role=excluded.role, disabled=0",
-                    (name, th, role, now))
-            if rows:
-                marks = ",".join("?" for _ in rows)
-                self._conn.execute(
-                    f"UPDATE users SET disabled = 1 WHERE name NOT IN ({marks})",
-                    [r[0] for r in rows])
-            else:
-                self._conn.execute("UPDATE users SET disabled = 1")
-            self._conn.commit()
+                    f"UPDATE users SET disabled = 1, token_hash = 'disabled-' || id "
+                    f"WHERE {gone}", names)
+                for name, th, role in rows:
+                    self._conn.execute(
+                        "INSERT INTO users (name, token_hash, role, created_at, disabled) "
+                        "VALUES (?, ?, ?, ?, 0) ON CONFLICT(name) DO UPDATE SET "
+                        "token_hash=excluded.token_hash, role=excluded.role, disabled=0",
+                        (name, th, role, now))
+                self._conn.commit()
+            except sqlite3.Error:
+                self._conn.rollback()
+                raise
+
+    def _revoke_where(self, where: str, params) -> None:
+        self._conn.execute(
+            f"UPDATE sessions SET revoked = 1 WHERE user_id IN "
+            f"(SELECT id FROM users WHERE {where})", params)
 
     def user_by_token_hash(self, token_hash: str) -> dict[str, Any] | None:
         """The user for a valid (enabled) invite token; disabled users are not
@@ -301,13 +325,13 @@ class EventLog:
 
     def create_session(self, user_id: int, ttl_hours: float = 24 * 30) -> str:
         import secrets
-        sid = secrets.token_hex(32)
+        sid = secrets.token_hex(32)       # the cookie value; only its hash is stored
         now = utc_now()
         with self._lock:
             self._conn.execute(
                 "INSERT INTO sessions (id, user_id, created_at, expires_at, revoked) "
                 "VALUES (?, ?, ?, ?, 0)",
-                (sid, user_id, self._utc(now),
+                (hash_token(sid), user_id, self._utc(now),
                  self._utc(now + timedelta(hours=ttl_hours))))
             self._conn.commit()
         return sid
@@ -318,7 +342,7 @@ class EventLog:
             row = self._conn.execute(
                 "SELECT u.id, u.name, u.role, s.expires_at, s.revoked, u.disabled "
                 "FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.id = ?",
-                (sid,)).fetchone()
+                (hash_token(sid),)).fetchone()
         if not row:
             return None
         if row[4] or row[5]:
@@ -329,7 +353,8 @@ class EventLog:
 
     def revoke_session(self, sid: str) -> None:
         with self._lock:
-            self._conn.execute("UPDATE sessions SET revoked = 1 WHERE id = ?", (sid,))
+            self._conn.execute("UPDATE sessions SET revoked = 1 WHERE id = ?",
+                               (hash_token(sid),))
             self._conn.commit()
 
     def revoke_user_sessions(self, user_id: int) -> None:
@@ -337,18 +362,17 @@ class EventLog:
             self._conn.execute("UPDATE sessions SET revoked = 1 WHERE user_id = ?", (user_id,))
             self._conn.commit()
 
-    def get_subs(self, user_id: int) -> list[str] | None:
-        """The user's device set; None = not chosen yet = follow all (default)."""
+    def get_muted(self, user_id: int) -> list[str]:
+        """Devices the user has muted; everything else is followed (default)."""
         with self._lock:
-            rows = self._conn.execute(
-                "SELECT dev_eui FROM device_subs WHERE user_id = ?", (user_id,)).fetchall()
-        return [r[0] for r in rows] if rows else None
+            return [r[0] for r in self._conn.execute(
+                "SELECT dev_eui FROM device_mutes WHERE user_id = ?", (user_id,))]
 
-    def set_subs(self, user_id: int, dev_euis: list[str]) -> None:
+    def set_muted(self, user_id: int, dev_euis: list[str]) -> None:
         with self._lock:
-            self._conn.execute("DELETE FROM device_subs WHERE user_id = ?", (user_id,))
+            self._conn.execute("DELETE FROM device_mutes WHERE user_id = ?", (user_id,))
             self._conn.executemany(
-                "INSERT INTO device_subs (user_id, dev_eui) VALUES (?, ?)",
+                "INSERT OR IGNORE INTO device_mutes (user_id, dev_eui) VALUES (?, ?)",
                 [(user_id, e) for e in dev_euis])
             self._conn.commit()
 
@@ -376,9 +400,18 @@ class EventLog:
             self._conn.commit()
             return cur.rowcount > 0
 
-    def log_push_ack(self, event_id: int, endpoint_id: int) -> None:
+    def log_push_ack(self, user_id: int, event_id: int, endpoint_id: int) -> bool:
+        """Service-worker delivery receipt. Only recorded when the endpoint
+        belongs to `user_id` (ids are sequential, so a client could otherwise
+        forge acks for others); returns whether it was accepted."""
         with self._lock:
+            owned = self._conn.execute(
+                "SELECT 1 FROM push_endpoints WHERE id = ? AND user_id = ?",
+                (endpoint_id, user_id)).fetchone()
+            if not owned:
+                return False
             self._conn.execute(
                 "INSERT OR IGNORE INTO push_ack (event_id, endpoint_id, ts) VALUES (?, ?, ?)",
                 (event_id, endpoint_id, self._utc(utc_now())))
             self._conn.commit()
+            return True

@@ -24,9 +24,7 @@ def add_endpoint(log: EventLog, user_id: int, endpoint: str, eid: int | None = N
 class WebPushWorkerTest(unittest.TestCase):
     def setUp(self):
         self.log = EventLog(None)
-        self.log._conn.execute("INSERT INTO device_subs (user_id, dev_eui) VALUES (1, ?)",
-                               (DEV_EUI,))
-        self.log._conn.commit()
+        self.log.seed_users([{"name": "anna", "token": "t"}])   # id 1, follows all
         self.cfg = make_cfg()
 
     def make_worker(self, send_fn, **kw):
@@ -128,13 +126,22 @@ class WebPushWorkerTest(unittest.TestCase):
         self.assertEqual(seen, ["normal"])
 
     def test_device_without_followers_logs_warning_not_crash(self):
-        log2 = EventLog(None)   # no device_subs rows at all
+        log2 = EventLog(None)   # no users at all
         w = WebPushWorker(log2, send_fn=lambda *a: 201)
         w.start()
         self.addCleanup(w.close)
         w.fan_out(self.cfg, "motion", True, "t", "m", 1)
         w._queue.join()
         self.assertEqual(log2._conn.execute("select count(*) from webpush_log").fetchone()[0], 0)
+
+    def test_muted_device_is_not_pushed_to_that_user(self):
+        add_endpoint(self.log, 1, "https://push.example/aaa")
+        self.log.set_muted(1, [DEV_EUI])
+        calls = []
+        w = self.make_worker(lambda *a: calls.append(a) or 201)
+        w.fan_out(self.cfg, "motion", True, "t", "m", 1)
+        self.drain(w)
+        self.assertEqual(calls, [])
 
     def test_dry_run_logs_without_sending(self):
         e1 = add_endpoint(self.log, 1, "https://push.example/aaa")
