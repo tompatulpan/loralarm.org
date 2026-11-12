@@ -72,7 +72,39 @@ CREATE TABLE IF NOT EXISTS webpush_log (
     ts          TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_webpush_log_event ON webpush_log(event_id);
+-- PWA accounts: invite tokens are stored hashed only (raw token never at rest);
+-- sessions are server-side and revocable; push_ack is the service-worker
+-- delivery receipt, keyed by endpoint_id like webpush_log
+CREATE TABLE IF NOT EXISTS users (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    name       TEXT NOT NULL UNIQUE,
+    token_hash TEXT NOT NULL UNIQUE,     -- sha256 hex of the invite token
+    role       TEXT NOT NULL DEFAULT 'user',   -- user | admin (admin may disarm "tills vidare")
+    created_at TEXT NOT NULL,
+    disabled   INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS sessions (
+    id         TEXT PRIMARY KEY,          -- random; this is the cookie value
+    user_id    INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    revoked    INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+CREATE TABLE IF NOT EXISTS push_ack (
+    event_id    INTEGER NOT NULL,
+    endpoint_id INTEGER NOT NULL,
+    ts          TEXT NOT NULL,
+    PRIMARY KEY (event_id, endpoint_id)
+);
 """
+
+
+def hash_token(token: str) -> str:
+    """sha256 hex of an invite token. Pure function on purpose: callers hash
+    *outside* EventLog._lock, so a slow hash never contends with the alarm path."""
+    import hashlib
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 _INSERT = ("INSERT INTO events (ts, dev_eui, device_name, kind, active, detail, user) "
            "VALUES (?, ?, ?, ?, ?, ?, ?)")
@@ -233,3 +265,120 @@ class EventLog:
                 (endpoint_id,))
             self._conn.commit()
             return False
+
+    # ---- PWA accounts: users, sessions, subscriptions, endpoints, acks ----
+
+    def seed_users(self, users: list[dict]) -> None:
+        """Config is the single source of truth for who may exist: upsert every
+        listed user (enabled, current token/role), disable the rest. Tokens are
+        hashed before the lock is taken. Each entry: {name, token, role}."""
+        rows = [(u["name"], hash_token(u["token"]), u.get("role", "user")) for u in users]
+        now = self._utc(utc_now())
+        with self._lock:
+            for name, th, role in rows:
+                self._conn.execute(
+                    "INSERT INTO users (name, token_hash, role, created_at, disabled) "
+                    "VALUES (?, ?, ?, ?, 0) ON CONFLICT(name) DO UPDATE SET "
+                    "token_hash=excluded.token_hash, role=excluded.role, disabled=0",
+                    (name, th, role, now))
+            if rows:
+                marks = ",".join("?" for _ in rows)
+                self._conn.execute(
+                    f"UPDATE users SET disabled = 1 WHERE name NOT IN ({marks})",
+                    [r[0] for r in rows])
+            else:
+                self._conn.execute("UPDATE users SET disabled = 1")
+            self._conn.commit()
+
+    def user_by_token_hash(self, token_hash: str) -> dict[str, Any] | None:
+        """The user for a valid (enabled) invite token; disabled users are not
+        returned — a disabled user is logged out immediately."""
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT id, name, role FROM users WHERE token_hash = ? AND disabled = 0",
+                (token_hash,)).fetchone()
+        return {"id": row[0], "name": row[1], "role": row[2]} if row else None
+
+    def create_session(self, user_id: int, ttl_hours: float = 24 * 30) -> str:
+        import secrets
+        sid = secrets.token_hex(32)
+        now = utc_now()
+        with self._lock:
+            self._conn.execute(
+                "INSERT INTO sessions (id, user_id, created_at, expires_at, revoked) "
+                "VALUES (?, ?, ?, ?, 0)",
+                (sid, user_id, self._utc(now),
+                 self._utc(now + timedelta(hours=ttl_hours))))
+            self._conn.commit()
+        return sid
+
+    def resolve_session(self, sid: str) -> dict[str, Any] | None:
+        """Session -> user, or None when unknown/revoked/expired/disabled."""
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT u.id, u.name, u.role, s.expires_at, s.revoked, u.disabled "
+                "FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.id = ?",
+                (sid,)).fetchone()
+        if not row:
+            return None
+        if row[4] or row[5]:
+            return None
+        if row[3] <= self._utc(utc_now()):
+            return None
+        return {"id": row[0], "name": row[1], "role": row[2]}
+
+    def revoke_session(self, sid: str) -> None:
+        with self._lock:
+            self._conn.execute("UPDATE sessions SET revoked = 1 WHERE id = ?", (sid,))
+            self._conn.commit()
+
+    def revoke_user_sessions(self, user_id: int) -> None:
+        with self._lock:
+            self._conn.execute("UPDATE sessions SET revoked = 1 WHERE user_id = ?", (user_id,))
+            self._conn.commit()
+
+    def get_subs(self, user_id: int) -> list[str] | None:
+        """The user's device set; None = not chosen yet = follow all (default)."""
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT dev_eui FROM device_subs WHERE user_id = ?", (user_id,)).fetchall()
+        return [r[0] for r in rows] if rows else None
+
+    def set_subs(self, user_id: int, dev_euis: list[str]) -> None:
+        with self._lock:
+            self._conn.execute("DELETE FROM device_subs WHERE user_id = ?", (user_id,))
+            self._conn.executemany(
+                "INSERT INTO device_subs (user_id, dev_eui) VALUES (?, ?)",
+                [(user_id, e) for e in dev_euis])
+            self._conn.commit()
+
+    def add_endpoint(self, user_id: int, endpoint: str, p256dh: str, auth: str,
+                     ua: str = "") -> int:
+        """Register a Web Push subscription; re-registering the same endpoint
+        refreshes its keys (a second browser on the same account)."""
+        with self._lock:
+            self._conn.execute(
+                "INSERT INTO push_endpoints (user_id, endpoint, p256dh, auth, ua, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(endpoint) DO UPDATE SET "
+                "user_id=excluded.user_id, p256dh=excluded.p256dh, auth=excluded.auth, "
+                "ua=excluded.ua, fail_count=0",
+                (user_id, endpoint, p256dh, auth, ua, self._utc(utc_now())))
+            self._conn.commit()
+            return self._conn.execute(
+                "SELECT id FROM push_endpoints WHERE endpoint = ?", (endpoint,)).fetchone()[0]
+
+    def remove_endpoint(self, endpoint: str) -> bool:
+        """Logout: delete this browser's subscription so a second user on a
+        shared phone does not inherit the first user's alarms."""
+        with self._lock:
+            cur = self._conn.execute("DELETE FROM push_endpoints WHERE endpoint = ?",
+                                     (endpoint,))
+            self._conn.commit()
+            return cur.rowcount > 0
+
+    def log_push_ack(self, event_id: int, endpoint_id: int) -> None:
+        with self._lock:
+            self._conn.execute(
+                "INSERT OR IGNORE INTO push_ack (event_id, endpoint_id, ts) VALUES (?, ?, ?)",
+                (event_id, endpoint_id, self._utc(utc_now())))
+            self._conn.commit()

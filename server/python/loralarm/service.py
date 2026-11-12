@@ -169,6 +169,11 @@ class Engine:
                       self.config_path, type(e).__name__, e)
             return
         log.info("reloaded config from %s", self.config_path)
+        if self.event_log and self.config.web_users is not None:
+            try:
+                self.event_log.seed_users(self.config.web_users)
+            except sqlite3.Error:
+                log.exception("could not re-seed web users after config reload")
         self._dl_bad.clear()
         self._warned_windows.clear()
         self._dl_sent.clear()
@@ -754,6 +759,9 @@ def main() -> int:
 
     config = Config.load(args.config)
     event_log = EventLog(args.db)
+    if config.web_users:
+        event_log.seed_users(config.web_users)
+        log.info("seeded %d web user(s) from the config", len(config.web_users))
     webpush = None
     if args.web:
         from .webpush import WebPushWorker

@@ -161,6 +161,16 @@ class Config:
         # devEUIs are lowercased on the wire (Uplink lowercases them), so the
         # lookup keys must be lowercase too or an uppercase key never matches
         self.devices = {str(k).lower(): v for k, v in data.get("devices", {}).items()}
+        # PWA accounts (devices.json top level): {"web_users": [{"name": "…",
+        # "token": "${ENV}", "role": "admin"|"user"}]}; seeded into SQLite at
+        # startup and on every hot reload — config stays the source of truth
+        self.web_users: list[dict[str, str]] = []
+        for u in data.get("web_users", []):
+            if isinstance(u, dict) and u.get("name") and u.get("token"):
+                self.web_users.append({"name": str(u["name"]), "token": str(u["token"]),
+                                       "role": str(u.get("role", "user"))})
+            else:
+                log.warning("config web_users: entry %r needs 'name' and 'token'; ignored", u)
         self._warn_unknown("defaults", self.defaults)
         for fam, fvals in data.get("families", {}).items():
             self._warn_unknown(f"families.{fam}", fvals)
