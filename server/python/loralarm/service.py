@@ -754,6 +754,9 @@ def main() -> int:
     ap.add_argument("--web-host", default=os.environ.get("LORALARM_WEB_HOST", "127.0.0.1"),
                     help="web app bind address (default 127.0.0.1 — the Cloudflare tunnel "
                          "forwards to it; never bind 0.0.0.0)")
+    ap.add_argument("--web-insecure-cookie", action="store_true",
+                    help="local development only: do not mark the session cookie Secure "
+                         "(browsers drop Secure cookies on plain http://localhost)")
     ap.add_argument("--web-port", type=int, default=int(os.environ.get("LORALARM_WEB_PORT", "8080")),
                     help="web app port (default 8080)")
     ap.add_argument("--static", default=os.environ.get("LORALARM_WEB_STATIC", ""),
@@ -800,7 +803,7 @@ def main() -> int:
     if args.web:
         from .webapp import WebServer, create_app
         app = create_app(engine, event_log, webpush=webpush, static_dir=args.static or None,
-                         cookie_secure=args.web_host not in ("127.0.0.1", "localhost", "::1"))
+                         cookie_secure=not args.web_insecure_cookie)
         web_server = WebServer(app, host=args.web_host, port=args.web_port)
         web_server.start()
         log.info("web app listening on %s:%d", args.web_host, args.web_port)

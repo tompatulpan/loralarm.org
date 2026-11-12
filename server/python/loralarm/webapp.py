@@ -6,21 +6,31 @@ its lock is taken). API exceptions are caught and logged — they can never reac
 the MQTT/watchdog threads.
 
 Auth: invite token (>=128 bit, stored hashed) exchanged once at /api/login for a
-server-side session cookie (HttpOnly, SameSite=Lax, Secure when not localhost).
-Per-user lockout after repeated bad tokens (in-memory, not per-IP — behind the
-tunnel every peer IP is Cloudflare's). CSRF: every state-changing route requires
-the `X-Requested-With: loralarm` header and a same-origin Origin when present.
+server-side session cookie (HttpOnly, SameSite=Lax, Secure unless explicitly
+disabled for local development). Bad tokens are throttled globally, with bounded
+state: the user is unknown at that point and behind the tunnel every peer IP is
+Cloudflare's, so neither a per-user nor a per-IP lockout is possible — and a valid
+token is always accepted, so the throttle can never lock real users out. Per-user
+rate limit once logged in. CSRF: every state-changing route requires the
+`X-Requested-With: loralarm` header and a same-origin Origin when present.
+
+Route handlers are plain `def` (FastAPI runs them in its threadpool), so a slow
+SQLite commit or the engine lock can only stall a worker thread, never the event
+loop. Request bodies are size-capped and must be JSON objects.
 """
 from __future__ import annotations
 
 import json
 import logging
+import math
 import re
 import threading
 import time
-from datetime import timedelta, timezone
+from collections import deque
+from datetime import timedelta
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from .events import EventLog, hash_token, utc_now
 from .service import Engine
@@ -37,45 +47,96 @@ log = logging.getLogger(__name__)
 
 COOKIE = "loralarm_session"
 _EUI_RE = re.compile(r"^[0-9a-f]{16}$")
-LOGIN_LOCKOUT_AFTER = 5
-LOGIN_LOCKOUT_S = 15 * 60
+LOGIN_LOCKOUT_AFTER = 10       # bad tokens per minute (all clients) before 429
 RATE_LIMIT_PER_MIN = 60
 SNOOZE_PRESETS_H = (1.0, 8.0, 24.0)
+MAX_BODY_BYTES = 16 * 1024
+MAX_ENDPOINTS_PER_USER = 10
+MAX_ENDPOINT_LEN = 2048
+MAX_KEY_LEN = 256
+# Web Push services only: the server POSTs to the registered endpoint, so an
+# arbitrary https URL would be a server-side request forgery primitive
+PUSH_HOST_SUFFIXES = ("fcm.googleapis.com", "push.services.mozilla.com",
+                      "push.apple.com", "notify.windows.com")
+
+
+def push_endpoint_allowed(endpoint: str) -> bool:
+    if len(endpoint) > MAX_ENDPOINT_LEN:
+        return False
+    try:
+        u = urlparse(endpoint)
+        host, port = (u.hostname or "").lower(), u.port
+    except ValueError:
+        return False
+    if u.scheme != "https" or u.username or u.password or port not in (None, 443):
+        return False
+    return any(host == s or host.endswith("." + s) for s in PUSH_HOST_SUFFIXES)
 
 
 class _Limiter:
-    """Tiny in-memory per-user rate limit and login lockout (not per-IP: behind
-    the Cloudflare tunnel the peer IP is always Cloudflare's)."""
+    """Tiny in-memory limiter. Per-user request counts are bounded by the number
+    of users; failed logins are one bounded global window (never per attacker-
+    chosen key)."""
 
     def __init__(self):
-        self._hits: dict[str, list[float]] = {}
-        self._lockout: dict[str, tuple[int, float]] = {}
+        self._lock = threading.Lock()
+        self._hits: dict[str, deque[float]] = {}
+        self._failures: deque[float] = deque(maxlen=LOGIN_LOCKOUT_AFTER)
 
     def too_many_requests(self, key: str) -> bool:
         now = time.monotonic()
-        hits = [t for t in self._hits.get(key, []) if now - t < 60]
-        self._hits[key] = hits
-        if len(hits) >= RATE_LIMIT_PER_MIN:
-            return True
-        hits.append(now)
-        return False
+        with self._lock:
+            hits = self._hits.setdefault(key, deque(maxlen=RATE_LIMIT_PER_MIN))
+            while hits and now - hits[0] >= 60:
+                hits.popleft()
+            if len(hits) >= RATE_LIMIT_PER_MIN:
+                return True
+            hits.append(now)
+            return False
 
-    def login_failed(self, name: str) -> bool:
-        """Record a bad token; returns True when the name is now locked out."""
+    def login_failed(self) -> bool:
+        """Record a bad token; True when failures are now over the global limit."""
         now = time.monotonic()
-        fails, locked_until = self._lockout.get(name, (0, 0.0))
-        if now < locked_until:
-            return True
-        fails += 1
-        if fails >= LOGIN_LOCKOUT_AFTER:
-            self._lockout[name] = (0, now + LOGIN_LOCKOUT_S)
-            log.warning("login lockout for %s after %d bad tokens", name, fails)
-            return True
-        self._lockout[name] = (fails, 0.0)
-        return False
+        with self._lock:
+            self._failures.append(now)
+            over = (len(self._failures) >= LOGIN_LOCKOUT_AFTER
+                    and now - self._failures[0] < 60)
+        if over:
+            log.warning("many failed logins (>= %d in a minute)", LOGIN_LOCKOUT_AFTER)
+        return over
 
-    def login_ok(self, name: str) -> None:
-        self._lockout.pop(name, None)
+
+def _number(value: Any, name: str, lo: float, hi: float) -> float:
+    """A finite number within [lo, hi], else 422 (never a 500)."""
+    if isinstance(value, bool) or value is None:
+        raise HTTPException(status_code=422, detail=f"{name} must be a number")
+    try:
+        x = float(value)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=422, detail=f"{name} must be a number") from None
+    if not math.isfinite(x) or not lo <= x <= hi:
+        raise HTTPException(status_code=422, detail=f"{name} out of range")
+    return x
+
+
+async def _body(request: Request) -> dict[str, Any]:
+    """Size-capped JSON object body; 413/422 instead of an unhandled error."""
+    declared = request.headers.get("content-length")
+    if declared and declared.isdigit() and int(declared) > MAX_BODY_BYTES:
+        raise HTTPException(status_code=413, detail="request too large")
+    chunks, size = [], 0
+    async for chunk in request.stream():
+        size += len(chunk)
+        if size > MAX_BODY_BYTES:
+            raise HTTPException(status_code=413, detail="request too large")
+        chunks.append(chunk)
+    try:
+        body = json.loads(b"".join(chunks) or b"{}")
+    except ValueError:
+        raise HTTPException(status_code=422, detail="body must be JSON") from None
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=422, detail="body must be a JSON object")
+    return body
 
 
 def create_app(engine: Engine, event_log: EventLog, webpush: Any = None,
@@ -102,17 +163,12 @@ def create_app(engine: Engine, event_log: EventLog, webpush: Any = None,
         if request.headers.get("x-requested-with") != "loralarm":
             raise HTTPException(status_code=403, detail="missing X-Requested-With header")
         origin = request.headers.get("origin")
-        if origin:
-            from urllib.parse import urlparse
-            if urlparse(origin).netloc != request.headers.get("host", ""):
-                raise HTTPException(status_code=403, detail="cross-origin request")
+        if origin and urlparse(origin).netloc != request.headers.get("host", ""):
+            raise HTTPException(status_code=403, detail="cross-origin request")
 
-    def _limited(request: Request, user: dict[str, Any]) -> None:
+    def _guard(user: dict[str, Any] = Depends(_user)) -> dict[str, Any]:
         if limiter.too_many_requests(f"u:{user['id']}"):
             raise HTTPException(status_code=429, detail="rate limited")
-
-    async def _guard(request: Request, user: dict[str, Any] = Depends(_user)) -> dict[str, Any]:
-        _limited(request, user)
         return user
 
     @app.exception_handler(Exception)
@@ -123,37 +179,31 @@ def create_app(engine: Engine, event_log: EventLog, webpush: Any = None,
 
     # ---- auth ----
 
-    @app.post("/api/login")
-    async def login(request: Request):
-        try:
-            body = await request.json()
-        except Exception:
-            body = {}
-        token = str(body.get("token") or "")
-        if limiter.too_many_requests(f"login:{request.client.host if request.client else '?'}"):
-            raise HTTPException(status_code=429, detail="rate limited")
-        # hash outside any EventLog lock (pure sha256), then one short lookup
+    @app.post("/api/login", dependencies=[Depends(_csrf)])
+    def login(body: dict = Depends(_body)):
+        token = body.get("token")
+        token = token if isinstance(token, str) else ""
+        # hash outside any EventLog lock (pure sha256), then one short lookup;
+        # a valid token is always accepted, only failures are throttled
         user = event_log.user_by_token_hash(hash_token(token)) if token else None
         if user is None:
-            name = token[:8]  # lockout keyed on a prefix; never log the token
-            if limiter.login_failed(name):
-                raise HTTPException(status_code=429, detail="too many attempts; locked out")
+            if limiter.login_failed():
+                raise HTTPException(status_code=429, detail="too many failed attempts")
             raise HTTPException(status_code=401, detail="bad invite token")
-        limiter.login_ok(token[:8])
         sid = event_log.create_session(user["id"])
         resp = Response(content=json.dumps({"ok": True, "name": user["name"], "role": user["role"]},
-                                          ensure_ascii=False))
+                                          ensure_ascii=False),
+                        media_type="application/json")
         resp.set_cookie(COOKIE, sid, httponly=True, samesite="lax",
                         secure=cookie_secure, max_age=30 * 24 * 3600)
         return resp
 
-    @app.post("/api/logout")
-    async def logout(request: Request, user: dict = Depends(_user)):
-        _csrf(request)
+    @app.post("/api/logout", dependencies=[Depends(_csrf)])
+    def logout(request: Request, user: dict = Depends(_user)):
         sid = request.cookies.get(COOKIE, "")
         if sid:
             event_log.revoke_session(sid)
-        resp = Response(content=json.dumps({"ok": True}))
+        resp = Response(content=json.dumps({"ok": True}), media_type="application/json")
         resp.delete_cookie(COOKIE)
         return resp
 
@@ -189,11 +239,11 @@ def create_app(engine: Engine, event_log: EventLog, webpush: Any = None,
         return out
 
     @app.get("/api/devices")
-    async def devices(user: dict = Depends(_guard)):
+    def devices(user: dict = Depends(_guard)):
         return {"devices": _fleet(user), "webpush": webpush is not None}
 
     @app.get("/api/state")
-    async def state(user: dict = Depends(_guard)):
+    def state(user: dict = Depends(_guard)):
         snap = engine.snapshot()
         alarms = [{"dev_eui": eui, "name": e.get("name", ""), "kind": k,
                    "detail": e.get("state", {}).get("last_detail", {}).get(k, "")}
@@ -201,9 +251,12 @@ def create_app(engine: Engine, event_log: EventLog, webpush: Any = None,
         return {"ok": not alarms, "alarms": alarms}
 
     @app.get("/api/events")
-    async def events(request: Request, user: dict = Depends(_guard)):
-        hours = min(max(float(request.query_params.get("hours", 24)), 0.1), 24 * 90)
-        limit = min(max(int(request.query_params.get("limit", 200)), 1), 500)
+    def events(request: Request, user: dict = Depends(_guard)):
+        # out-of-range values are clamped; unparsable ones are a 422
+        hours = min(max(_number(request.query_params.get("hours", 24), "hours", -math.inf, math.inf),
+                        0.1), 24 * 90)
+        limit = int(min(max(_number(request.query_params.get("limit", 200), "limit",
+                                    -math.inf, math.inf), 1), 500))
         rows = event_log.recent(hours=hours, limit=limit)
         return {"events": [{"ts": r[0], "device": r[1], "kind": r[2], "active": bool(r[3]),
                             "detail": r[4], "user": r[5]} for r in rows]}
@@ -212,17 +265,15 @@ def create_app(engine: Engine, event_log: EventLog, webpush: Any = None,
     # default is "follow all" and a new device never alarms to nobody) ----
 
     @app.get("/api/subscriptions")
-    async def get_subs(user: dict = Depends(_guard)):
+    def get_subs(user: dict = Depends(_guard)):
         snap = engine.snapshot()
         known = set(engine.config.devices) | set(snap) | set(event_log.known_devices())
         muted = set(event_log.get_muted(user["id"]))
         followed = sorted(known - muted)
         return {"devices": followed, "all": not muted}
 
-    @app.put("/api/subscriptions")
-    async def put_subs(request: Request, user: dict = Depends(_guard)):
-        _csrf(request)
-        body = await request.json()
+    @app.put("/api/subscriptions", dependencies=[Depends(_csrf)])
+    def put_subs(body: dict = Depends(_body), user: dict = Depends(_guard)):
         devs = body.get("devices")
         if not isinstance(devs, list) or not all(isinstance(d, str) for d in devs):
             raise HTTPException(status_code=422, detail="devices must be a list of devEUIs")
@@ -237,22 +288,20 @@ def create_app(engine: Engine, event_log: EventLog, webpush: Any = None,
     # ---- arm/disarm (global per device; audited; snooze presets) ----
 
     @app.get("/api/devices/{eui}/armed")
-    async def get_armed(eui: str, user: dict = Depends(_guard)):
+    def get_armed(eui: str, user: dict = Depends(_guard)):
         eui = eui.lower()
         row = event_log.get_armed(eui) or {"armed": True, "until": None}
         return {"dev_eui": eui, "armed": bool(row["armed"]), "until": row["until"],
                 "can_disarm_forever": user["role"] == "admin"}
 
-    @app.put("/api/devices/{eui}/armed")
-    async def put_armed(eui: str, request: Request, user: dict = Depends(_guard)):
-        _csrf(request)
+    @app.put("/api/devices/{eui}/armed", dependencies=[Depends(_csrf)])
+    def put_armed(eui: str, body: dict = Depends(_body), user: dict = Depends(_guard)):
         eui = eui.lower()
         if not _EUI_RE.match(eui):
             raise HTTPException(status_code=422, detail="bad devEUI")
         if eui not in engine.config.devices and eui not in engine.snapshot() \
                 and eui not in event_log.known_devices():
             raise HTTPException(status_code=404, detail="unknown device")
-        body = await request.json()
         armed = body.get("armed")
         if not isinstance(armed, bool):
             raise HTTPException(status_code=422, detail="armed must be a bool")
@@ -265,12 +314,12 @@ def create_app(engine: Engine, event_log: EventLog, webpush: Any = None,
                                         detail="only admins may disarm 'tills vidare'; "
                                                "pick a snooze (1/8/24 h)")
             else:
-                snooze = float(snooze)
+                snooze = _number(snooze, "snooze_hours", 0.0, 24 * 365)
+                if snooze <= 0:
+                    raise HTTPException(status_code=422, detail="snooze out of range")
                 if user["role"] != "admin" and snooze not in SNOOZE_PRESETS_H:
                     raise HTTPException(status_code=403,
                                         detail=f"snooze must be one of {SNOOZE_PRESETS_H}")
-                if snooze <= 0 or snooze > 24 * 365:
-                    raise HTTPException(status_code=422, detail="snooze out of range")
                 until = utc_now() + timedelta(hours=snooze)
         engine.set_armed(eui, armed, until, user=user["name"])
         row = event_log.get_armed(eui) or {}
@@ -278,39 +327,41 @@ def create_app(engine: Engine, event_log: EventLog, webpush: Any = None,
 
     # ---- Web Push ----
 
-    @app.post("/api/push/subscribe")
-    async def push_subscribe(request: Request, user: dict = Depends(_guard)):
-        _csrf(request)
-        body = await request.json()
-        endpoint = str(body.get("endpoint") or "")
-        keys = body.get("keys") or {}
-        if not endpoint.startswith("https://") or not keys.get("p256dh") or not keys.get("auth"):
+    @app.post("/api/push/subscribe", dependencies=[Depends(_csrf)])
+    def push_subscribe(request: Request, body: dict = Depends(_body),
+                       user: dict = Depends(_guard)):
+        endpoint = body.get("endpoint")
+        keys = body.get("keys")
+        keys = keys if isinstance(keys, dict) else {}
+        p256dh, auth = keys.get("p256dh"), keys.get("auth")
+        if (not isinstance(endpoint, str) or not push_endpoint_allowed(endpoint)
+                or not isinstance(p256dh, str) or not isinstance(auth, str)
+                or not 0 < len(p256dh) <= MAX_KEY_LEN or not 0 < len(auth) <= MAX_KEY_LEN):
             raise HTTPException(status_code=422, detail="bad subscription")
-        eid = event_log.add_endpoint(user["id"], endpoint, str(keys["p256dh"]),
-                                     str(keys["auth"]), request.headers.get("user-agent", ""))
+        if (event_log.endpoint_id(endpoint) is None
+                and event_log.count_endpoints(user["id"]) >= MAX_ENDPOINTS_PER_USER):
+            raise HTTPException(status_code=409, detail="too many registered devices")
+        eid = event_log.add_endpoint(user["id"], endpoint, p256dh, auth,
+                                     request.headers.get("user-agent", "")[:200])
         return {"ok": True, "endpoint_id": eid}
 
-    @app.delete("/api/push/subscribe")
-    async def push_unsubscribe(request: Request, user: dict = Depends(_guard)):
-        _csrf(request)
-        body = await request.json()
-        removed = event_log.remove_endpoint(str(body.get("endpoint") or ""))
+    @app.delete("/api/push/subscribe", dependencies=[Depends(_csrf)])
+    def push_unsubscribe(body: dict = Depends(_body), user: dict = Depends(_guard)):
+        removed = event_log.remove_endpoint(str(body.get("endpoint") or ""), user["id"])
         return {"ok": removed}
 
-    @app.post("/api/push/ack")
-    async def push_ack(request: Request, user: dict = Depends(_user)):
-        # called by the service worker on delivery; cheap and idempotent
-        body = await request.json()
-        try:
-            event_id = int(body.get("event_id"))
-        except (TypeError, ValueError):
-            raise HTTPException(status_code=422, detail="bad event_id")
+    @app.post("/api/push/ack", dependencies=[Depends(_csrf)])
+    def push_ack(body: dict = Depends(_body), user: dict = Depends(_guard)):
+        # called by the service worker on delivery (with the X-Requested-With
+        # header); idempotent, owner-checked, and only for events that exist
+        event_id = _number(body.get("event_id"), "event_id", 1, 2**62)
         eid = event_log.endpoint_id(str(body.get("endpoint") or ""))
-        ok = eid is not None and event_log.log_push_ack(user["id"], event_id, eid)
+        ok = (eid is not None and event_log.event_exists(int(event_id))
+              and event_log.log_push_ack(user["id"], int(event_id), eid))
         return {"ok": ok}
 
     @app.get("/api/health")
-    async def health():
+    def health():
         return {"ok": True}
 
     if static_dir and Path(static_dir).is_dir():

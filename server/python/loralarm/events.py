@@ -399,12 +399,28 @@ class EventLog:
                 "SELECT id FROM push_endpoints WHERE endpoint = ?", (endpoint,)).fetchone()
         return row[0] if row else None
 
-    def remove_endpoint(self, endpoint: str) -> bool:
-        """Logout: delete this browser's subscription so a second user on a
-        shared phone does not inherit the first user's alarms."""
+    def count_endpoints(self, user_id: int) -> int:
         with self._lock:
-            cur = self._conn.execute("DELETE FROM push_endpoints WHERE endpoint = ?",
-                                     (endpoint,))
+            return self._conn.execute(
+                "SELECT COUNT(*) FROM push_endpoints WHERE user_id = ?", (user_id,)).fetchone()[0]
+
+    def event_exists(self, event_id: int) -> bool:
+        with self._lock:
+            return self._conn.execute(
+                "SELECT 1 FROM events WHERE id = ?", (event_id,)).fetchone() is not None
+
+    def remove_endpoint(self, endpoint: str, user_id: int | None = None) -> bool:
+        """Logout: delete this browser's subscription so a second user on a
+        shared phone does not inherit the first user's alarms. With `user_id`
+        only that user's own endpoint is removed."""
+        with self._lock:
+            if user_id is None:
+                cur = self._conn.execute("DELETE FROM push_endpoints WHERE endpoint = ?",
+                                         (endpoint,))
+            else:
+                cur = self._conn.execute(
+                    "DELETE FROM push_endpoints WHERE endpoint = ? AND user_id = ?",
+                    (endpoint, user_id))
             self._conn.commit()
             return cur.rowcount > 0
 
