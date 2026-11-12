@@ -29,7 +29,6 @@ def _default_registry() -> Registry:
 log = logging.getLogger(__name__)
 
 PUSHOVER_API = "https://api.pushover.net/1/messages.json"
-PUSHOVER_CANCEL_API = "https://api.pushover.net/1/receipts/cancel_by_tag/{tag}.json"
 
 # Built-in notification texts per alarm kind, fire / clear: {name}, {detail}
 # and {label} are substituted (detail carries the measured values, e.g.
@@ -58,10 +57,6 @@ DEFAULT_TEXT: dict[str, tuple[str, str]] = {
     "armed":         ("🛡️ LARM PÅ: {name} — {detail}",
                       "🛡️ LARM AV: {name} — {detail}"),
 }
-
-# kinds that escalate to Pushover emergency priority (2): it re-alerts every
-# retry seconds until acknowledged or expire; the clear cancels it by tag
-CRITICAL_KINDS = frozenset({"temp_low", "temp_high", "motion", "tilt", "circuit", "stale"})
 
 # backwards-compatible alias; the texts are the live defaults, not an example
 EXAMPLE_TEXT = DEFAULT_TEXT
@@ -201,9 +196,7 @@ class Notifier:
                    label="ntfy", target=cfg.ntfy_topic)
         if cfg.pushover_user and cfg.pushover_token:
             self._send(self._pushover, cfg.pushover_token, cfg.pushover_user,
-                       title, message, active,
-                       f"{cfg.dev_eui}-{kind}" if kind in CRITICAL_KINDS else "",
-                       label="pushover", target=name)
+                       title, message, active, label="pushover", target=name)
 
     @staticmethod
     def _sleep(seconds: float) -> None:
@@ -243,31 +236,13 @@ class Notifier:
             resp.read()
 
     def _pushover(self, token: str, user: str, title: str, message: str,
-                  active: bool, tag: str = "") -> None:
-        """`tag` is set for critical kinds only: a fire goes out as emergency
-        priority (tagged, so it can be cancelled); the clear cancels the tag so
-        a cleared alarm stops re-alerting."""
-        fields = {
+                  active: bool) -> None:
+        # priority 1 (high) on fire, 0 on clear. Deliberately not 2 (emergency):
+        # that re-sends every `retry` s until acknowledged in the app.
+        data = urllib.parse.urlencode({
             "token": token, "user": user, "title": title, "message": message,
             "priority": 1 if active else 0,
-        }
-        if tag and active:
-            # emergency priority requires retry/expire (Pushover API)
-            fields.update(priority=2, retry=60, expire=3600, tags=tag)
-        elif tag:
-            self._pushover_cancel(token, tag)
-        data = urllib.parse.urlencode(fields).encode()
+        }).encode()
         req = urllib.request.Request(PUSHOVER_API, data=data)
         with urllib.request.urlopen(req, timeout=self.timeout) as resp:
             resp.read()
-
-    def _pushover_cancel(self, token: str, tag: str) -> None:
-        # best effort: failing to cancel must not suppress the clear message
-        try:
-            req = urllib.request.Request(
-                PUSHOVER_CANCEL_API.format(tag=urllib.parse.quote(tag, safe="")),
-                data=urllib.parse.urlencode({"token": token}).encode())
-            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-                resp.read()
-        except Exception as e:
-            log.warning("pushover cancel of emergency alert %s failed: %s", tag, e)

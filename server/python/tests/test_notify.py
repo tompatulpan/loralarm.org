@@ -66,9 +66,8 @@ class NotifierTest(unittest.TestCase):
         n.close()
         self.assertEqual(len(sent), 1)  # ntfy only: no pushover creds configured
 
-    def test_critical_fire_is_emergency_priority_and_clear_cancels_by_tag(self):
+    def test_pushover_never_uses_emergency_priority(self):
         import urllib.parse
-        from loralarm.notify import PUSHOVER_API
         n = Notifier(ntfy_url="http://ntfy.invalid", retries=1)
         reqs = []
 
@@ -82,35 +81,13 @@ class NotifierTest(unittest.TestCase):
             return Resp()
 
         with mock.patch("urllib.request.urlopen", fake_urlopen):
-            n._pushover("tok", "usr", "t", "m", True, "EUI-motion")
-            n._pushover("tok", "usr", "t", "m", False, "EUI-motion")
-            n._pushover("tok", "usr", "t", "m", True, "")
-        fire, cancel, clear, plain = reqs
-        self.assertEqual(fire[0], PUSHOVER_API)
-        self.assertEqual(fire[1]["priority"], ["2"])
-        self.assertEqual(fire[1]["tags"], ["EUI-motion"])
-        self.assertIn("cancel_by_tag/EUI-motion.json", cancel[0])
-        self.assertEqual(clear[1]["priority"], ["0"])
-        self.assertEqual(plain[1]["priority"], ["1"])   # non-critical: no emergency
-
-    def test_cancel_failure_does_not_block_clear_message(self):
-        n = Notifier(ntfy_url="http://ntfy.invalid", retries=1)
-        calls = []
-
-        class Resp:
-            def __enter__(self): return self
-            def __exit__(self, *a): return False
-            def read(self): return b"{}"
-
-        def fake_urlopen(req, timeout=None):
-            calls.append(req.full_url)
-            if "cancel_by_tag" in req.full_url:
-                raise OSError("down")
-            return Resp()
-
-        with mock.patch("urllib.request.urlopen", fake_urlopen):
-            n._pushover("tok", "usr", "t", "m", False, "EUI-motion")
-        self.assertEqual(len(calls), 2)   # cancel attempted, clear still sent
+            n._pushover("tok", "usr", "t", "m", True)
+            n._pushover("tok", "usr", "t", "m", False)
+        self.assertEqual([r[1]["priority"] for r in reqs], [["1"], ["0"]])
+        for _, fields in reqs:      # no emergency repeat parameters, one call per message
+            self.assertNotIn("retry", fields)
+            self.assertNotIn("expire", fields)
+        self.assertEqual(len(reqs), 2)
 
     def test_webpush_enqueue_failure_does_not_block_ntfy(self):
         class BadWebPush:
