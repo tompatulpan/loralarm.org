@@ -15,11 +15,52 @@ Highlights:
 - **Battery-first firmware** — LoRaWAN OTAA, deep sleep between events (~24 µA idle on RAK3172), immediate uplink on switch change or motion, periodic heartbeats, AT-command configuration and downlink support
 - **Modular hardware** — RAK3172 (STM32WLE5) and RAK4631 (nRF52840) core modules with pluggable WisBlock sensors (temperature/humidity, pressure, light, accelerometer, BME680) and a switch/alarm input
 - **Meshtastic-friendly test bed** — the RAK4631 is one of the most popular Meshtastic nodes out there, so chances are you already own the hardware: wiping it and flashing LoRaLarm firmware for a spin against your LoRaWAN gateway takes minutes, and going back to Meshtastic is just as easy
-- **Data-driven server core** — device families, alarm rules and field transforms are defined in JSON, not hardcoded; adding a sensor type means one file
+- **Data-driven server core** — device families, alarm rules and field transforms are defined in JSON, not hardcoded; adding a sensor type means one file (see [examples](#no-server-code-required-some-things-json-can-do))
 - **Rule-based alarms** — temperature, battery, motion and circuit rules plus watchdog monitoring of silent devices, with per-device/family/default configuration layers
 - **Notification fan-out** — ntfy and Pushover delivery with retries, alarm time windows, per-device settings
 - **Event history** — every uplink and alarm transition is logged to SQLite with per-device state snapshots
 - **Downlink control** — tune accelerometer sensitivity, send intervals and device settings over the air
+
+## No server code required — some things JSON can do
+
+Everything below is live configuration for [`server/python/`](server/python/). No server code required.
+
+### The family: rules come built in, tune the numbers once
+
+The LDS02 runs on 2 × AAA (~3.0 V fresh). One block sets how that battery behaves for **every** LDS02 in the fleet — the full/warn/empty voltage thresholds and how long silence may pass before the watchdog alerts:
+
+```json
+"families": {
+  "Dragino Switch LDS02": {
+    "watchdog_hours": 24,
+    "batt_full_v": 3.0,
+    "batt_warn_v": 2.5,
+    "batt_empty_v": 2.2
+  }
+}
+```
+
+### Then the doors
+
+The door-open alarm rule itself is built into the family. So the first door needs only a name — and the second takes just what makes it different: a tighter watchdog and night-only alarms with a custom message:
+
+```json
+"devices": {
+  "a84041a5d7598dd0": {
+    "name": "Door1",
+    "family": "Dragino Switch LDS02"
+  },
+  "a84041e3d189503d": {
+    "name": "Door2",
+    "family": "Dragino Switch LDS02",
+    "watchdog_hours": 2,
+    "alarm_window": "21:00-09:00",
+    "notify_fire": { "door": "🚪 {name} is open — {detail}" }
+  }
+}
+```
+
+Values layer **defaults < family < device**, the most specific one wins — Door2 overrides only the two settings it cares about and inherits the rest. Outside the alarm window the door alarm is still logged; it just doesn't notify in the middle of the day.
 
 ## Structure
 
