@@ -56,7 +56,7 @@ def sensor_obj(**overrides) -> dict:
 def make_cfg(**overrides) -> DeviceConfig:
     """RAK4631-flavoured config with sane thresholds."""
     kwargs = dict(dev_eui=DEV_EUI, name="sensor3", family="RAK4631",
-                  tk_correction_c=8.0, temp_alarm_limit_c=2.0,
+                  tk_correction_c=8.0, temp_alarm_min_c=2.0,
                   batt_full_v=4.2, batt_warn_v=3.5, batt_empty_v=3.2,
                   tilt_sense_g=0.3, watchdog_hours=24.0, ntfy_topic="sensor3")
     kwargs.update(overrides)

@@ -504,7 +504,7 @@ Layering is the usual one, so a whole type or fleet can share a window via
    the note when suppressed. The two call sites (uplink, watchdog) pass `state`.
    Config errors (bad window) are cached per device so the log shows them once.
 6. **Docs and examples**: README section, `Door2` in `devices.example.json` and
-   `examples/dragino_lds02.json` get `"alarm_window": "21:00-09:00"`, the
+   `examples/dragino_lds02.example.json` get `"alarm_window": "21:00-09:00"`, the
    `_readme` blocks explain it, ARCHITECTURE phase 3 note (13.5).
 
 ### 13.4 Tests

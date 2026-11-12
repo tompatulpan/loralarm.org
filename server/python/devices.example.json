@@ -17,7 +17,9 @@
     "Precedence, later wins: the type's built-in defaults, defaults, families, the device entry. \"params\" merge",
     "   key by key; a dict such as notify_fire is replaced as a whole by the more specific layer.",
     "application_id is set per device (not in a shared layer): devices of one type can use different applications.",
-    "Not available yet (planned): hysteresis on temperature/battery, several recipients per device."
+    "Several recipients per device are not available yet (planned).",
+    "Temperature alarms: temp_alarm_min_c (alarm at or below), temp_alarm_max_c (alarm at or above; unset = off),",
+    "   temp_alarm_hysteresis_c (the alarm clears only this many degrees back inside the limit before it clears)."
   ],
   "profiles": {
     "CO2-1": {
@@ -50,7 +52,8 @@
     "pushover_token": "${LORALARM_PUSHOVER_TOKEN}",
     "notify_title": "loralarm {name}",
     "notify_fire": {
-      "temp": "{label} på {name}: {detail}",
+      "temp_low": "{label} på {name}: {detail}",
+      "temp_high": "{label} på {name}: {detail}",
       "battery_low": "{label} på {name}: {detail}",
       "battery_empty": "{label} på {name}: {detail}",
       "motion": "{label} på {name}",
@@ -59,7 +62,8 @@
       "stale": "{label} på {name}: {detail}"
     },
     "notify_clear": {
-      "temp": "{label} kvitterad på {name}",
+      "temp_low": "{label} kvitterad på {name}",
+      "temp_high": "{label} kvitterad på {name}",
       "battery_low": "{label} kvitterad på {name}",
       "battery_empty": "{label} kvitterad på {name}",
       "motion": "{label} kvitterad på {name}",
@@ -91,35 +95,34 @@
       "batt_full_v": 3.6,
       "batt_warn_v": 3.4,
       "batt_empty_v": 3.1,
-      "temp_alarm_limit_c": 20.0
+      "temp_alarm_min_c": 15.0,
+      "temp_alarm_max_c": 25.0
     }
   },
   "devices": {
-    "ac1f09fffe1003ae": {
-      "name": "sensor3",
+    "ac1f09fffe1001aa": {
+      "name": "sensor1",
       "family": "RAK4631",
       "application_id": "${LORALARM_CS_APP_LARM}",
       "pushover_user": "${LORALARM_PUSHOVER_USER}",
       "pushover_token": "${LORALARM_PUSHOVER_TOKEN}",
       "ntfy_topic": "sensor3",
       "watchdog_hours": 0.5,
-
       "tk_correction_c": 8.0,
-      "temp_alarm_limit_c": 2.0,
+      "temp_alarm_min_c": 2.0,
       "batt_full_v": 4.2,
       "batt_warn_v": 3.5,
       "batt_empty_v": 3.2,
       "motion_min_detections": 3,
       "circuit_mode": "event",
-
       "threshold": 8,
       "frequency": 10,
       "duration": 1,
 
       "notify_fire": {"motion": "🚨 RÖRELSE på {name}: {detail}"}
     },
-    "ac1f09fffe12da63": {
-      "name": "sensor16",
+    "ac1f09fffe120202": {
+      "name": "sensor2",
       "family": "RAK3172",
       "application_id": "${LORALARM_CS_APP_SUBLARM}",
       "pushover_user": "${LORALARM_PUSHOVER_USER}",
@@ -127,14 +130,14 @@
       "ntfy_topic": "sensor16",
       "watchdog_hours": 0.5
     },
-    "a84041a5d7598dd0": {
+    "a84041a5d759d001": {
       "name": "Door1",
       "family": "Dragino Switch LDS02",
       "pushover_user": "${LORALARM_PUSHOVER_USER}",
       "pushover_token": "${LORALARM_PUSHOVER_TOKEN}",
       "ntfy_topic": "door1"
     },
-    "a84041e3d189503d": {
+    "a84041e3d101233d": {
       "name": "Door2",
       "family": "Dragino Switch LDS02",
       "ntfy_topic": "door2",
@@ -142,12 +145,15 @@
       "alarm_window": "21:00-09:00",
       "notify_fire": {"door": "🚪 {name} är öppen — {detail}"}
     },
-    "e8e1e100010a7173": {
+    "e8e1e100010a7001": {
       "name": "water1",
       "family": "Browan Water sensor",
+      "temp_alarm_min_c": 15.0,
+      "temp_alarm_max_c": 30.0,
+      "temp_alarm_hysteresis_c": 1.0,
       "ntfy_topic": "water1"
     },
-    "e8e1e100010a7100": {
+    "e8e1e100010a7002": {
       "name": "water2",
       "family": "Browan Water sensor",
       "ntfy_topic": "water2"

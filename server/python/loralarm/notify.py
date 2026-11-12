@@ -36,7 +36,9 @@ PUSHOVER_API = "https://api.pushover.net/1/messages.json"
 # notify_clear, else a generic text is used. Tuned during cutover
 # (checklist step 9) until the phone shows the same as Node-RED did.
 DEFAULT_TEXT: dict[str, tuple[str, str]] = {
-    "temp":          ("❄️ TEMPERATURALARM: {name} — {detail}",
+    "temp_low":      ("❄️ LÅG TEMPERATUR: {name} — {detail}",
+                      "🌡️ Temperatur OK: {name} — {detail}"),
+    "temp_high":     ("🔥 HÖG TEMPERATUR: {name} — {detail}",
                       "🌡️ Temperatur OK: {name} — {detail}"),
     "battery_low":   ("🔋 BATTERI LÅGT: {name} — {detail}",
                       "💚 Batteri OK: {name} — {detail}"),
@@ -76,7 +78,7 @@ def message_text(kind: str, name: str, active: bool, detail: str,
     label = registry.label_for(kind)
     fields = dict(name=name, detail=detail, label=label)
     templates = (fire or {}) if active else (clear or {})
-    template = templates.get(kind)
+    template = templates.get(kind) or (templates.get("temp") if kind == "temp_low" else None)  # "temp" = old name
     if template:
         text = _safe_format(template, f"template for {kind}", **fields)
         if text is not None:

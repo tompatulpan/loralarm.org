@@ -28,7 +28,7 @@
       "batt_full_v": 3.6,
       "batt_warn_v": 3.4,
       "batt_empty_v": 3.1,
-      "temp_alarm_limit_c": 5.0
+      "temp_alarm_min_c": 5.0
     }
   },
   "devices": {

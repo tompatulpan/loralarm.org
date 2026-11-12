@@ -110,7 +110,7 @@ class DeviceKindTest(unittest.TestCase):
             _, fired = evaluate(cfg, make_uplink(obj=sensor_obj(temperature=0.0)))
             evaluate(cfg, make_uplink(obj=sensor_obj()))
         self.assertEqual(len(cm.records), 1)
-        self.assertEqual([t.kind for t in fired], [AlarmKind.TEMP])
+        self.assertEqual([t.kind for t in fired], [AlarmKind.TEMP_LOW])
 
     def test_door_kind_gets_no_auto_downlinks(self):
         cfg = make_cfg(threshold=8, frequency=10, duration=1)

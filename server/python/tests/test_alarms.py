@@ -14,8 +14,45 @@ class EvaluateTest(unittest.TestCase):
         cfg = make_cfg()  # tk 8.0, limit 2.0
         frame, fired = evaluate(cfg, make_uplink(obj=sensor_obj(temperature=9.0)))
         self.assertEqual(frame.values["temperature"], 1.0)
-        self.assertEqual([t.kind for t in fired], [AlarmKind.TEMP])
+        self.assertEqual([t.kind for t in fired], [AlarmKind.TEMP_LOW])
         self.assertIn("1.0 °C", fired[0].detail)
+
+    def test_temp_high_alarm_is_off_unless_configured(self):
+        _, fired = evaluate(make_cfg(), make_uplink(obj=sensor_obj(temperature=40.0)))
+        self.assertEqual(fired, [])
+        cfg = make_cfg(temp_alarm_max_c=30.0)
+        _, fired = evaluate(cfg, make_uplink(obj=sensor_obj(temperature=38.0)))  # 30.0 after tk
+        self.assertEqual([t.kind for t in fired], [AlarmKind.TEMP_HIGH])
+        self.assertIn("övre gräns 30.0", fired[0].detail)
+        _, fired = evaluate(cfg, make_uplink(obj=sensor_obj(temperature=37.9)))
+        self.assertEqual(fired, [])
+
+    def _temps(self, cfg, *raw):
+        """(kind, active) transitions per frame; raw temperatures include the 8 C tk."""
+        st = AlarmState()
+        return [[(t.kind, t.active) for t in st.update(
+            cfg, make_uplink(obj=sensor_obj(temperature=r + 8.0)))[1]] for r in raw]
+
+    def test_temp_high_hysteresis_holds_until_back_inside(self):
+        cfg = make_cfg(temp_alarm_max_c=30.0, temp_alarm_hysteresis_c=2.0)
+        steps = self._temps(cfg, 29.0, 30.0, 29.5, 28.5, 27.9, 28.5)
+        self.assertEqual(steps, [[], [(AlarmKind.TEMP_HIGH, True)], [], [], [(AlarmKind.TEMP_HIGH, False)], []])
+
+    def test_temp_low_hysteresis_holds_until_back_inside(self):
+        cfg = make_cfg(temp_alarm_hysteresis_c=1.0)  # low limit 2.0
+        steps = self._temps(cfg, 3.0, 2.0, 2.5, 3.0, 3.1)
+        self.assertEqual(steps, [[], [(AlarmKind.TEMP_LOW, True)], [], [], [(AlarmKind.TEMP_LOW, False)]])
+
+    def test_no_hysteresis_clears_as_soon_as_the_limit_is_passed(self):
+        steps = self._temps(make_cfg(), 2.0, 2.1)
+        self.assertEqual(steps, [[(AlarmKind.TEMP_LOW, True)], [(AlarmKind.TEMP_LOW, False)]])
+
+    def test_legacy_temp_kind_in_old_snapshot_restores_as_temp_low(self):
+        from .common import REG
+        st = AlarmState()
+        st.restore({"active": ["temp"], "last_detail": {"temp": "x"}, "suppressed": ["temp"]}, REG)
+        self.assertEqual(st.active, {AlarmKind.TEMP_LOW})
+        self.assertEqual(st.suppressed, {AlarmKind.TEMP_LOW})
 
     def test_battery_percent_and_status(self):
         cfg = make_cfg()  # full 4.2, warn 3.5, empty 3.2

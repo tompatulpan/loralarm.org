@@ -20,7 +20,7 @@ Verify on the lora box with `mosquitto_sub -h localhost -t 'application/+/device
 | `loralarm/profiles.py` | `DeviceProfile` / `SettingSpec` classes and the standard fields; unknown families get `GENERIC` |
 | `loralarm/frame.py` | `Frame` (the evaluated uplink as named `values`) and the field machinery: `from` renames, `transform` steps (`add`, `subtract`, `multiply`, `round`, `clamp`), `derive` (`linear_pct`, `band`); all of them registry plugins |
 | `loralarm/config.py` | Per-device config, JSON keyed by devEUI; layering `defaults` < `families[profile]` < `devices[devEUI]` (family defaults come from the profile); `kind` selects the alarm rules, `params` carries rule-specific thresholds and the `$name` references of `fields`; `${ENV_VAR}` strings in the JSON are expanded from the environment |
-| `loralarm/alarms.py` | Rule-driven port of the Node-RED alarm subflows: built-in `AlarmRule`s (temp, battery low/empty, motion, circuit; each limited to device kinds) reading `frame.values`, plus stateful detectors in `AlarmState` (tilt baseline ± tilt_sense per axis, pulse-style motion/circuit, watchdog); fire-once/clear-once; keeps the last measurements per device |
+| `loralarm/alarms.py` | Rule-driven port of the Node-RED alarm subflows: built-in `AlarmRule`s (temp_low/temp_high, battery low/empty, motion, circuit; each limited to device kinds) reading `frame.values`, plus stateful detectors in `AlarmState` (tilt baseline ± tilt_sense per axis, pulse-style motion/circuit, watchdog); fire-once/clear-once; keeps the last measurements per device |
 | `loralarm/service.py` | The live service (`python3 -m loralarm`): Engine + watchdog tick + MQTT wiring + state persistence; decides per alarm whether it is notified (alarm window) |
 | `loralarm/schedule.py` | Daily time windows (`"21:00-09:00"`, overnight ok) and time zones for `alarm_window` |
 | `loralarm/mqttclient.py` | Shared paho-mqtt client builder used by service and replay (guarded callbacks, connect retry) |
@@ -144,9 +144,9 @@ and `tests/test_examples.py` keeps them loading and behaving as described.
 
 | File | Type | What it shows |
 |---|---|---|
-| [`examples/rak3172.json`](examples/rak3172.json) | RAK3172 (RUI3 / Cayenne, 3 V cell) | frost limit 2 °C, level-mode circuit, every motion detection alarms, settings pushed on connect: threshold 16, **10 Hz** → RUI3 ODR *index* 2, duration 1 |
-| [`examples/rak4631.json`](examples/rak4631.json) | RAK4631 (Android, LiPo) | `tk_correction_c` 8 °C, event-mode circuit, motion only after **3 detections within 30 s**, settings: threshold 8, **10 Hz** → register *code* 47, custom notification texts per alarm kind |
-| [`examples/dragino_lds02.json`](examples/dragino_lds02.json) | Dragino LDS02 door switch | no settings or downlinks, 2 × AAA battery limits, open fires and closed clears with custom door texts, long watchdog (12 h, it only sends on change plus a heartbeat) |
+| [`examples/rak3172.example.json`](examples/rak3172.example.json) | RAK3172 (RUI3 / Cayenne, 3 V cell) | frost limit 2 °C, level-mode circuit, every motion detection alarms, settings pushed on connect: threshold 16, **10 Hz** → RUI3 ODR *index* 2, duration 1 |
+| [`examples/rak4631.example.json`](examples/rak4631.example.json) | RAK4631 (Android, LiPo) | `tk_correction_c` 8 °C, event-mode circuit, motion only after **3 detections within 30 s**, settings: threshold 8, **10 Hz** → register *code* 47, custom notification texts per alarm kind |
+| [`examples/dragino_lds02.example.json`](examples/dragino_lds02.example.json) | Dragino LDS02 door switch | no settings or downlinks, 2 × AAA battery limits, open fires and closed clears with custom door texts, long watchdog (12 h, it only sends on change plus a heartbeat) |
 
 What every entry has in common: `family` is the ChirpStack device-profile name
 (or an alias), the secrets are `${ENV_VAR}` placeholders, and everything except
@@ -182,7 +182,7 @@ Only notify inside a daily time window, per device (or per type / for all in
   own rules by default) respect the window. *Health* alarms (temperature,
   battery low/empty, no contact) always notify. A rule can opt out with
   `"windowed": false`; a device can name the exact kinds that are windowed with
-  `"alarm_window_kinds": ["door", "temp"]` (this list replaces the default).
+  `"alarm_window_kinds": ["door", "temp_low"]` (this list replaces the default).
 - **Clears:** a clear is sent only if its alarm was sent. An alarm that fired
   inside the window and clears after it closed is still reported; a suppressed
   alarm never produces a lone "kvitterad".
@@ -230,7 +230,7 @@ fPort 106, `status` → `water_leak`, `battery` → `battery_voltage`, `humidity
 kind `water`, no downlinks, battery limits for the 3.6 V Li-SOCl2 cell (full 3.6 /
 warn 3.4 / empty 3.1 V). A wet sensor raises `Vattenläcka` (`water_leak`) once,
 however often it re-sends; the next dry frame clears it ("Torrt igen").
-Starting point: `examples/browan_tbwl100.json` (water1/water2, `watchdog_hours` 3
+Starting point: `examples/browan_tbwl100.example.json` (water1/water2, `watchdog_hours` 3
 because the sensor sends a keep-alive every 60 min).
 
 ### Milesight WS101 smart button
@@ -243,7 +243,7 @@ the volt-based battery alarms do not apply; `button_battery` alerts below 20 % (
 the rule): a short press = ON raises it, a long press = OFF clears it, a double
 press is unused, and battery/status frames or a repeated short press change
 nothing. Real captured uplinks: `chirpstack/fixtures/single-log(ws101 *).json`. Starting point:
-`examples/milesight_ws101.json` (`watchdog_hours` 0: the button only reports on
+`examples/milesight_ws101.example.json` (`watchdog_hours` 0: the button only reports on
 a press and on a long interval).
 
 Stateful detectors (like tilt) still belong in `AlarmState`; register them
@@ -284,6 +284,23 @@ Expected replay output: the two `* alarm` logs each raise one `Rörelselarm`
   with a persistent session and QoS 1, so the broker can queue uplinks while the
   service is down — this only helps if ChirpStack publishes at QoS ≥ 1
   (`[integration.mqtt] qos`). Run one service instance per client id.
+
+## Temperature alarms (`temp_low`, `temp_high`)
+
+Two alarm kinds read the calibrated `temperature` (raw minus `tk_correction_c`):
+
+| key | meaning | default |
+|---|---|---|
+| `temp_alarm_min_c` | `temp_low` fires at or below this | 0.0 (family files set their own) |
+| `temp_alarm_max_c` | `temp_high` fires at or above this | unset = no high alarm |
+| `temp_alarm_hysteresis_c` | the alarm clears only once the temperature is this far back inside the limit (above low / below high) | 0.0 = clears as soon as the limit is passed |
+
+Example: `temp_alarm_max_c: 30`, `temp_alarm_hysteresis_c: 2` fires at 30 °C and
+clears below 28 °C. Both are health alarms (always notify, see Alarm window) and
+all three keys work in `defaults`, `families` and per device. The old
+`temp_alarm_limit_c` and the kind name `temp` (in `notify_fire`/`notify_clear`,
+`alarm_window_kinds` and saved state) still work and mean `temp_alarm_min_c` /
+`temp_low`. The check runs on the server, so no firmware change is needed.
 
 ## Circuit alarm (`circuit_mode`)
 
@@ -433,5 +450,4 @@ mosquitto_pub -h <lora-box> -t 'loralarm/down/sensor16' -m '{"frequency": 50}'
 2. ~~Downlinks via ChirpStack MQTT downlink topic~~ — done, see above (`loralarm/downlink.py`).
 3. Status page (FastAPI, spec §9) reading the events SQLite log; trigger
    downlinks over `loralarm/down/<device>`.
-4. Optional: hysteresis/debounce on temp and battery thresholds to avoid flapping
-   at the boundary.
+4. Optional: debounce on battery thresholds (temperature already has `temp_alarm_hysteresis_c`).

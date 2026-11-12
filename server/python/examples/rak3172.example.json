@@ -11,7 +11,7 @@
     "   list what is theirs. sensor17 is the minimal case plus two overrides (5 C limit, 25 Hz).",
     "   Precedence, later wins: the type's built-in defaults, \"defaults\", \"families\", the device entry.",
     "Everything except name and family is optional; the type's defaults fill the gaps.",
-    "temp_alarm_limit_c: alarm at or below this temperature (no correction on RUI3, tk_correction_c is 0).",
+    "temp_alarm_min_c: low-temperature alarm at or below this temperature (no correction on RUI3, tk_correction_c is 0). Optional: temp_alarm_max_c (alarm at or above) and temp_alarm_hysteresis_c (degrees back inside the limit before it clears).",
     "motion_min_detections: 1 = every detection alarms; 3 with motion_window_s 30 = 3 hits within 30 s.",
     "circuit_mode level: the switch state is in every heartbeat, so open fires and closed clears.",
     "frequency 10 means 10 Hz; for RUI3 it is sent as ODR index 2. Hz, wire codes and index:N all work.",
@@ -25,7 +25,7 @@
   },
   "families": {
     "RAK3172": {
-      "temp_alarm_limit_c": 2.0,
+      "temp_alarm_min_c": 2.0,
       "batt_warn_v": 2.9,
       "batt_empty_v": 2.8,
 
@@ -53,7 +53,7 @@
       "family": "RAK3172",
       "application_id": "${LORALARM_CS_APP_SUBLARM}",
       "ntfy_topic": "sensor17",
-      "temp_alarm_limit_c": 5.0,
+      "temp_alarm_min_c": 5.0,
       "frequency": 25
     }
   }

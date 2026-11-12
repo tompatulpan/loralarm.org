@@ -22,11 +22,16 @@ class MessageTextTest(unittest.TestCase):
         self.assertEqual(clear, "Rörelselarm kvitterad på sensor3")
 
     def test_builtin_default_text(self):
-        fire = message_text("temp", "sensor3", True, "1.0 °C ≤ gräns 2.0 °C")
-        clear = message_text("temp", "sensor3", False, "12.0 °C > gräns 2.0 °C")
-        self.assertEqual(fire, DEFAULT_TEXT["temp"][0].format(name="sensor3", detail="1.0 °C ≤ gräns 2.0 °C", label="Temperaturalarm"))
-        self.assertIn("Temperatur OK", clear)
-        self.assertIn("12.0 °C > gräns 2.0 °C", clear)
+        for kind, label in (("temp_low", "Lågtemperaturalarm"), ("temp_high", "Högtemperaturalarm")):
+            fire = message_text(kind, "sensor3", True, "1.0 °C ≤ gräns 2.0 °C")
+            clear = message_text(kind, "sensor3", False, "12.0 °C > gräns 2.0 °C")
+            self.assertEqual(fire, DEFAULT_TEXT[kind][0].format(name="sensor3", detail="1.0 °C ≤ gräns 2.0 °C", label=label))
+            self.assertIn("Temperatur OK", clear)
+            self.assertIn("12.0 °C > gräns 2.0 °C", clear)
+
+    def test_old_temp_template_still_applies_to_temp_low(self):
+        text = message_text("temp_low", "s", True, "d", fire={"temp": "gammal mall {name}"})
+        self.assertEqual(text, "gammal mall s")
 
     def test_bad_template_falls_back_to_builtin_text(self):
         text = message_text("motion", "sensor3", True, "d",

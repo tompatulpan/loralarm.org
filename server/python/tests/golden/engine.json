@@ -505,12 +505,12 @@
    "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)",
    "2026-11-09 15:34:14 sensor3    RAK4631  fPort=2 fCnt=61 rssi=-35 snr=13.2",
    "    temp=1.0 °C  batt=3.9 V (70.0 %, ok)",
-   "    >>> Temperaturalarm: LARM — 1.0 °C ≤ gräns 2.0 °C",
+   "    >>> Lågtemperaturalarm: LARM — 1.0 °C ≤ nedre gräns 2.0 °C",
    "2026-11-09 15:35:14 sensor3    RAK4631  fPort=2 fCnt=121 rssi=-35 snr=13.2",
    "    temp=1.0 °C  batt=3.9 V (70.0 %, ok)",
    "2026-11-09 15:36:14 sensor3    RAK4631  fPort=2 fCnt=181 rssi=-35 snr=13.2",
    "    temp=12.0 °C  batt=3.9 V (70.0 %, ok)",
-   "    >>> Temperaturalarm: kvitterad — 12.0 °C > gräns 2.0 °C",
+   "    >>> Lågtemperaturalarm: kvitterad — 12.0 °C > nedre gräns 2.0 °C",
    "2026-11-09 15:37:14 sensor3    RAK4631  fPort=2 fCnt=241 rssi=-35 snr=13.2",
    "    temp=24.0 °C  batt=3.4 V (20.0 %, low)",
    "    >>> Batterinivå låg: LARM — 3.40 V (20.0 %) ≤ varningsgräns 3.5 V",
@@ -529,35 +529,35 @@
    "    temp=24.0 °C  batt=None V (None %, unknown)",
    "2026-11-09 15:43:14 sensor3    RAK4631  fPort=2 fCnt=601 rssi=-35 snr=13.2",
    "    temp=-6.0 °C  batt=3.5 V (30.0 %, low)",
-   "    >>> Temperaturalarm: LARM — -6.0 °C ≤ gräns 2.0 °C",
+   "    >>> Lågtemperaturalarm: LARM — -6.0 °C ≤ nedre gräns 2.0 °C",
    "    >>> Batterinivå låg: LARM — 3.50 V (30.0 %) ≤ varningsgräns 3.5 V"
   ],
   "notifications": [
    {
     "active": true,
     "channel": "ntfy",
-    "message": "❄️ TEMPERATURALARM: sensor3 — 1.0 °C ≤ gräns 2.0 °C",
+    "message": "❄️ LÅG TEMPERATUR: sensor3 — 1.0 °C ≤ nedre gräns 2.0 °C",
     "target": "sensor3",
     "title": "loralarm sensor3"
    },
    {
     "active": true,
     "channel": "pushover",
-    "message": "❄️ TEMPERATURALARM: sensor3 — 1.0 °C ≤ gräns 2.0 °C",
+    "message": "❄️ LÅG TEMPERATUR: sensor3 — 1.0 °C ≤ nedre gräns 2.0 °C",
     "target": "sensor3",
     "title": "loralarm sensor3"
    },
    {
     "active": false,
     "channel": "ntfy",
-    "message": "🌡️ Temperatur OK: sensor3 — 12.0 °C > gräns 2.0 °C",
+    "message": "🌡️ Temperatur OK: sensor3 — 12.0 °C > nedre gräns 2.0 °C",
     "target": "sensor3",
     "title": "loralarm sensor3"
    },
    {
     "active": false,
     "channel": "pushover",
-    "message": "🌡️ Temperatur OK: sensor3 — 12.0 °C > gräns 2.0 °C",
+    "message": "🌡️ Temperatur OK: sensor3 — 12.0 °C > nedre gräns 2.0 °C",
     "target": "sensor3",
     "title": "loralarm sensor3"
    },
@@ -620,14 +620,14 @@
    {
     "active": true,
     "channel": "ntfy",
-    "message": "❄️ TEMPERATURALARM: sensor3 — -6.0 °C ≤ gräns 2.0 °C",
+    "message": "❄️ LÅG TEMPERATUR: sensor3 — -6.0 °C ≤ nedre gräns 2.0 °C",
     "target": "sensor3",
     "title": "loralarm sensor3"
    },
    {
     "active": true,
     "channel": "pushover",
-    "message": "❄️ TEMPERATURALARM: sensor3 — -6.0 °C ≤ gräns 2.0 °C",
+    "message": "❄️ LÅG TEMPERATUR: sensor3 — -6.0 °C ≤ nedre gräns 2.0 °C",
     "target": "sensor3",
     "title": "loralarm sensor3"
    },
@@ -650,11 +650,11 @@
    "ac1f09fffe1003ae": {
     "active": [
      "battery_low",
-     "temp"
+     "temp_low"
     ],
     "last_detail": {
      "battery_low": "3.50 V (30.0 %) ≤ varningsgräns 3.5 V",
-     "temp": "-6.0 °C ≤ gräns 2.0 °C"
+     "temp_low": "-6.0 °C ≤ nedre gräns 2.0 °C"
     }
    }
   }
@@ -784,18 +784,18 @@
   "console": [
    "2026-11-09 15:33:14 newbie     RAK3172  fPort=2 fCnt=1 rssi=-35 snr=13.2",
    "    temp=-3.0 °C  batt=2.85 V (16.7 %, low)",
-   "    >>> Temperaturalarm: LARM — -3.0 °C ≤ gräns 0.0 °C",
+   "    >>> Lågtemperaturalarm: LARM — -3.0 °C ≤ nedre gräns 0.0 °C",
    "    >>> Batterinivå låg: LARM — 2.85 V (16.7 %) ≤ varningsgräns 2.9 V",
    "2026-11-09 15:33:24 newbie              fPort=2 fCnt=1 rssi=-35 snr=13.2",
    "    temp=32.0 °C  batt=2.7 V (0.0 %, empty)",
    "    >>> Batteri tomt: LARM — 2.70 V (0.0 %) < tomt 2.8 V",
-   "    >>> Temperaturalarm: kvitterad — 32.0 °C > gräns 0.0 °C"
+   "    >>> Lågtemperaturalarm: kvitterad — 32.0 °C > nedre gräns 0.0 °C"
   ],
   "notifications": [
    {
     "active": true,
     "channel": "ntfy",
-    "message": "❄️ TEMPERATURALARM: newbie — -3.0 °C ≤ gräns 0.0 °C",
+    "message": "❄️ LÅG TEMPERATUR: newbie — -3.0 °C ≤ nedre gräns 0.0 °C",
     "target": "loralarm",
     "title": "loralarm newbie"
    },
@@ -816,7 +816,7 @@
    {
     "active": false,
     "channel": "ntfy",
-    "message": "🌡️ Temperatur OK: newbie — 32.0 °C > gräns 0.0 °C",
+    "message": "🌡️ Temperatur OK: newbie — 32.0 °C > nedre gräns 0.0 °C",
     "target": "loralarm",
     "title": "loralarm newbie"
    }

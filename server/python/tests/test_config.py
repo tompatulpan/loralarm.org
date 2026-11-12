@@ -50,12 +50,20 @@ class LayeringTest(unittest.TestCase):
         self.assertTrue(any("watchdog_hours" in line for line in cm.output))
 
     def test_wrong_type_falls_back_to_lower_layer(self):
-        cfg = make_config(devices={DEV_EUI: {"temp_alarm_limit_c": "cold", "watchdog_hours": True}},
-                          families={"RAK4631": {"temp_alarm_limit_c": 2.0}})
+        cfg = make_config(devices={DEV_EUI: {"temp_alarm_min_c": "cold", "watchdog_hours": True}},
+                          families={"RAK4631": {"temp_alarm_min_c": 2.0}})
         with self.assertLogs("loralarm.config", level="WARNING"):
             dc = cfg.for_event(DEV_EUI, "", "RAK4631")
-        self.assertEqual(dc.temp_alarm_limit_c, 2.0)   # family value, not the bad string
+        self.assertEqual(dc.temp_alarm_min_c, 2.0)   # family value, not the bad string
         self.assertEqual(dc.watchdog_hours, DeviceConfig.watchdog_hours)  # bool is not a number
+
+    def test_legacy_temp_alarm_limit_c_means_temp_alarm_min_c(self):
+        cfg = make_config(devices={DEV_EUI: {"temp_alarm_limit_c": 7.0}},
+                          families={"RAK4631": {"temp_alarm_min_c": 2.0}})
+        dc = cfg.for_event(DEV_EUI, "", "RAK4631")
+        self.assertEqual(dc.temp_alarm_min_c, 7.0)   # the device layer wins over the family
+        self.assertIsNone(dc.temp_alarm_max_c)
+        self.assertEqual(dc.temp_alarm_hysteresis_c, 0.0)
 
     def test_circuit_mode_by_family_and_partial_family_override(self):
         cfg = make_config(devices={DEV_EUI: {}},

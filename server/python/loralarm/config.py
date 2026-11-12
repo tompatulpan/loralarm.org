@@ -54,7 +54,11 @@ class DeviceConfig:
     kind: str = "sensor"                # sensor | door | water | any kind an alarm rule names;
                                         # selects which alarm rules and auto-downlink settings apply
     tk_correction_c: float = 0.0        # subtracted from raw temperature
-    temp_alarm_limit_c: float = 0.0     # alarm at or below this temperature
+    temp_alarm_min_c: float = 0.0       # temp_low alarm at or below this temperature
+    temp_alarm_max_c: float | None = None   # temp_high alarm at or above this; None = off
+    # a temp alarm clears only once the temperature is this far back inside the
+    # limits (above low / below high); 0 = clear as soon as the limit is passed
+    temp_alarm_hysteresis_c: float = 0.0
     batt_full_v: float = 3.1
     batt_warn_v: float = 2.9
     batt_empty_v: float = 2.8
@@ -76,7 +80,7 @@ class DeviceConfig:
     # Only notify inside this daily window, "HH:MM-HH:MM" in `timezone` (overnight
     # allowed, e.g. "21:00-09:00"); empty = always. Outside it the alarm is still
     # evaluated and logged but not sent. Applies to the "windowed" alarm kinds
-    # (activity alarms by default; health kinds temp/battery/stale always notify)
+    # (activity alarms by default; health kinds temp_low/temp_high/battery/stale always notify)
     # or to exactly `alarm_window_kinds` when that is set. See schedule.py.
     alarm_window: str = ""
     alarm_window_kinds: list[str] | None = None
@@ -99,7 +103,7 @@ class DeviceConfig:
     pushover_user: str = ""
     pushover_token: str = ""
     # notification texts: {name} {detail} {label} are substituted; keys are
-    # alarm kinds (temp, battery_low, battery_empty, motion, circuit, tilt, stale)
+    # alarm kinds (temp_low, temp_high, battery_low, battery_empty, motion, circuit, tilt, stale)
     notify_title: str = "loralarm {name}"
     notify_fire: dict[str, str] = field(default_factory=dict)
     notify_clear: dict[str, str] = field(default_factory=dict)
@@ -108,7 +112,10 @@ class DeviceConfig:
 # expected type per DeviceConfig field, for config validation
 _FIELD_TYPES: dict[str, tuple[type, ...]] = {
     "name": (str,), "family": (str,), "kind": (str,),
-    "tk_correction_c": (int, float), "temp_alarm_limit_c": (int, float),
+    "tk_correction_c": (int, float),
+    "temp_alarm_min_c": (int, float), "temp_alarm_max_c": (int, float),
+    "temp_alarm_hysteresis_c": (int, float),
+    "temp_alarm_limit_c": (int, float),     # legacy name of temp_alarm_min_c
     "batt_full_v": (int, float), "batt_warn_v": (int, float),
     "batt_empty_v": (int, float), "tilt_sense_g": (int, float),
     "circuit_mode": (str,), "circuit_hold_s": (int, float),
@@ -186,6 +193,8 @@ class Config:
         merged: dict[str, Any] = {}
         for layer in (self.defaults, self.families.get(family, {}), entry):
             for k, v in layer.items():
+                if k == "temp_alarm_limit_c" and "temp_alarm_min_c" not in layer:
+                    k = "temp_alarm_min_c"
                 if k in _FIELD_TYPES and not _valid_type(k, v):
                     # an invalid value must not reach the alarm code (TypeError on
                     # every uplink); keep the value from the lower layer instead

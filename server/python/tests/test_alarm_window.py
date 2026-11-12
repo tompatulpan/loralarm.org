@@ -129,7 +129,7 @@ class KindsTest(unittest.TestCase):
 
     def test_alarm_window_kinds_replaces_the_default_list(self):
         # only temperature is windowed on this device: the door is no longer
-        engine, notifier, _ = door_engine(alarm_window_kinds=["temp"])
+        engine, notifier, _ = door_engine(alarm_window_kinds=["temp_low"])
         engine.on_uplink(lds02(CLOSED, OUTSIDE - 60))
         engine.on_uplink(lds02(OPEN, OUTSIDE))
         self.assertEqual(sent(notifier), [("door", True)])
@@ -149,9 +149,10 @@ class KindsTest(unittest.TestCase):
 
     def test_builtin_health_rules_are_not_windowed(self):
         self.assertEqual({k: REG.rule_for(k).windowed for k in
-                          ("temp", "battery_low", "battery_empty", "stale",
+                          ("temp_low", "temp_high", "battery_low", "battery_empty", "stale",
                            "motion", "circuit", "tilt", "door")},
-                         {"temp": False, "battery_low": False, "battery_empty": False, "stale": False,
+                         {"temp_low": False, "temp_high": False, "battery_low": False,
+                          "battery_empty": False, "stale": False,
                           "motion": True, "circuit": True, "tilt": True, "door": True})
 
     def test_pulse_alarms_outside_the_window_are_dropped_and_leave_no_state(self):

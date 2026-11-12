@@ -621,7 +621,7 @@ class AutoEnforceTest(unittest.TestCase):
         up.application_id = APP_ID
         with self.assertLogs("loralarm.service", level="ERROR"):
             engine.on_uplink(up)  # must not raise
-        self.assertIn(("temp", True), notified)
+        self.assertIn(("temp_low", True), notified)
         self.assertNotIn(DEV_EUI, engine._dl_bad)  # transient: retried next uplink
 
 

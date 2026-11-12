@@ -39,11 +39,11 @@ class ExamplesLoadTest(unittest.TestCase):
 
 class Rak3172ExampleTest(unittest.TestCase):
     def test_resolved_config_and_settings(self):
-        conf = load("rak3172.json")
+        conf = load("rak3172.example.json")
         cfg = conf.for_event("ac1f09fffe12da63", "", "RAK3172")
         self.assertEqual((cfg.name, cfg.application_id, cfg.pushover_user),
                          ("sensor16", "app-sublarm", "u"))
-        self.assertEqual((cfg.tk_correction_c, cfg.temp_alarm_limit_c, cfg.circuit_mode),
+        self.assertEqual((cfg.tk_correction_c, cfg.temp_alarm_min_c, cfg.circuit_mode),
                          (0.0, 2.0, "level"))
         # 16 / 10 Hz / 1 -> RUI3 ODR *index* 2 on fPort 6
         self.assertEqual([(f.f_port, f.data) for f in desired_frames(cfg, conf.registry)],
@@ -51,15 +51,15 @@ class Rak3172ExampleTest(unittest.TestCase):
 
     def test_frost_alarm_uses_the_uncorrected_temperature(self):
         notifier = RecordingNotifier()
-        engine = Engine(load("rak3172.json"), notifier=notifier)
+        engine = Engine(load("rak3172.example.json"), notifier=notifier)
         engine.on_uplink(make_uplink(dev_eui="ac1f09fffe12da63", device_name="sensor16",
                                      profile="RAK3172", obj=sensor_obj(temperature=1.5)))
-        self.assertEqual([(c[1], c[2]) for c in notifier.calls], [("temp", True)])
+        self.assertEqual([(c[1], c[2]) for c in notifier.calls], [("temp_low", True)])
 
 
 class Rak4631ExampleTest(unittest.TestCase):
     def test_resolved_config_and_settings(self):
-        conf = load("rak4631.json")
+        conf = load("rak4631.example.json")
         cfg = conf.for_event("ac1f09fffe1003ae", "", "RAK4631")
         self.assertEqual((cfg.application_id, cfg.tk_correction_c, cfg.circuit_mode,
                           cfg.motion_min_detections), ("app-larm", 8.0, "event", 3))
@@ -69,7 +69,7 @@ class Rak4631ExampleTest(unittest.TestCase):
 
     def test_custom_texts_and_three_detections_rule(self):
         notifier = RecordingNotifier()
-        engine = Engine(load("rak4631.json"), notifier=notifier)
+        engine = Engine(load("rak4631.example.json"), notifier=notifier)
         for s in (0, 5):                           # two detections: below the limit of 3
             engine.on_uplink(make_uplink(obj=sensor_obj(motion_alert=1),
                                          time=make_uplink().time.replace(second=s)))
@@ -83,14 +83,14 @@ class Lds02ExampleTest(unittest.TestCase):
     EUI = "a84041a5d7598dd0"
 
     def test_resolved_config_has_no_settings_to_push(self):
-        conf = load("dragino_lds02.json")
+        conf = load("dragino_lds02.example.json")
         cfg = conf.for_event(self.EUI, "", "Dragino Switch LDS02")
         self.assertEqual((cfg.name, cfg.kind, cfg.batt_warn_v), ("Door1", "door", 2.5))
         self.assertEqual(desired_frames(cfg, conf.registry), [])
 
     def test_open_and_close_use_the_custom_texts(self):
         notifier = RecordingNotifier()
-        engine = Engine(load("dragino_lds02.json"), notifier=notifier)
+        engine = Engine(load("dragino_lds02.example.json"), notifier=notifier)
         engine.on_uplink(lds02(CLOSED, 0))
         engine.on_uplink(lds02(OPEN, 10))
         engine.on_uplink(lds02(CLOSED, 20))
@@ -106,29 +106,29 @@ class SharedFamilySettingsTest(unittest.TestCase):
         return cfg, [(f.f_port, f.data) for f in desired_frames(cfg, conf.registry)]
 
     def test_rak3172_second_device_inherits_and_overrides(self):
-        conf = load("rak3172.json")
+        conf = load("rak3172.example.json")
         first, first_frames = self.frames(conf, "ac1f09fffe12da63", "RAK3172")
         second, second_frames = self.frames(conf, "ac1f09fffe12da64", "RAK3172")
         self.assertEqual((first.name, second.name), ("sensor16", "sensor17"))
-        self.assertEqual((first.temp_alarm_limit_c, second.temp_alarm_limit_c), (2.0, 5.0))
+        self.assertEqual((first.temp_alarm_min_c, second.temp_alarm_min_c), (2.0, 5.0))
         self.assertEqual((first.watchdog_hours, second.watchdog_hours), (0.5, 24))
         self.assertEqual(second.batt_warn_v, 2.9)                     # shared, from the family
         self.assertEqual(first_frames, [(5, b"016"), (6, b"002"), (7, b"001")])   # 10 Hz = index 2
         self.assertEqual(second_frames, [(5, b"016"), (6, b"003"), (7, b"001")])  # 25 Hz = index 3
 
     def test_rak4631_second_device_inherits_and_overrides(self):
-        conf = load("rak4631.json")
+        conf = load("rak4631.example.json")
         first, first_frames = self.frames(conf, "ac1f09fffe1003ae", "RAK4631")
         second, second_frames = self.frames(conf, "ac1f09fffe1003af", "RAK4631")
         self.assertEqual((first.name, second.name), ("sensor3", "sensor4"))
-        self.assertEqual((first.temp_alarm_limit_c, second.temp_alarm_limit_c), (2.0, -18.0))
+        self.assertEqual((first.temp_alarm_min_c, second.temp_alarm_min_c), (2.0, -18.0))
         self.assertEqual((first.motion_min_detections, second.motion_min_detections), (3, 1))
         self.assertEqual((first.application_id, second.application_id), ("app-larm", "app-larm"))
         self.assertEqual(second.notify_fire, first.notify_fire)        # shared texts
         self.assertEqual(second_frames, first_frames)                  # same settings pushed
 
     def test_lds02_second_device_overrides_watchdog_and_has_a_night_window(self):
-        conf = load("dragino_lds02.json")
+        conf = load("dragino_lds02.example.json")
         first, _ = self.frames(conf, "a84041a5d7598dd0", "Dragino Switch LDS02")
         second, second_frames = self.frames(conf, "a84041e3d189503d", "Dragino Switch LDS02")
         self.assertEqual((first.name, second.name), ("Door1", "Door2"))
@@ -142,7 +142,7 @@ class SharedFamilySettingsTest(unittest.TestCase):
     def test_lds02_example_window_in_action(self):
         # 16:33 local: Door2 (window 21:00-09:00) stays quiet, Door1 (no window) alarms
         notifier = RecordingNotifier()
-        engine = Engine(load("dragino_lds02.json"), notifier=notifier)
+        engine = Engine(load("dragino_lds02.example.json"), notifier=notifier)
         for eui, name in (("a84041e3d189503d", "Door2"), ("a84041a5d7598dd0", "Door1")):
             for obj, seconds in ((CLOSED, 0), (OPEN, 60)):
                 engine.on_uplink(replace(lds02(obj, seconds), dev_eui=eui, device_name=name))
@@ -154,7 +154,7 @@ class Tbwl100ExampleTest(unittest.TestCase):
     PROFILE = "Browan Water sensor"
 
     def test_resolved_config_has_no_settings_to_push(self):
-        conf = load("browan_tbwl100.json")
+        conf = load("browan_tbwl100.example.json")
         for eui in self.EUIS:
             cfg = conf.for_event(eui, "", self.PROFILE)
             self.assertEqual((cfg.kind, cfg.watchdog_hours, cfg.batt_warn_v), ("water", 3, 3.4))
@@ -162,7 +162,7 @@ class Tbwl100ExampleTest(unittest.TestCase):
 
     def test_leak_and_dry_notify_the_device_topic(self):
         notifier = RecordingNotifier()
-        engine = Engine(load("browan_tbwl100.json"), notifier=notifier)
+        engine = Engine(load("browan_tbwl100.example.json"), notifier=notifier)
         engine.on_uplink(tbwl(DRY, 0))
         engine.on_uplink(tbwl(WET, 10))
         engine.on_uplink(tbwl(DRY, 20))
@@ -172,7 +172,7 @@ class Tbwl100ExampleTest(unittest.TestCase):
 
 class Ws101ExampleTest(unittest.TestCase):
     def test_resolved_config_and_on_off_notify_the_device_topic(self):
-        conf = load("milesight_ws101.json")
+        conf = load("milesight_ws101.example.json")
         cfg = conf.for_event(BTN_EUI, "", WS101_PROFILE)
         self.assertEqual((cfg.kind, cfg.ntfy_topic), ("button", "button1"))
         self.assertEqual(desired_frames(cfg, conf.registry), [])
@@ -224,7 +224,7 @@ class FullTemplateTest(unittest.TestCase):
         self.assertEqual((door1.alarm_window, door2.alarm_window), ("", "21:00-09:00"))
         self.assertEqual(door1.timezone, "Europe/Stockholm")      # set once in defaults
         self.assertEqual(door1.kind, "door")                     # the type's own default
-        self.assertEqual(conf.for_event("ac1f09fffe12da63", "", "RAK3172").temp_alarm_limit_c, 2.0)
+        self.assertEqual(conf.for_event("ac1f09fffe12da63", "", "RAK3172").temp_alarm_min_c, 2.0)
         water = conf.for_event("e8e1e100010a7173", "", "Browan Water sensor")
         self.assertEqual((water.kind, water.watchdog_hours, water.batt_empty_v), ("water", 3, 3.1))
 

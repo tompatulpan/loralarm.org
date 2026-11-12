@@ -41,7 +41,8 @@ class AlarmKind(str):
 
     __slots__ = ()
 
-    TEMP: ClassVar["AlarmKind"]
+    TEMP_LOW: ClassVar["AlarmKind"]     # temperature at or below temp_alarm_min_c
+    TEMP_HIGH: ClassVar["AlarmKind"]    # temperature at or above temp_alarm_max_c
     BATTERY_LOW: ClassVar["AlarmKind"]
     BATTERY_EMPTY: ClassVar["AlarmKind"]
     MOTION: ClassVar["AlarmKind"]       # motion_alert (accelerometer interrupt) -> rörelselarm
@@ -54,13 +55,17 @@ class AlarmKind(str):
         return str(self)
 
 
-AlarmKind.TEMP = AlarmKind("temp")
+AlarmKind.TEMP_LOW = AlarmKind("temp_low")
+AlarmKind.TEMP_HIGH = AlarmKind("temp_high")
 AlarmKind.BATTERY_LOW = AlarmKind("battery_low")
 AlarmKind.BATTERY_EMPTY = AlarmKind("battery_empty")
 AlarmKind.MOTION = AlarmKind("motion")
 AlarmKind.CIRCUIT = AlarmKind("circuit")
 AlarmKind.TILT = AlarmKind("tilt")
 AlarmKind.STALE = AlarmKind("stale")
+
+# alarm kinds renamed over time; old persisted snapshots / configs may still use them
+LEGACY_KINDS = {"temp": "temp_low"}
 
 # after this many consecutive tilted samples the baseline is re-accepted, so a
 # sensor that is permanently moved does not stay alarmed forever
@@ -149,6 +154,7 @@ def _warn_unknown_kind(registry: Registry, cfg: DeviceConfig) -> None:
 def _known_kind(registry: Registry, value: str) -> AlarmKind:
     """AlarmKind for a persisted key; ValueError if no rule is registered for it
     (corrupt snapshot, or a rule that has since been removed)."""
+    value = LEGACY_KINDS.get(value, value)
     if registry.rule_for(value) is None:
         raise ValueError(f"unknown alarm kind {value!r}")
     return AlarmKind(value)
@@ -159,11 +165,32 @@ def _group(registry: Registry, kind: AlarmKind) -> str | None:
     return r.group if r else None
 
 
-def _temp_check(cfg: DeviceConfig, frame: Frame, obj: dict) -> str | None:
+def _temp_low_check(cfg: DeviceConfig, frame: Frame, obj: dict) -> str | None:
     temp = frame.values.get("temperature")
-    if temp is not None and temp <= cfg.temp_alarm_limit_c:
-        return f"{temp} °C ≤ gräns {cfg.temp_alarm_limit_c} °C"
+    if temp is not None and temp <= cfg.temp_alarm_min_c:
+        return f"{temp} °C ≤ nedre gräns {cfg.temp_alarm_min_c} °C"
     return None
+
+
+def _temp_low_release(cfg: DeviceConfig, frame: Frame, obj: dict) -> bool:
+    """Hysteresis: once low, the alarm holds until the temperature is above
+    the limit by temp_alarm_hysteresis_c. A frame without temperature clears it."""
+    temp = frame.values.get("temperature")
+    return temp is None or temp > cfg.temp_alarm_min_c + cfg.temp_alarm_hysteresis_c
+
+
+def _temp_high_check(cfg: DeviceConfig, frame: Frame, obj: dict) -> str | None:
+    temp = frame.values.get("temperature")
+    if temp is not None and cfg.temp_alarm_max_c is not None and temp >= cfg.temp_alarm_max_c:
+        return f"{temp} °C ≥ övre gräns {cfg.temp_alarm_max_c} °C"
+    return None
+
+
+def _temp_high_release(cfg: DeviceConfig, frame: Frame, obj: dict) -> bool:
+    temp = frame.values.get("temperature")
+    if temp is None or cfg.temp_alarm_max_c is None:
+        return True
+    return temp < cfg.temp_alarm_max_c - cfg.temp_alarm_hysteresis_c
 
 
 def _pct_txt(frame: Frame) -> str:
@@ -185,9 +212,18 @@ def _batt_empty_check(cfg: DeviceConfig, frame: Frame, obj: dict) -> str | None:
     return None
 
 
-def _clear_temp(cfg: DeviceConfig, frame: Frame) -> str:
+def _clear_temp_low(cfg: DeviceConfig, frame: Frame) -> str:
     temp = frame.values.get("temperature")
-    return f"{temp} °C > gräns {cfg.temp_alarm_limit_c} °C" if temp is not None else "inom gräns"
+    limit = cfg.temp_alarm_min_c + cfg.temp_alarm_hysteresis_c
+    return f"{temp} °C > nedre gräns {round(limit, 2)} °C" if temp is not None else "inom gräns"
+
+
+def _clear_temp_high(cfg: DeviceConfig, frame: Frame) -> str:
+    temp = frame.values.get("temperature")
+    if temp is None or cfg.temp_alarm_max_c is None:
+        return "inom gräns"
+    limit = cfg.temp_alarm_max_c - cfg.temp_alarm_hysteresis_c
+    return f"{temp} °C < övre gräns {round(limit, 2)} °C"
 
 
 def _clear_batt_low(cfg: DeviceConfig, frame: Frame) -> str:
@@ -201,7 +237,10 @@ def _clear_batt_empty(cfg: DeviceConfig, frame: Frame) -> str:
 
 
 BUILTIN_RULES: list[AlarmRule] = [
-    AlarmRule(AlarmKind.TEMP, "Temperaturalarm", _temp_check, _clear_temp, windowed=False),
+    AlarmRule(AlarmKind.TEMP_LOW, "Lågtemperaturalarm", _temp_low_check, _clear_temp_low,
+              windowed=False, release=_temp_low_release),
+    AlarmRule(AlarmKind.TEMP_HIGH, "Högtemperaturalarm", _temp_high_check, _clear_temp_high,
+              windowed=False, release=_temp_high_release),
     AlarmRule(AlarmKind.BATTERY_LOW, "Batterinivå låg", _batt_low_check, _clear_batt_low,
               group="battery", windowed=False),
     AlarmRule(AlarmKind.BATTERY_EMPTY, "Batteri tomt", _batt_empty_check, _clear_batt_empty,

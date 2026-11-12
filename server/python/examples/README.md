@@ -5,10 +5,10 @@ these files**; your real config is `server/python/devices.json`.
 
 | File | Device type |
 |---|---|
-| `rak3172.json` | RAK3172 (RUI3 / Cayenne) |
-| `rak4631.json` | RAK4631 (Android, LiPo) |
-| `dragino_lds02.json` | Dragino LDS02 door switch |
-| `milesight_ws101.json` | Milesight WS101 smart button (short press = ON, long press = OFF) |
+| `rak3172.example.json` | RAK3172 (RUI3 / Cayenne) |
+| `rak4631.example.json` | RAK4631 (Android, LiPo) |
+| `dragino_lds02.example.json` | Dragino LDS02 door switch |
+| `milesight_ws101.example.json` | Milesight WS101 smart button (short press = ON, long press = OFF) |
 
 Each file starts with a `"_readme"` field that explains its keys (JSON has no
 comments, and the config loader ignores that field).
@@ -53,12 +53,12 @@ replaced as a whole by a more specific layer, not merged key by key.
 
 ```bash
 cd server/python
-.venv/bin/python3 -m loralarm.replay ../chirpstack/fixtures/*.json --config examples/rak4631.json
+.venv/bin/python3 -m loralarm.replay ../chirpstack/fixtures/*.json --config examples/rak4631.example.json
 ```
 
 This replays the captured real uplinks through the example (dry, nothing is
 sent) and prints what would alarm. Use `python3 -m loralarm.downlink --config
-examples/rak4631.json --dev sensor3 --app-id X --dry-run` to see the settings
+examples/rak4631.example.json --dev sensor3 --app-id X --dry-run` to see the settings
 frames an entry would push.
 
 ## Only a few keys are needed

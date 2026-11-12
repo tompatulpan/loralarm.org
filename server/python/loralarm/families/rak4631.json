@@ -8,7 +8,7 @@
   },
   "defaults": {
     "tk_correction_c": 8.0,
-    "temp_alarm_limit_c": 2.0,
+    "temp_alarm_min_c": 2.0,
     "batt_full_v": 4.2,
     "batt_warn_v": 3.5,
     "batt_empty_v": 3.2,
