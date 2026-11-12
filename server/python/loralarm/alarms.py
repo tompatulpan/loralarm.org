@@ -64,9 +64,6 @@ AlarmKind.CIRCUIT = AlarmKind("circuit")
 AlarmKind.TILT = AlarmKind("tilt")
 AlarmKind.STALE = AlarmKind("stale")
 
-# alarm kinds renamed over time; old persisted snapshots / configs may still use them
-LEGACY_KINDS = {"temp": "temp_low"}
-
 # after this many consecutive tilted samples the baseline is re-accepted, so a
 # sensor that is permanently moved does not stay alarmed forever
 TILT_REBASELINE_AFTER = 10
@@ -154,7 +151,6 @@ def _warn_unknown_kind(registry: Registry, cfg: DeviceConfig) -> None:
 def _known_kind(registry: Registry, value: str) -> AlarmKind:
     """AlarmKind for a persisted key; ValueError if no rule is registered for it
     (corrupt snapshot, or a rule that has since been removed)."""
-    value = LEGACY_KINDS.get(value, value)
     if registry.rule_for(value) is None:
         raise ValueError(f"unknown alarm kind {value!r}")
     return AlarmKind(value)

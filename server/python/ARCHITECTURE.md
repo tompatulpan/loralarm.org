@@ -159,7 +159,7 @@ other (see 5.1), no special case in the tracker.
     "notify": [{"to": "ops-ntfy"}]
   },
   "groups": {
-    "coldrooms": {"params": {"temp_alarm_limit_c": 4}, "notify": [{"to": "tomas-push"}]}
+    "coldrooms": {"params": {"temp_alarm_min_c": 4}, "notify": [{"to": "tomas-push"}]}
   },
   "devices": {
     "ac1f09fffe1003ae": {

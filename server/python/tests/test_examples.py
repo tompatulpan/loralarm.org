@@ -210,7 +210,7 @@ class FullTemplateTest(unittest.TestCase):
 
     def test_sensor3_keeps_the_settings_the_downlink_tests_rely_on(self):
         conf = self.conf()
-        cfg = conf.for_event("ac1f09fffe1003ae", "", "RAK4631")
+        cfg = conf.for_event("ac1f09fffe1001aa", "", "RAK4631")
         self.assertEqual([(f.f_port, f.data) for f in desired_frames(cfg, conf.registry)],
                          [(5, b"008"), (6, b"047"), (7, b"001")])
         self.assertEqual((cfg.tk_correction_c, cfg.motion_min_detections, cfg.circuit_mode),
@@ -218,14 +218,14 @@ class FullTemplateTest(unittest.TestCase):
 
     def test_family_layer_and_device_override(self):
         conf = self.conf()
-        door1 = conf.for_event("a84041a5d7598dd0", "", "Dragino Switch LDS02")
-        door2 = conf.for_event("a84041e3d189503d", "", "Dragino Switch LDS02")
+        door1 = conf.for_event("a84041a5d759d001", "", "Dragino Switch LDS02")
+        door2 = conf.for_event("a84041e3d101233d", "", "Dragino Switch LDS02")
         self.assertEqual((door1.watchdog_hours, door2.watchdog_hours), (12, 2))
         self.assertEqual((door1.alarm_window, door2.alarm_window), ("", "21:00-09:00"))
         self.assertEqual(door1.timezone, "Europe/Stockholm")      # set once in defaults
         self.assertEqual(door1.kind, "door")                     # the type's own default
-        self.assertEqual(conf.for_event("ac1f09fffe12da63", "", "RAK3172").temp_alarm_min_c, 2.0)
-        water = conf.for_event("e8e1e100010a7173", "", "Browan Water sensor")
+        self.assertEqual(conf.for_event("ac1f09fffe120202", "", "RAK3172").temp_alarm_min_c, 2.0)
+        water = conf.for_event("e8e1e100010a7001", "", "Browan Water sensor")
         self.assertEqual((water.kind, water.watchdog_hours, water.batt_empty_v), ("water", 3, 3.1))
 
     def test_custom_profile_params_and_alarm_end_to_end(self):

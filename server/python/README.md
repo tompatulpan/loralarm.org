@@ -297,10 +297,8 @@ Two alarm kinds read the calibrated `temperature` (raw minus `tk_correction_c`):
 
 Example: `temp_alarm_max_c: 30`, `temp_alarm_hysteresis_c: 2` fires at 30 °C and
 clears below 28 °C. Both are health alarms (always notify, see Alarm window) and
-all three keys work in `defaults`, `families` and per device. The old
-`temp_alarm_limit_c` and the kind name `temp` (in `notify_fire`/`notify_clear`,
-`alarm_window_kinds` and saved state) still work and mean `temp_alarm_min_c` /
-`temp_low`. The check runs on the server, so no firmware change is needed.
+all three keys work in `defaults`, `families` and per device. The check runs on
+the server, so no firmware change is needed.
 
 ## Circuit alarm (`circuit_mode`)
 

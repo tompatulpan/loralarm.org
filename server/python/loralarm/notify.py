@@ -78,7 +78,7 @@ def message_text(kind: str, name: str, active: bool, detail: str,
     label = registry.label_for(kind)
     fields = dict(name=name, detail=detail, label=label)
     templates = (fire or {}) if active else (clear or {})
-    template = templates.get(kind) or (templates.get("temp") if kind == "temp_low" else None)  # "temp" = old name
+    template = templates.get(kind)
     if template:
         text = _safe_format(template, f"template for {kind}", **fields)
         if text is not None:

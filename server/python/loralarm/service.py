@@ -514,8 +514,7 @@ class Engine:
     def _windowed(self, cfg: DeviceConfig, kind: str) -> bool:
         """Does the alarm window apply to this alarm kind of this device?"""
         if cfg.alarm_window_kinds is not None:
-            return kind in cfg.alarm_window_kinds or (
-                kind == "temp_low" and "temp" in cfg.alarm_window_kinds)  # "temp" = old name
+            return kind in cfg.alarm_window_kinds
         rule = self.registry.rule_for(kind)
         return rule.windowed if rule is not None else True
 

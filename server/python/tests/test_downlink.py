@@ -363,15 +363,15 @@ class StatusLineFormatTest(unittest.TestCase):
 
 class CliTest(unittest.TestCase):
     def test_dry_run_resolves_name_and_translates_frequency(self):
-        rc = dl_main(["--dev", "sensor16", "--app-id", "test-app", "--family", "RAK3172",
+        rc = dl_main(["--dev", "sensor2", "--app-id", "test-app", "--family", "RAK3172",
                       "--set", "frequency=50", "--set", "threshold=16",
                       "--config", "devices.example.json", "--dry-run"])
         self.assertEqual(rc, 0)
 
     def test_no_set_pushes_configured_settings(self):
-        # sensor3 in devices.example.json has threshold=8, frequency=10, duration=1,
+        # sensor1 in devices.example.json has threshold=8, frequency=10, duration=1,
         # family=RAK4631 -> wire values 008 / 047 / 001
-        rc = dl_main(["--dev", "sensor3", "--app-id", "test-app",
+        rc = dl_main(["--dev", "sensor1", "--app-id", "test-app",
                       "--config", "devices.example.json", "--dry-run"])
         self.assertEqual(rc, 0)
 
@@ -380,13 +380,13 @@ class CliTest(unittest.TestCase):
         with mock.patch.dict(os.environ, {"LORALARM_CS_APP_ID": "env-app"}), \
                 mock.patch.dict(os.environ, {"LORALARM_CS_APP_LARM": "cfg-app"}), \
                 contextlib.redirect_stdout(buf):
-            dl_main(["--dev", "sensor3", "--set", "threshold=8",
+            dl_main(["--dev", "sensor1", "--set", "threshold=8",
                      "--config", "devices.example.json", "--dry-run"])
         self.assertIn("application/cfg-app/", buf.getvalue())
 
     def test_bad_value_is_a_clean_error_not_a_traceback(self):
         with self.assertRaises(SystemExit) as cm:
-            dl_main(["--dev", "sensor3", "--set", "threshold=999",
+            dl_main(["--dev", "sensor1", "--set", "threshold=999",
                      "--config", "devices.example.json", "--dry-run"])
         self.assertEqual(cm.exception.code, 2)  # argparse error exit
 

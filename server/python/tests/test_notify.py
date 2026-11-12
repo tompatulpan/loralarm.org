@@ -29,10 +29,6 @@ class MessageTextTest(unittest.TestCase):
             self.assertIn("Temperatur OK", clear)
             self.assertIn("12.0 °C > gräns 2.0 °C", clear)
 
-    def test_old_temp_template_still_applies_to_temp_low(self):
-        text = message_text("temp_low", "s", True, "d", fire={"temp": "gammal mall {name}"})
-        self.assertEqual(text, "gammal mall s")
-
     def test_bad_template_falls_back_to_builtin_text(self):
         text = message_text("motion", "sensor3", True, "d",
                             fire={"motion": "{oops}"}, clear={})

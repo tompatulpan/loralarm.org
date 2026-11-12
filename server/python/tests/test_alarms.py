@@ -47,13 +47,6 @@ class EvaluateTest(unittest.TestCase):
         steps = self._temps(make_cfg(), 2.0, 2.1)
         self.assertEqual(steps, [[(AlarmKind.TEMP_LOW, True)], [(AlarmKind.TEMP_LOW, False)]])
 
-    def test_legacy_temp_kind_in_old_snapshot_restores_as_temp_low(self):
-        from .common import REG
-        st = AlarmState()
-        st.restore({"active": ["temp"], "last_detail": {"temp": "x"}, "suppressed": ["temp"]}, REG)
-        self.assertEqual(st.active, {AlarmKind.TEMP_LOW})
-        self.assertEqual(st.suppressed, {AlarmKind.TEMP_LOW})
-
     def test_battery_percent_and_status(self):
         cfg = make_cfg()  # full 4.2, warn 3.5, empty 3.2
         frame, fired = evaluate(cfg, make_uplink(obj=sensor_obj(battery_voltage=3.85)))

@@ -115,7 +115,6 @@ _FIELD_TYPES: dict[str, tuple[type, ...]] = {
     "tk_correction_c": (int, float),
     "temp_alarm_min_c": (int, float), "temp_alarm_max_c": (int, float),
     "temp_alarm_hysteresis_c": (int, float),
-    "temp_alarm_limit_c": (int, float),     # legacy name of temp_alarm_min_c
     "batt_full_v": (int, float), "batt_warn_v": (int, float),
     "batt_empty_v": (int, float), "tilt_sense_g": (int, float),
     "circuit_mode": (str,), "circuit_hold_s": (int, float),
@@ -193,8 +192,6 @@ class Config:
         merged: dict[str, Any] = {}
         for layer in (self.defaults, self.families.get(family, {}), entry):
             for k, v in layer.items():
-                if k == "temp_alarm_limit_c" and "temp_alarm_min_c" not in layer:
-                    k = "temp_alarm_min_c"
                 if k in _FIELD_TYPES and not _valid_type(k, v):
                     # an invalid value must not reach the alarm code (TypeError on
                     # every uplink); keep the value from the lower layer instead

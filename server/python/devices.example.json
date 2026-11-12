@@ -19,7 +19,7 @@
     "application_id is set per device (not in a shared layer): devices of one type can use different applications.",
     "Several recipients per device are not available yet (planned).",
     "Temperature alarms: temp_alarm_min_c (alarm at or below), temp_alarm_max_c (alarm at or above; unset = off),",
-    "   temp_alarm_hysteresis_c (the alarm clears only this many degrees back inside the limit before it clears)."
+    "   temp_alarm_hysteresis_c (applies to both limits: the alarm clears only this many degrees back inside the limit)."
   ],
   "profiles": {
     "CO2-1": {
@@ -96,7 +96,8 @@
       "batt_warn_v": 3.4,
       "batt_empty_v": 3.1,
       "temp_alarm_min_c": 15.0,
-      "temp_alarm_max_c": 25.0
+      "temp_alarm_max_c": 25.0,
+      "temp_alarm_hysteresis_c": 1.0
     }
   },
   "devices": {
@@ -106,7 +107,7 @@
       "application_id": "${LORALARM_CS_APP_LARM}",
       "pushover_user": "${LORALARM_PUSHOVER_USER}",
       "pushover_token": "${LORALARM_PUSHOVER_TOKEN}",
-      "ntfy_topic": "sensor3",
+      "ntfy_topic": "sensor1",
       "watchdog_hours": 0.5,
       "tk_correction_c": 8.0,
       "temp_alarm_min_c": 2.0,
@@ -127,7 +128,7 @@
       "application_id": "${LORALARM_CS_APP_SUBLARM}",
       "pushover_user": "${LORALARM_PUSHOVER_USER}",
       "pushover_token": "${LORALARM_PUSHOVER_TOKEN}",
-      "ntfy_topic": "sensor16",
+      "ntfy_topic": "sensor2",
       "watchdog_hours": 0.5
     },
     "a84041a5d759d001": {
@@ -148,9 +149,7 @@
     "e8e1e100010a7001": {
       "name": "water1",
       "family": "Browan Water sensor",
-      "temp_alarm_min_c": 15.0,
       "temp_alarm_max_c": 30.0,
-      "temp_alarm_hysteresis_c": 1.0,
       "ntfy_topic": "water1"
     },
     "e8e1e100010a7002": {

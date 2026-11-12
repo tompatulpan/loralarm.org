@@ -57,11 +57,9 @@ class LayeringTest(unittest.TestCase):
         self.assertEqual(dc.temp_alarm_min_c, 2.0)   # family value, not the bad string
         self.assertEqual(dc.watchdog_hours, DeviceConfig.watchdog_hours)  # bool is not a number
 
-    def test_legacy_temp_alarm_limit_c_means_temp_alarm_min_c(self):
-        cfg = make_config(devices={DEV_EUI: {"temp_alarm_limit_c": 7.0}},
-                          families={"RAK4631": {"temp_alarm_min_c": 2.0}})
-        dc = cfg.for_event(DEV_EUI, "", "RAK4631")
-        self.assertEqual(dc.temp_alarm_min_c, 7.0)   # the device layer wins over the family
+    def test_temp_alarm_defaults(self):
+        dc = make_config(devices={DEV_EUI: {}}).for_event(DEV_EUI, "", "")
+        self.assertEqual(dc.temp_alarm_min_c, 0.0)
         self.assertIsNone(dc.temp_alarm_max_c)
         self.assertEqual(dc.temp_alarm_hysteresis_c, 0.0)
 
