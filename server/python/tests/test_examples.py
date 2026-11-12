@@ -16,6 +16,7 @@ from .common import REG, make_uplink, sensor_obj
 from .test_engine import RecordingNotifier
 from .test_lds02 import CLOSED, OPEN, lds02
 from .test_tbwl100 import DRY, WET, tbwl
+from .test_ws101 import BTN_EUI, PROFILE as WS101_PROFILE, press
 
 EXAMPLES = Path(__file__).resolve().parent.parent / "examples"
 ENV = {"LORALARM_PUSHOVER_USER": "u", "LORALARM_PUSHOVER_TOKEN": "t",
@@ -31,8 +32,8 @@ class ExamplesLoadTest(unittest.TestCase):
     def test_every_example_loads_without_warnings(self):
         files = sorted(EXAMPLES.glob("*.json"))
         self.assertEqual([f.name for f in files],
-                         ["browan_tbwl100.json", "dragino_lds02.json", "rak3172.json",
-                          "rak4631.json"])
+                         ["browan_tbwl100.json", "dragino_lds02.json",
+                          "milesight_ws101.json", "rak3172.json", "rak4631.json"])
         for f in files:
             with self.subTest(example=f.name), self.assertNoLogs("loralarm", level="WARNING"):
                 load(f.name)
@@ -169,6 +170,20 @@ class Tbwl100ExampleTest(unittest.TestCase):
         engine.on_uplink(tbwl(DRY, 20))
         self.assertEqual([(c[1], c[2]) for c in notifier.calls],
                          [("water_leak", True), ("water_leak", False)])
+
+
+class Ws101ExampleTest(unittest.TestCase):
+    def test_resolved_config_and_on_off_notify_the_device_topic(self):
+        conf = load("milesight_ws101.json")
+        cfg = conf.for_event(BTN_EUI, "", WS101_PROFILE)
+        self.assertEqual((cfg.kind, cfg.ntfy_topic), ("button", "button1"))
+        self.assertEqual(desired_frames(cfg, conf.registry), [])
+        notifier = RecordingNotifier()
+        engine = Engine(conf, notifier=notifier)
+        engine.on_uplink(press("short press", 0))
+        engine.on_uplink(press("long press", 10))
+        self.assertEqual([(c[1], c[2]) for c in notifier.calls],
+                         [("button", True), ("button", False)])
 
 
 class FullTemplateTest(unittest.TestCase):

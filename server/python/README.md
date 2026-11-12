@@ -14,7 +14,7 @@ Verify on the lora box with `mosquitto_sub -h localhost -t 'application/+/device
 | File | Role |
 |---|---|
 | `loralarm/event.py` | Parse a ChirpStack up event → `Uplink` (devEUI, fPort, `object`, rssi/snr; fPort 4–7 ASCII settings frames parsed here, not by the codec) |
-| `loralarm/families/*.json` | One built-in device-family definition per file (RAK3172, RAK4631, Dragino LDS02, Browan TBWL100): config defaults (spec §4), data ports, measurement `fields`, downlink settings, frequency table, alarm rules. See "Adding a device" |
+| `loralarm/families/*.json` | One built-in device-family definition per file (RAK3172, RAK4631, Dragino LDS02, Browan TBWL100, Milesight WS101): config defaults (spec §4), data ports, measurement `fields`, downlink settings, frequency table, alarm rules. See "Adding a device" |
 | `loralarm/registry.py` | `Registry`: the alarm rules, device profiles, field transforms and derivations known to one config, as an **instance** (no module-level globals). `fork()` gives an independent copy |
 | `loralarm/definitions.py` | Loads those files and the `"profiles"` section of `devices.json` into a registry (validated); `builtin_registry()` is the shared read-only base, every `Config` works on its own fork, so a hot reload has nothing to undo |
 | `loralarm/profiles.py` | `DeviceProfile` / `SettingSpec` classes and the standard fields; unknown families get `GENERIC` |
@@ -225,6 +225,19 @@ warn 3.4 / empty 3.1 V). A wet sensor raises `Vattenläcka` (`water_leak`) once,
 however often it re-sends; the next dry frame clears it ("Torrt igen").
 Starting point: `examples/browan_tbwl100.json` (water1/water2, `watchdog_hours` 3
 because the sensor sends a keep-alive every 60 min).
+
+### Milesight WS101 smart button
+
+Built in as `families/milesight_ws101.json` (profile name = the ChirpStack
+device profile `Smart Button [Milesight]`, codec `chirpstack/ws101-decoder.js`):
+fPort 85, `button_event.status` → `button` (dotted `from` path), kind `button`,
+no downlinks. Battery arrives as a percentage (`battery` → `battery_pct`), so
+there are no battery alarms. The `Knapplarm` rule is **latching** (`release` in
+the rule): a short press = ON raises it, a long press = OFF clears it, a double
+press is unused, and battery/status frames or a repeated short press change
+nothing. Real captured uplinks: `chirpstack/button_logs/`. Starting point:
+`examples/milesight_ws101.json` (`watchdog_hours` 0: the button only reports on
+a press and on a long interval).
 
 Stateful detectors (like tilt) still belong in `AlarmState`; register them
 label-only with `AlarmRule(kind, label, check=None, ...)`.

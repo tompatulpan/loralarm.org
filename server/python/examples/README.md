@@ -8,6 +8,7 @@ these files**; your real config is `server/python/devices.json`.
 | `rak3172.json` | RAK3172 (RUI3 / Cayenne) |
 | `rak4631.json` | RAK4631 (Android, LiPo) |
 | `dragino_lds02.json` | Dragino LDS02 door switch |
+| `milesight_ws101.json` | Milesight WS101 smart button (short press = ON, long press = OFF) |
 
 Each file starts with a `"_readme"` field that explains its keys (JSON has no
 comments, and the config loader ignores that field).

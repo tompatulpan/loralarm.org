@@ -13,6 +13,7 @@ custom RAK4631 frame.
 | `payload_codec_rak4631.js` | RAK4631 (Arduino/Android) | custom 14-byte binary frame |
 | `payload_codec_rui3.js` | RUI3 | Cayenne LPP (`devices/rui3_sensor/app.h` channel map) |
 | `payload_codec_dragino_lds02.js` | Dragino LDS02 door switch | third-party format, fPort 10 (`DOOR_OPEN_STATUS`, `BAT_V`) |
+| `ws101-decoder.js` | Milesight WS101 smart button | vendor decoder, unmodified; fPort 85, `button_event.status` = short/long/double press (captures in `button_logs/`) |
 | `payload_codec_test.js` | runnable test: `node payload_codec_test.js` | |
 
 `fixtures/` holds four captured real ChirpStack MQTT up events — one

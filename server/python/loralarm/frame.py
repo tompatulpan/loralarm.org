@@ -15,6 +15,7 @@ operations (`subtract`, `round`, `linear_pct`, `band`, ...) are plugins in the
                      "empty": "$batt_empty_v", "full": "$batt_full_v", "round": 1}
     }
 
+`from` may be a dotted path into a nested codec object (`"button_event.status"`).
 `$name` refers to a per-device parameter (a config key or an entry of
 `params`), resolved when a frame is built. Codec fields that are not declared
 pass through unchanged, so a rule or the status page can read any of them; a
@@ -145,9 +146,9 @@ def build_values(fields: Mapping[str, Mapping[str, Any]], raw: Mapping[str, Any]
             derived.append((name, spec))
             continue
         source = spec.get("from", name)
-        if source not in raw:
+        found, value = _lookup(raw, source)
+        if not found:
             continue
-        value = raw[source]
         try:
             if spec.get("type") == "number" and not is_number(value):
                 value = None
@@ -168,6 +169,19 @@ def build_values(fields: Mapping[str, Mapping[str, Any]], raw: Mapping[str, Any]
             value = None
         _put(values, name, value)
     return values
+
+
+def _lookup(raw: Mapping[str, Any], source: str) -> tuple[bool, Any]:
+    """`source` is a codec key, or a dotted path into nested objects
+    ("button_event.status"); an exact top-level key wins over a path."""
+    if source in raw:
+        return True, raw[source]
+    value: Any = raw
+    for part in source.split("."):
+        if not isinstance(value, Mapping) or part not in value:
+            return False, None
+        value = value[part]
+    return True, value
 
 
 def _put(values: dict[str, Any], name: str, value: Any) -> None:

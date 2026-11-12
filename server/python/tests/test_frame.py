@@ -37,6 +37,12 @@ class TransformTest(unittest.TestCase):
         v = values({"door_open": {"from": "DOOR_OPEN_STATUS"}}, {"DOOR_OPEN_STATUS": 1, "MOD": 1})
         self.assertEqual(v, {"DOOR_OPEN_STATUS": 1, "MOD": 1, "door_open": 1})
 
+    def test_from_dotted_path_into_a_nested_object(self):
+        spec = {"button": {"from": "button_event.status"}}
+        self.assertEqual(values(spec, {"button_event": {"status": "short press"}})["button"], "short press")
+        self.assertNotIn("button", values(spec, {"battery": 80}))
+        self.assertNotIn("button", values(spec, {"button_event": "oops"}))
+
     def test_declared_field_replaces_the_raw_one_of_the_same_name(self):
         f = {"temperature": {"from": "temperature", "transform": [{"op": "subtract", "by": "$tk_correction_c"}]}}
         self.assertEqual(values(f, {"temperature": 32.0})["temperature"], 24.0)

@@ -117,6 +117,9 @@ class AlarmRule:
     # False = a "health" alarm (temperature, battery, no contact): it always
     # notifies, whatever the device's alarm_window says
     windowed: bool = True
+    # latching rule (button): once fired it stays active across frames that say
+    # nothing about it, and clears only when release(cfg, frame, values) is True
+    release: Callable[[DeviceConfig, Frame, dict], bool] | None = None
 
 
 def known_device_kinds(registry: Registry) -> set[str]:
@@ -326,6 +329,12 @@ class AlarmState:
                     transitions_pre.append(motion)
 
         now_active = {t.kind for t in fired}
+        for kind in self.active - now_active:
+            rule = registry.rule_for(kind)
+            if (rule is not None and rule.release is not None
+                    and rule_applies(registry, kind, cfg)
+                    and not rule.release(cfg, frame, frame.values)):
+                now_active.add(kind)
         # STALE is owned by the watchdog: an uplink keeps it active here and the
         # next watchdog tick clears it with "uplink mottagen"
         if AlarmKind.STALE in self.active:

@@ -34,8 +34,8 @@ HUMIDITY_DEF = {
 class BuiltinFamiliesTest(unittest.TestCase):
     def test_one_json_file_per_family(self):
         names = sorted(p.name for p in FAMILIES_DIR.glob("*.json"))
-        self.assertEqual(names, ["browan_tbwl100.json", "dragino_lds02.json", "rak3172.json",
-                                  "rak4631.json"])
+        self.assertEqual(names, ["browan_tbwl100.json", "dragino_lds02.json",
+                                  "milesight_ws101.json", "rak3172.json", "rak4631.json"])
 
     def test_builtin_profiles_loaded_from_json(self):
         rak = get_profile("rak4631")
@@ -155,6 +155,24 @@ class RuleOperatorsTest(unittest.TestCase):
     def test_comparison_without_limit_is_rejected(self):
         with self.assertRaises(ValueError):
             rule_from_dict({"kind": "t", "label": "T", "field": "f", "when": "gt"})
+
+
+class RuleReleaseTest(unittest.TestCase):
+    RULE = {"kind": "t", "label": "T", "field": "f", "when": "eq", "value": "on",
+            "release": {"when": "eq", "value": "off"}}
+
+    def test_release_only_on_matching_value(self):
+        r = rule_from_dict(self.RULE)
+        self.assertTrue(r.release(make_cfg(), None, {"f": "off"}))
+        self.assertFalse(r.release(make_cfg(), None, {"f": "other"}))
+        self.assertFalse(r.release(make_cfg(), None, {}))
+        plain = {k: v for k, v in self.RULE.items() if k != "release"}
+        self.assertIsNone(rule_from_dict(plain).release)
+
+    def test_bad_release_is_rejected(self):
+        for bad in ("off", {"when": "eq"}, {"when": "nope"}, {"when": "eq", "value": 1, "x": 2}):
+            with self.subTest(release=bad), self.assertRaises(ValueError):
+                rule_from_dict({**self.RULE, "release": bad})
 
 
 class UnconfiguredDeviceTest(unittest.TestCase):

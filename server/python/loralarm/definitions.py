@@ -31,6 +31,9 @@ and every reload builds a fresh registry). Schema (all keys optional except
         "fire": "dörren är öppen", "clear": "dörren är stängd",   # fire: {value} {limit} {field}; clear: {limit} {field}
         "device_kinds": ["door"], "group": null,
         "windowed": true,                           # false = always notify, ignore the device's alarm_window
+        "release": {"when": "eq", "value": "long press"},   # optional: latch. Once fired the alarm stays
+                                                    # active until this holds on the same field (frames that
+                                                    # lack the field, or say something else, change nothing)
         "notify_fire": "...", "notify_clear": "..."
       }]
     }
@@ -58,7 +61,7 @@ FAMILIES_DIR = Path(__file__).resolve().parent / "families"
 _PROFILE_KEYS = {"name", "description", "aliases", "data_ports", "fields", "settings",
                  "settings_kinds", "frequency", "defaults", "rules"}
 _RULE_KEYS = {"kind", "label", "field", "when", "value", "param", "fire", "clear",
-              "device_kinds", "group", "notify_fire", "notify_clear", "windowed"}
+              "device_kinds", "group", "notify_fire", "notify_clear", "windowed", "release"}
 _SETTING_KEYS = {"key", "port", "lo", "hi", "obj_field", "kind"}
 
 _COMPARE: dict[str, Callable[[Any, Any], bool]] = {
@@ -105,26 +108,49 @@ def rule_from_dict(d: dict[str, Any]) -> AlarmRule:
     if not isinstance(windowed, bool):
         raise ValueError(f"rule {kind!r}: 'windowed' must be true or false")
 
-    def limit(cfg: DeviceConfig) -> Any:
-        param = d.get("param")
+    def spec_limit(cfg: DeviceConfig, spec: dict) -> Any:
+        param = spec.get("param")
         if param is not None and param in cfg.params:
             return cfg.params[param]
-        return d.get("value")
+        return spec.get("value")
+
+    def limit(cfg: DeviceConfig) -> Any:
+        return spec_limit(cfg, d)
+
+    def hit_for(cfg: DeviceConfig, v: Any, test: str, spec: dict) -> bool:
+        lim = spec_limit(cfg, spec)
+        if test == "truthy":
+            return bool(v)
+        if test == "falsy":
+            return not v
+        if test in ("eq", "ne"):
+            return _COMPARE[test](v, lim)
+        # ordering needs two numbers; anything else never fires
+        return _is_number(v) and _is_number(lim) and _COMPARE[test](v, lim)
 
     def check(cfg: DeviceConfig, reading: Any, obj: dict) -> str | None:
         v = obj.get(field_name)
         if v is None:
             return None
-        lim = limit(cfg)
-        if when == "truthy":
-            hit = bool(v)
-        elif when == "falsy":
-            hit = not v
-        elif when in ("eq", "ne"):
-            hit = _COMPARE[when](v, lim)
-        else:   # ordering needs two numbers; anything else never fires
-            hit = _is_number(v) and _is_number(lim) and _COMPARE[when](v, lim)
-        return _fmt(fire, value=v, limit=lim, field=field_name) if hit else None
+        if not hit_for(cfg, v, when, d):
+            return None
+        return _fmt(fire, value=v, limit=limit(cfg), field=field_name)
+
+    release = None
+    if "release" in d:
+        rel = d["release"]
+        if not isinstance(rel, dict):
+            raise ValueError(f"rule {kind!r}: 'release' must be an object")
+        _check_keys(f"rule {kind!r} release", rel, {"when", "value", "param"})
+        rel_when = rel.get("when")
+        if rel_when not in _WHEN:
+            raise ValueError(f"rule {kind!r}: release 'when' must be one of {sorted(_WHEN)}")
+        if rel_when in _COMPARE and "value" not in rel and "param" not in rel:
+            raise ValueError(f"rule {kind!r}: release 'when': {rel_when!r} needs 'value' or 'param'")
+
+        def release(cfg: DeviceConfig, reading: Any, obj: dict) -> bool:
+            v = obj.get(field_name)
+            return v is not None and hit_for(cfg, v, rel_when, rel)
 
     return AlarmRule(
         AlarmKind(kind), d["label"], check,
@@ -132,7 +158,7 @@ def rule_from_dict(d: dict[str, Any]) -> AlarmRule:
         device_kinds=frozenset(device_kinds) if device_kinds is not None else None,
         group=d.get("group"),
         notify_fire=str(d.get("notify_fire", "")), notify_clear=str(d.get("notify_clear", "")),
-        windowed=windowed)
+        windowed=windowed, release=release)
 
 
 def profile_from_dict(name: str, d: dict[str, Any]) -> DeviceProfile:
