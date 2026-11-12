@@ -9,7 +9,7 @@ from datetime import timedelta
 from pathlib import Path
 
 from loralarm.alarms import AlarmKind
-from loralarm.events import EventLog, hash_token
+from loralarm.events import EventLog, hash_token, utc_now
 from loralarm.service import Engine
 from loralarm.webapp import COOKIE, LOGIN_LOCKOUT_AFTER, create_app
 
@@ -383,6 +383,54 @@ def make_group_client():
     engine = Engine(cfg, log, None)
     engine.on_uplink(make_uplink(obj=sensor_obj(motion_alert=1)))      # alarm on DEV_EUI (kund-a)
     return TestClient(create_app(engine, log, cookie_secure=False)), engine, log, ungrouped, users
+
+
+@needs_web
+class RecentAlarmsTest(unittest.TestCase):
+    """Event-mode motion is a fire-only pulse: never "active", so /api/state must
+    report it as recent or the page shows "all quiet" while a push arrives."""
+
+    def client_for(self, motion_mode):
+        from fastapi.testclient import TestClient
+        log = EventLog(None)
+        log.seed_users([USER])
+        cfg = make_config(devices={DEV_EUI: {"name": "sensor3"}},
+                          defaults={"motion_mode": motion_mode})
+        engine = Engine(cfg, log, None)
+        client = TestClient(create_app(engine, log, cookie_secure=False))
+        login(client, USER["token"])
+        return client, engine
+
+    def fire(self, engine, motion=1):
+        engine.on_uplink(make_uplink(obj=sensor_obj(motion_alert=motion), time=utc_now()))
+
+    def test_event_mode_pulse_is_reported_as_recent_not_active(self):
+        client, engine = self.client_for("event")
+        self.fire(engine)
+        state = client.get("/api/state").json()
+        self.assertEqual(state["alarms"], [])
+        self.assertEqual([(a["dev_eui"], a["kind"]) for a in state["recent"]], [(DEV_EUI, "motion")])
+        self.assertIn("rörelse", state["recent"][0]["detail"])
+
+    def test_active_alarm_is_not_duplicated_in_recent(self):
+        client, engine = self.client_for("level")
+        self.fire(engine)
+        state = client.get("/api/state").json()
+        self.assertEqual([a["kind"] for a in state["alarms"]], ["motion"])
+        self.assertEqual(state["recent"], [])
+
+    def test_cleared_alarm_and_system_events_are_not_recent(self):
+        client, engine = self.client_for("level")
+        self.fire(engine)
+        self.fire(engine, motion=0)                      # level mode: clears
+        engine.set_armed(DEV_EUI, False, utc_now() + timedelta(hours=1), user="bosse")
+        state = client.get("/api/state").json()
+        self.assertEqual((state["alarms"], state["recent"]), ([], []))
+
+    def test_old_pulses_age_out(self):
+        client, engine = self.client_for("event")
+        engine.on_uplink(make_uplink(obj=sensor_obj(motion_alert=1), time=utc_now() - timedelta(hours=3)))
+        self.assertEqual(client.get("/api/state").json()["recent"], [])
 
 
 @needs_web

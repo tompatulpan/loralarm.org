@@ -52,6 +52,10 @@ _EUI_RE = re.compile(r"^[0-9a-f]{16}$")
 LOGIN_LOCKOUT_AFTER = 10       # bad tokens per minute (all clients) before 429
 RATE_LIMIT_PER_MIN = 60
 SNOOZE_PRESETS_H = (1.0, 8.0, 24.0)
+# Pulse alarms (motion/circuit in event mode) fire once and never "clear", so they
+# are never in the active set; they are shown as "recent" for this long instead.
+RECENT_ALARM_H = 1.0
+NON_ALARM_KINDS = frozenset({"armed", "downlink", "downlink_ok"})
 MAX_BODY_BYTES = 16 * 1024
 MAX_ENDPOINTS_PER_USER = 10
 MAX_ENDPOINT_LEN = 2048
@@ -307,7 +311,17 @@ def create_app(engine: Engine, event_log: EventLog, webpush: Any = None,
                    "detail": e.get("state", {}).get("last_detail", {}).get(k, "")}
                   for eui, e in snap.items() if eui in visible
                   for k in e.get("state", {}).get("active", [])]
-        return {"ok": not alarms, "alarms": alarms}
+        active = {(a["dev_eui"], a["kind"]) for a in alarms}
+        latest: dict[tuple[str, str], tuple] = {}
+        for r in event_log.recent(hours=RECENT_ALARM_H, limit=500, dev_euis=sorted(visible)):
+            if r[2] not in NON_ALARM_KINDS:
+                latest.setdefault((r[6], r[2]), r)      # rows are newest first
+        # newest event of a (device, kind) is a fire that nothing cleared and that is
+        # not already listed as active -> a pulse alarm that happened recently
+        recent = [{"dev_eui": eui, "name": r[1], "kind": kind, "detail": r[4], "ts": r[0]}
+                  for (eui, kind), r in latest.items() if r[3] and (eui, kind) not in active]
+        recent.sort(key=lambda a: a["ts"], reverse=True)
+        return {"ok": not alarms, "alarms": alarms, "recent": recent}
 
     @app.get("/api/events")
     def events(request: Request, user: dict = Depends(_guard)):

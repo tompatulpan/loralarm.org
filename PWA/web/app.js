@@ -15,7 +15,7 @@ const KIND_ICON = { door: '🚪', water: '💧', button: '🔘', sensor: '🌡�
 
 let ME = null;            // {name, role}
 let DEVICES = [];         // GET /api/devices
-let STATE = { ok: true, alarms: [] };   // GET /api/state
+let STATE = { ok: true, alarms: [], recent: [] };   // GET /api/state
 let WEBPUSH_ON = false;
 let LAST_OK = 0;          // ms timestamp of the last successful refresh
 let FAILS = 0;            // consecutive failed refreshes
@@ -149,29 +149,47 @@ function route() {
 
 function renderChrome() {
   const n = STATE.alarms.length;
+  const r = (STATE.recent || []).length;
   const badge = $('#alarm-badge');
-  badge.classList.toggle('hidden', n === 0);
-  badge.textContent = n > 0 ? `${n} larm aktiv${n > 1 ? 'a' : ''}` : '';
+  badge.classList.toggle('hidden', n + r === 0);
+  badge.textContent = n > 0 ? `${n} larm aktiv${n > 1 ? 'a' : ''}` : (r > 0 ? `${r} nytt larm` : '');
 }
 
 function renderBanners(el) {
   const host = $(el);
-  if (!STATE.alarms.length) {
+  const recent = STATE.recent || [];
+  if (!STATE.alarms.length && !recent.length) {
     host.innerHTML = isStale() ? '' : `<div class="banner ok"><div class="dot"></div>
       <div><div class="t">Inga aktiva larm</div><div class="d">Alla enheter är tysta</div></div></div>`;
     return;
   }
-  host.innerHTML = STATE.alarms.map((a) => `
+  const active = STATE.alarms.map((a) => `
     <div class="banner">
       <div class="dot"></div>
       <div>
         <div class="t">${esc(KIND_LABEL[a.kind] || a.kind)}: ${esc(a.name)}</div>
         <div class="d">${esc(a.detail)}</div>
       </div>
-    </div>`).join('');
+    </div>`);
+  // pulse alarms (e.g. motion) fire once and never clear: show them for a while
+  const recents = recent.map((a) => `
+    <div class="banner recent">
+      <div class="dot"></div>
+      <div>
+        <div class="t">${esc(KIND_LABEL[a.kind] || a.kind)}: ${esc(a.name)} · ${esc(relTime(a.ts))}</div>
+        <div class="d">${esc(a.detail)}</div>
+      </div>
+    </div>`);
+  host.innerHTML = active.concat(recents).join('');
 }
 
+function recentFor(d) { return (STATE.recent || []).filter((r) => r.dev_eui === d.dev_eui); }
+
 function pillFor(d) {
+  const rc = recentFor(d);
+  if (!(d.active && d.active.length) && rc.length) {
+    return `<span class="pill alarm">${rc.map((r) => esc(KIND_LABEL[r.kind] || r.kind)).join(', ').toUpperCase()} · ${esc(relTime(rc[0].ts))}</span>`;
+  }
   if (d.active && d.active.length) {
     return `<span class="pill alarm">${d.active.map((k) => esc(KIND_LABEL[k] || k)).join(', ').toUpperCase()}</span>`;
   }
@@ -192,7 +210,8 @@ function battLine(d) {
 function renderFleet() {
   renderBanners('#banners');
   const sorted = [...DEVICES].sort((a, b) => {
-    const ra = (a.active?.length ? 0 : 1) - (b.active?.length ? 0 : 1);
+    const hot = (d) => (d.active?.length || recentFor(d).length ? 0 : 1);
+    const ra = hot(a) - hot(b);
     if (ra !== 0) return ra;
     const rb = (a.armed ? 1 : 0) - (b.armed ? 1 : 0);
     if (rb !== 0) return rb;
@@ -402,7 +421,7 @@ async function logout() {
   }
   ME = null;
   DEVICES = [];
-  STATE = { ok: true, alarms: [] };
+  STATE = { ok: true, alarms: [], recent: [] };
   location.hash = '#/login';
   showLogin();
 }
