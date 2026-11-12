@@ -25,7 +25,7 @@ import sys
 import threading
 import time
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -53,6 +53,11 @@ TOPIC_UP = mqttclient.TOPIC_UP
 # re-sent within DL_RESEND_S, and given up on after DL_MAX_ATTEMPTS
 DL_RESEND_S = 3600.0
 DL_MAX_ATTEMPTS = 5
+
+# armed-state cache TTL: the web side invalidates it directly on PUT while it
+# runs in-process; the TTL only bounds the staleness if the web layer is ever
+# split into a second process (PWA design §12)
+ARMED_TTL_S = 5.0
 
 
 def _fmt_num(v) -> str:
@@ -121,6 +126,10 @@ class Engine:
         self._warned_unconfigured: set[str] = set()
         # (devEUI, alarm_window, timezone) already reported as invalid (once each)
         self._warned_windows: set[tuple[str, str, str]] = set()
+        # dev_eui -> (monotonic fetch time, armed); in-process the cache is also
+        # invalidated directly on PUT, the TTL only bounds a later split into a
+        # second process (PWA design §12)
+        self._armed_cache: dict[str, tuple[float, bool]] = {}
         self._lock = threading.Lock()
 
     @property
@@ -262,6 +271,7 @@ class Engine:
         with self._lock:
             now = utc_now()
             self._maybe_reload_config()
+            self._rearm_expired_snoozes(now)
             for dev_eui, (old_cfg, state) in list(self.devices.items()):
                 # re-resolve so reloaded thresholds apply and seeded devices
                 # pick up their family defaults once the profile is known
@@ -535,11 +545,99 @@ class Engine:
         state.suppressed.add(t.kind)
         return False, f"utanför larmtid {window}, ej skickat"
 
+    # ---- arm/disarm (PWA): fan-out suppression only — evaluation and the event
+    # log are untouched, so state and fire-once bookkeeping stay correct ----
+
+    def is_armed(self, dev_eui: str) -> bool:
+        """Armed state from SQLite, cached ARMED_TTL_S. Called with _lock held:
+        the query is one PK lookup, deliberately short. A DB error fails safe
+        (armed), so a broken DB can never silently disarm a device."""
+        hit = self._armed_cache.get(dev_eui)
+        if hit and time.monotonic() - hit[0] < ARMED_TTL_S:
+            return hit[1]
+        armed = True
+        if self.event_log:
+            try:
+                row = self.event_log.get_armed(dev_eui)
+                if row:
+                    armed = row["armed"]
+            except sqlite3.Error:
+                log.exception("armed lookup failed for %s; assuming armed (fail safe)", dev_eui)
+        self._armed_cache[dev_eui] = (time.monotonic(), armed)
+        return armed
+
+    def set_armed(self, dev_eui: str, armed: bool, until: datetime | None = None,
+                  user: str = "") -> None:
+        """Persist arm/disarm (SQLite, so a config hot-reload never resets it),
+        audit it as kind="armed" and notify the followers. The DB write happens
+        outside the engine lock so the web thread never blocks alarm evaluation."""
+        if self.event_log:
+            try:
+                self.event_log.set_armed(dev_eui, armed, until, user)
+            except sqlite3.Error:
+                log.exception("could not persist armed state for %s", dev_eui)
+        with self._lock:
+            self._set_armed_locked(dev_eui, armed, until, user)
+
+    def _set_armed_locked(self, dev_eui: str, armed: bool, until: datetime | None,
+                          user: str) -> None:
+        self._armed_cache.pop(dev_eui, None)
+        old = self.devices.get(dev_eui)
+        name = old[0].name if old else ""
+        family = old[0].family if old else ""
+        cfg = self.config.for_event(dev_eui, name, family)
+        if old:
+            self.devices[dev_eui] = (cfg, old[1])
+        note = f"larm {'på' if armed else 'av'}"
+        if not armed and until:
+            u = until if until.tzinfo else until.replace(tzinfo=timezone.utc)
+            note += f" tills {u.astimezone(timezone.utc):%Y-%m-%d %H:%M UTC}"
+        print(f"{utc_now():%Y-%m-%d %H:%M:%S} {cfg.name:<10} 🛡️ {note}", flush=True)
+        event_id = self._log_event(utc_now(), dev_eui, cfg.name, "armed", armed, note, user=user)
+        if self.notifier:
+            try:
+                self.notifier.notify(cfg, "armed", armed, note,
+                                     registry=self.registry, event_id=event_id)
+            except Exception:
+                log.exception("enqueue armed notification failed for %s", dev_eui)
+        if armed and old:
+            # re-arm with a condition still active: notify it again
+            state = old[1]
+            for kind in sorted(state.active, key=lambda k: k.value):
+                try:
+                    self.notifier.notify(cfg, kind.value, True,
+                                         state.last_detail.get(kind, ""),
+                                         registry=self.registry, event_id=None)
+                except Exception:
+                    log.exception("re-notify of %s failed for %s", kind.value, dev_eui)
+
+    def _rearm_expired_snoozes(self, now: datetime) -> None:
+        """Watchdog tick: re-arm devices whose snooze expired and emit the
+        re-arm notification — this must work with the web side down."""
+        if not self.event_log:
+            return
+        try:
+            expired = self.event_log.expired_snoozes(now)
+        except sqlite3.Error:
+            log.exception("snooze lookup failed")
+            return
+        for dev_eui in expired:
+            log.info("snooze expired for %s; re-arming", dev_eui)
+            try:
+                self.event_log.set_armed(dev_eui, True, None, "watchdog")
+            except sqlite3.Error:
+                log.exception("could not persist re-arm for %s", dev_eui)
+            self._set_armed_locked(dev_eui, True, None, user="watchdog")
+
     def _emit(self, cfg, ts: datetime, t, state: AlarmState) -> None:
         # log first so the row id exists, then notify with it; each step
         # isolated: a DB failure must still notify, with event_id=None
         # (the notifier only enqueues, so it cannot block either)
         send, note = self._should_notify(cfg, ts, t, state)
+        if send and not self.is_armed(cfg.dev_eui):
+            # disarmed: suppress fan-out only; the event is still logged below
+            send = False
+            note = "ej skickat: larmet är avstängt"
         detail = f"{t.detail} ({note})" if note else t.detail
         if note:
             print(f"    ({note})", flush=True)
@@ -552,10 +650,10 @@ class Engine:
                 log.exception("enqueue notification failed for %s %s", cfg.dev_eui, t.kind.value)
 
     def _log_event(self, ts: datetime, dev_eui: str, name: str,
-                   kind: str, active: bool, detail: str) -> int | None:
+                   kind: str, active: bool, detail: str, user: str = "") -> int | None:
         if self.event_log:
             try:
-                return self.event_log.log(ts, dev_eui, name, kind, active, detail)
+                return self.event_log.log(ts, dev_eui, name, kind, active, detail, user)
             except sqlite3.Error:
                 log.exception("event log write failed for %s %s", dev_eui, kind)
         return None
@@ -630,6 +728,10 @@ def main() -> int:
                          "'<topic>/<devEui-or-name>' with a JSON payload "
                          '({"threshold":16,"frequency":50} or {"port":6,"value":"002"}); '
                          "default loralarm/down/+; pass '' to disable downlinks")
+    ap.add_argument("--web", action="store_true",
+                    help="enable the Web Push (PWA) channel on its own worker; VAPID keys "
+                         "from LORALARM_VAPID_PRIVATE_KEY / LORALARM_VAPID_SUB "
+                         "(pywebpush, requirements-web.txt)")
     ap.add_argument("--dry-run", action="store_true",
                     help="log notifications instead of sending ntfy/Pushover")
     args = ap.parse_args()
@@ -650,8 +752,18 @@ def main() -> int:
 
     config = Config.load(args.config)
     event_log = EventLog(args.db)
+    webpush = None
+    if args.web:
+        from .webpush import WebPushWorker
+        vapid_sub = os.environ.get("LORALARM_VAPID_SUB", "mailto:admin@loralarm.org")
+        webpush = WebPushWorker(
+            event_log,
+            vapid_private_key=os.environ.get("LORALARM_VAPID_PRIVATE_KEY"),
+            vapid_claims={"sub": vapid_sub},
+            dry_run=args.dry_run)
+        webpush.start()
     notifier = Notifier(ntfy_url=args.ntfy_url, dry_run=args.dry_run,
-                        ntfy_token=args.ntfy_token)
+                        ntfy_token=args.ntfy_token, webpush=webpush)
     dl_topic = args.dl_topic or ""
     engine = Engine(config, event_log, notifier, config_path=args.config, dl_topic=dl_topic)
     engine.seed()
@@ -700,6 +812,8 @@ def main() -> int:
                     return 1
     finally:
         engine.persist_all()
+        if webpush is not None:
+            webpush.close()
         notifier.close()
         client.loop_stop()
         client.disconnect()

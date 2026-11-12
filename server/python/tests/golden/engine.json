@@ -119,6 +119,106 @@
    }
   }
  },
+ "armed_disarm_rearm": {
+  "console": [
+   "2026-11-09 15:33:14 sensor3    RAK4631  fPort=2 fCnt=1 rssi=-35 snr=13.2",
+   "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)",
+   "2026-11-09 15:33:14 sensor3    🛡️ larm av",
+   "2026-11-09 15:33:24 sensor3    RAK4631  fPort=2 fCnt=11 rssi=-35 snr=13.2",
+   "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)",
+   "    >>> Rörelselarm: LARM — rörelse upptäckt",
+   "    (ej skickat: larmet är avstängt)",
+   "2026-11-09 15:33:24 sensor3    🛡️ larm på",
+   "2026-11-09 15:33:34 sensor3    RAK4631  fPort=2 fCnt=21 rssi=-35 snr=13.2",
+   "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)",
+   "    >>> Rörelselarm: kvitterad — ingen rörelse",
+   "2026-11-09 15:33:44 sensor3    RAK4631  fPort=2 fCnt=31 rssi=-35 snr=13.2",
+   "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)",
+   "    >>> Rörelselarm: LARM — rörelse upptäckt"
+  ],
+  "notifications": [
+   {
+    "active": false,
+    "channel": "ntfy",
+    "message": "🛡️ LARM AV: sensor3 — larm av",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   },
+   {
+    "active": false,
+    "channel": "pushover",
+    "message": "🛡️ LARM AV: sensor3 — larm av",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   },
+   {
+    "active": true,
+    "channel": "ntfy",
+    "message": "🛡️ LARM PÅ: sensor3 — larm på",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   },
+   {
+    "active": true,
+    "channel": "pushover",
+    "message": "🛡️ LARM PÅ: sensor3 — larm på",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   },
+   {
+    "active": true,
+    "channel": "ntfy",
+    "message": "🚨 RÖRELSELARM: sensor3 — rörelse upptäckt",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   },
+   {
+    "active": true,
+    "channel": "pushover",
+    "message": "🚨 RÖRELSELARM: sensor3 — rörelse upptäckt",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   },
+   {
+    "active": false,
+    "channel": "ntfy",
+    "message": "✔️ Rörelse kvitterad: sensor3 — ingen rörelse",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   },
+   {
+    "active": false,
+    "channel": "pushover",
+    "message": "✔️ Rörelse kvitterad: sensor3 — ingen rörelse",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   },
+   {
+    "active": true,
+    "channel": "ntfy",
+    "message": "🚨 RÖRELSELARM: sensor3 — rörelse upptäckt",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   },
+   {
+    "active": true,
+    "channel": "pushover",
+    "message": "🚨 RÖRELSELARM: sensor3 — rörelse upptäckt",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   }
+  ],
+  "state": {
+   "ac1f09fffe1003ae": {
+    "active": [
+     "motion"
+    ],
+    "last_detail": {
+     "motion": "rörelse upptäckt"
+    }
+   }
+  }
+ },
  "lds02_door": {
   "console": [
    "2026-11-09 15:33:14 Door1      Dragino Switch LDS02 fPort=10 fCnt=1 rssi=-68 snr=9.0",
@@ -777,6 +877,72 @@
    "ac1f09fffe12da63": {
     "active": [],
     "last_detail": {}
+   }
+  }
+ },
+ "snooze_expiry_rearms_in_watchdog": {
+  "console": [
+   "2026-11-09 15:33:14 sensor3    RAK4631  fPort=2 fCnt=1 rssi=-35 snr=13.2",
+   "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)",
+   "2026-11-09 15:33:14 sensor3    🛡️ larm av tills 2026-11-09 16:33 UTC",
+   "2026-11-09 15:33:24 sensor3    RAK4631  fPort=2 fCnt=11 rssi=-35 snr=13.2",
+   "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)",
+   "    >>> Rörelselarm: LARM — rörelse upptäckt",
+   "    (ej skickat: larmet är avstängt)",
+   "2026-11-09 16:33:15 sensor3    🛡️ larm på"
+  ],
+  "notifications": [
+   {
+    "active": false,
+    "channel": "ntfy",
+    "message": "🛡️ LARM AV: sensor3 — larm av tills 2026-11-09 16:33 UTC",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   },
+   {
+    "active": false,
+    "channel": "pushover",
+    "message": "🛡️ LARM AV: sensor3 — larm av tills 2026-11-09 16:33 UTC",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   },
+   {
+    "active": true,
+    "channel": "ntfy",
+    "message": "🛡️ LARM PÅ: sensor3 — larm på",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   },
+   {
+    "active": true,
+    "channel": "pushover",
+    "message": "🛡️ LARM PÅ: sensor3 — larm på",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   },
+   {
+    "active": true,
+    "channel": "ntfy",
+    "message": "🚨 RÖRELSELARM: sensor3 — rörelse upptäckt",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   },
+   {
+    "active": true,
+    "channel": "pushover",
+    "message": "🚨 RÖRELSELARM: sensor3 — rörelse upptäckt",
+    "target": "sensor3",
+    "title": "loralarm sensor3"
+   }
+  ],
+  "state": {
+   "ac1f09fffe1003ae": {
+    "active": [
+     "motion"
+    ],
+    "last_detail": {
+     "motion": "rörelse upptäckt"
+    }
    }
   }
  },

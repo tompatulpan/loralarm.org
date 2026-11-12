@@ -20,6 +20,7 @@ from unittest import mock
 
 from loralarm.config import Config
 from loralarm.event import Uplink
+from loralarm.events import EventLog
 from loralarm.notify import Notifier
 from loralarm.service import Engine
 
@@ -53,9 +54,12 @@ class CapturingNotifier(Notifier):
         self.sent: list[dict] = []
 
     def _send(self, fn, *args, label: str, target: str) -> bool:
-        title, message = (args[1], args[2]) if label == "ntfy" else (args[2], args[3])
+        # ntfy args: (topic, title, message, active); pushover: (token, user, title,
+        # message, active, critical)
+        title, message, active = (args[1], args[2], args[3]) if label == "ntfy" \
+            else (args[2], args[3], args[4])
         self.sent.append({"channel": label, "target": target, "title": title,
-                          "message": message, "active": bool(args[-1])})
+                          "message": message, "active": bool(active)})
         return True
 
 
@@ -166,12 +170,29 @@ def scenarios() -> dict[str, tuple[dict, list[Any]]]:
         make_uplink(dev_eui=BARE_EUI, device_name="newbie", profile="",
                     obj=sensor_obj(battery_voltage=2.7), time=at(10)),
     ])
+
+    # ("armed", eui, armed, snooze_seconds): a step that calls engine.set_armed;
+    # snooze 0 = "tills vidare". Level-mode motion so the alarm stays active.
+    s["armed_disarm_rearm"] = (base_config(motion_mode="level"), [
+        sensor(0),
+        ("armed", DEV_EUI, False, 0),
+        sensor(10, motion_alert=1),     # evaluated + logged, not notified
+        ("armed", DEV_EUI, True, 0),    # re-arm: armed push + motion re-notified
+        sensor(20, motion_alert=0),     # clear notified
+        sensor(30, motion_alert=1),     # fire notified again
+    ])
+    s["snooze_expiry_rearms_in_watchdog"] = (base_config(motion_mode="level"), [
+        sensor(0),
+        ("armed", DEV_EUI, False, 3600),   # snoozed for 1 h
+        sensor(10, motion_alert=1),        # suppressed
+        at(3601),                          # watchdog tick: snooze expired -> re-arm + pushes
+    ])
     return s
 
 
 def run_scenario(config: dict, steps: list[Any]) -> dict:
     notifier = CapturingNotifier()
-    engine = Engine(Config(json.loads(json.dumps(config))), notifier=notifier)
+    engine = Engine(Config(json.loads(json.dumps(config))), EventLog(None), notifier)
     out = io.StringIO()
     clock = {"now": T0}
     with contextlib.redirect_stdout(out), mock.patch("loralarm.service.utc_now",
@@ -180,6 +201,10 @@ def run_scenario(config: dict, steps: list[Any]) -> dict:
             if isinstance(step, datetime):
                 clock["now"] = step
                 engine.watchdog_tick()
+            elif isinstance(step, tuple) and step[0] == "armed":
+                _, eui, armed, snooze_s = step
+                until = clock["now"] + timedelta(seconds=snooze_s) if snooze_s else None
+                engine.set_armed(eui, armed, until, user="golden")
             else:
                 clock["now"] = step.time
                 engine.on_uplink(step)

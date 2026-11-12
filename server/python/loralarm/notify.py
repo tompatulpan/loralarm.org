@@ -16,6 +16,7 @@ import time
 import urllib.parse
 import urllib.request
 from email.header import Header
+from typing import Any
 
 from .config import DeviceConfig
 from .registry import Registry
@@ -52,7 +53,14 @@ DEFAULT_TEXT: dict[str, tuple[str, str]] = {
                      "✔️ Tilt kvitterad: {name} — {detail}"),
     "stale":         ("📵 INGEN KONTAKT: {name} — {detail}",
                       "✔️ Kommunikationen med {name} är återupptagen"),
+    # PWA arm/disarm audit notification: active=True means "larm på" again
+    "armed":         ("🛡️ LARM PÅ: {name} — {detail}",
+                      "🛡️ LARM AV: {name} — {detail}"),
 }
+
+# kinds that must escalate to Pushover emergency priority (2), which requires
+# retry/expire parameters; Pushover stays as backstop for these indefinitely
+CRITICAL_KINDS = frozenset({"temp_low", "temp_high", "motion", "tilt", "circuit", "stale"})
 
 # backwards-compatible alias; the texts are the live defaults, not an example
 EXAMPLE_TEXT = DEFAULT_TEXT
@@ -113,13 +121,17 @@ class Notifier:
     def __init__(self, ntfy_url: str, dry_run: bool = False,
                  timeout: float = 10.0, retries: int = 3,
                  ntfy_token: str | None = None,
-                 backoff: tuple[float, ...] = (1.0, 5.0, 30.0)):
+                 backoff: tuple[float, ...] = (1.0, 5.0, 30.0),
+                 webpush: Any = None):
         self.ntfy_url = ntfy_url.rstrip("/")
         self.dry_run = dry_run
         self.timeout = timeout
         self.retries = retries
         self.backoff = backoff  # seconds to wait before retry 2, 3, ...
         self.ntfy_token = ntfy_token  # Bearer token for self-hosted ntfy with auth
+        # Web Push channel: its own queue/worker (webpush.WebPushWorker), so a
+        # slow push endpoint can never delay ntfy/Pushover on this worker
+        self.webpush = webpush
         self._queue: queue.Queue = queue.Queue()
         self._worker: threading.Thread | None = None
         self._closed = False
@@ -170,6 +182,11 @@ class Notifier:
                              detail=detail, label=registry.label_for(kind)) \
             or f"loralarm {name}"
 
+        if self.webpush is not None:
+            # enqueue only — delivery happens on the webpush worker's own thread,
+            # so a slow push endpoint can never delay ntfy/Pushover
+            self.webpush.fan_out(cfg, kind, active, title, message, event_id)
+
         if self.dry_run:
             log.info("[dry-run] ntfy %s: %s | %s", cfg.ntfy_topic, title, message)
             if cfg.pushover_user and cfg.pushover_token:
@@ -180,7 +197,8 @@ class Notifier:
                    label="ntfy", target=cfg.ntfy_topic)
         if cfg.pushover_user and cfg.pushover_token:
             self._send(self._pushover, cfg.pushover_token, cfg.pushover_user,
-                       title, message, active, label="pushover", target=name)
+                       title, message, active, kind in CRITICAL_KINDS,
+                       label="pushover", target=name)
 
     @staticmethod
     def _sleep(seconds: float) -> None:
@@ -220,11 +238,15 @@ class Notifier:
             resp.read()
 
     def _pushover(self, token: str, user: str, title: str, message: str,
-                  active: bool) -> None:
-        data = urllib.parse.urlencode({
+                  active: bool, critical: bool = False) -> None:
+        fields = {
             "token": token, "user": user, "title": title, "message": message,
             "priority": 1 if active else 0,
-        }).encode()
+        }
+        if critical and active:
+            # emergency priority requires retry/expire (Pushover API)
+            fields.update(priority=2, retry=60, expire=3600)
+        data = urllib.parse.urlencode(fields).encode()
         req = urllib.request.Request(PUSHOVER_API, data=data)
         with urllib.request.urlopen(req, timeout=self.timeout) as resp:
             resp.read()
