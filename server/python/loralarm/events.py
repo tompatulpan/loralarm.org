@@ -64,11 +64,15 @@ class EventLog:
         return ts.astimezone(timezone.utc).isoformat(timespec="microseconds")
 
     def log(self, ts: datetime, dev_eui: str, device_name: str,
-            kind: str, active: bool, detail: str = "") -> None:
+            kind: str, active: bool, detail: str = "") -> int:
+        """Append one row; returns its event id (lastrowid) for the delivery
+        log of the web-push phase. Raises sqlite3.Error on failure — the caller
+        decides whether that may suppress a notification (it must not)."""
         with self._lock:
-            self._conn.execute(_INSERT, (self._utc(ts), dev_eui, device_name,
-                                         kind, int(active), detail))
+            cur = self._conn.execute(_INSERT, (self._utc(ts), dev_eui, device_name,
+                                               kind, int(active), detail))
             self._conn.commit()
+            return int(cur.lastrowid)
 
     def recent(self, hours: float = 24.0, limit: int = 500) -> list[tuple]:
         since = utc_now() - timedelta(hours=hours)

@@ -536,26 +536,38 @@ class Engine:
         return False, f"utanför larmtid {window}, ej skickat"
 
     def _emit(self, cfg, ts: datetime, t, state: AlarmState) -> None:
-        # each step isolated: a DB failure must never suppress the notification
-        # (and the notifier only enqueues, so it cannot block either)
+        # log first so the row id exists, then notify with it; each step
+        # isolated: a DB failure must still notify, with event_id=None
+        # (the notifier only enqueues, so it cannot block either)
         send, note = self._should_notify(cfg, ts, t, state)
         detail = f"{t.detail} ({note})" if note else t.detail
         if note:
             print(f"    ({note})", flush=True)
+        event_id = self._log_event(ts, cfg.dev_eui, cfg.name, t.kind.value, t.active, detail)
         if self.notifier and send:
             try:
-                self.notifier.notify(cfg, t.kind.value, t.active, t.detail, registry=self.registry)
+                self.notifier.notify(cfg, t.kind.value, t.active, t.detail,
+                                      registry=self.registry, event_id=event_id)
             except Exception:
                 log.exception("enqueue notification failed for %s %s", cfg.dev_eui, t.kind.value)
-        self._log_event(ts, cfg.dev_eui, cfg.name, t.kind.value, t.active, detail)
 
     def _log_event(self, ts: datetime, dev_eui: str, name: str,
-                   kind: str, active: bool, detail: str) -> None:
+                   kind: str, active: bool, detail: str) -> int | None:
         if self.event_log:
             try:
-                self.event_log.log(ts, dev_eui, name, kind, active, detail)
+                return self.event_log.log(ts, dev_eui, name, kind, active, detail)
             except sqlite3.Error:
                 log.exception("event log write failed for %s %s", dev_eui, kind)
+        return None
+
+    def snapshot(self) -> dict[str, Any]:
+        """Lock-protected in-memory copy of the fleet for the web API. Fast:
+        no I/O under the lock, so a slow DB commit or a web request can never
+        delay alarm evaluation; mutating the result does not touch the engine."""
+        with self._lock:
+            return {dev_eui: {"name": cfg.name, "family": cfg.family,
+                              "state": state.snapshot()}
+                    for dev_eui, (cfg, state) in self.devices.items()}
 
     def _persist(self, dev_eui: str, state: AlarmState) -> None:
         if self.event_log:

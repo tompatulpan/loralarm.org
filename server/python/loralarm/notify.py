@@ -139,27 +139,29 @@ class Notifier:
             self._worker = None
 
     def notify(self, cfg: DeviceConfig, kind: str, active: bool, detail: str,
-               registry: Registry | None = None) -> None:
+               registry: Registry | None = None, event_id: int | None = None) -> None:
+        # event_id is the events-row id of this transition (None when the DB
+        # write failed); the web-push phase logs delivery against it
         if self._worker is not None and not self._closed:
-            self._queue.put((cfg, kind, active, detail, registry))
+            self._queue.put((cfg, kind, active, detail, registry, event_id))
         else:
-            self._deliver(cfg, kind, active, detail, registry)
+            self._deliver(cfg, kind, active, detail, registry, event_id)
 
     def _run(self) -> None:
         while True:
             job = self._queue.get()
             if job is None:
                 return
-            cfg, kind, active, detail, registry = job
+            cfg, kind, active, detail, registry, event_id = job
             try:
-                self._deliver(cfg, kind, active, detail, registry)
+                self._deliver(cfg, kind, active, detail, registry, event_id)
             except Exception:
                 # _deliver already catches per-channel errors; this is a last
                 # resort so the worker thread can never die silently
                 log.exception("notification worker failed for %s %s", cfg.dev_eui, kind)
 
     def _deliver(self, cfg: DeviceConfig, kind: str, active: bool, detail: str,
-                 registry: Registry | None = None) -> None:
+                 registry: Registry | None = None, event_id: int | None = None) -> None:
         registry = registry or _default_registry()
         name = cfg.name or cfg.dev_eui
         message = message_text(kind, name, active, detail,

@@ -606,7 +606,7 @@ class AutoEnforceTest(unittest.TestCase):
         notified = []
 
         class Notifier:
-            def notify(self, cfg, kind, active, detail, registry=None):
+            def notify(self, cfg, kind, active, detail, registry=None, event_id=None):
                 notified.append((kind, active))
 
         class BrokenSender:

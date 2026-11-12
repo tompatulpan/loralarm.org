@@ -21,7 +21,7 @@ class RecordingNotifier:
     def __init__(self):
         self.calls = []
 
-    def notify(self, cfg, kind, active, detail, registry=None):
+    def notify(self, cfg, kind, active, detail, registry=None, event_id=None):
         self.calls.append((cfg.dev_eui, kind, active, detail))
 
 
