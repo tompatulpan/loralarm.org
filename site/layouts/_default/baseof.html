@@ -14,7 +14,7 @@
   {{/* Måste ligga efter hreflang-länkarna ovan och köras utan defer, så att
        omdirigeringen sker innan sidan ritas. */}}
   <script src="{{ "js/lang-detect.js" | relURL }}"></script>
-  {{ range slice "css/variables.css" "css/base.css" "css/layout.css" "css/components.css" }}
+  {{ range slice "css/variables.css" "css/base.css" "css/layout.css" "css/components.css" "css/mobile.css" }}
   <link rel="stylesheet" href="{{ . | relURL }}">
   {{ end }}
   <script src="{{ "js/lightbox.js" | relURL }}" defer></script>
