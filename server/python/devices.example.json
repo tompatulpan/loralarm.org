@@ -17,6 +17,10 @@
     "Precedence, later wins: the type's built-in defaults, defaults, families, the device entry. \"params\" merge",
     "   key by key; a dict such as notify_fire is replaced as a whole by the more specific layer.",
     "application_id is set per device (not in a shared layer): devices of one type can use different applications.",
+    "",
+    "\"web_users\": PWA accounts for --web (invite tokens, stored hashed in SQLite; seeded at startup and on every",
+    "   reload — removing a user disables them immediately). role \"admin\" may also disarm a device \"tills vidare\";",
+    "   everyone else gets snooze presets (1/8/24 h). Tokens are ${ENV_VAR} placeholders, never literal secrets.",
     "Several recipients per device are not available yet (planned).",
     "Temperature alarms: temp_alarm_min_c (alarm at or below), temp_alarm_max_c (alarm at or above; unset = off),",
     "   temp_alarm_hysteresis_c (applies to both limits: the alarm clears only this many degrees back inside the limit)."
@@ -39,6 +43,10 @@
                  "notify_fire": "💨 CO2-LARM: {name} — {detail}"}]
     }
   },
+  "web_users": [
+    {"name": "anna", "token": "${LORALARM_WEB_TOKEN_ANNA}", "role": "admin"},
+    {"name": "bosse", "token": "${LORALARM_WEB_TOKEN_BOSSE}", "role": "user"}
+  ],
   "defaults": {
     "kind": "sensor",
     "timezone": "Europe/Stockholm",

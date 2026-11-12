@@ -183,6 +183,7 @@ async def _body(request: Request) -> dict[str, Any]:
 
 
 def create_app(engine: Engine, event_log: EventLog, webpush: Any = None,
+               vapid_public_key: str | None = None,
                static_dir: str | Path | None = None,
                cookie_secure: bool = True) -> Any:
     """Build the FastAPI app. All state flows through engine.snapshot() and

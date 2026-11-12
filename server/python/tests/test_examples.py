@@ -20,7 +20,8 @@ from .test_ws101 import BTN_EUI, PROFILE as WS101_PROFILE, press
 
 EXAMPLES = Path(__file__).resolve().parent.parent / "examples"
 ENV = {"LORALARM_PUSHOVER_USER": "u", "LORALARM_PUSHOVER_TOKEN": "t",
-       "LORALARM_CS_APP_LARM": "app-larm", "LORALARM_CS_APP_SUBLARM": "app-sublarm"}
+       "LORALARM_CS_APP_LARM": "app-larm", "LORALARM_CS_APP_SUBLARM": "app-sublarm",
+       "LORALARM_WEB_TOKEN_ANNA": "a" * 40, "LORALARM_WEB_TOKEN_BOSSE": "b" * 40}
 
 
 def load(name: str) -> Config:
