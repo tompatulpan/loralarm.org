@@ -100,7 +100,78 @@ class UserSeedTest(unittest.TestCase):
     def test_config_parses_web_users(self):
         cfg = Config({"web_users": [{"name": "anna", "token": "t", "role": "admin"},
                                     {"name": "broken"}]})
-        self.assertEqual(cfg.web_users, [{"name": "anna", "token": "t", "role": "admin"}])
+        self.assertEqual(cfg.web_users,
+                         [{"name": "anna", "token": "t", "role": "admin", "groups": []}])
+
+
+class GroupAccessTest(unittest.TestCase):
+    def test_can_access_rules(self):
+        from loralarm.events import can_access
+        admin = {"role": "admin", "groups": []}
+        member = {"role": "user", "groups": ["kund-a"]}
+        other = {"role": "user", "groups": []}
+        self.assertTrue(all(can_access(u, "") for u in (admin, member, other)))   # ungrouped: everyone
+        self.assertTrue(can_access(admin, "kund-a") and can_access(admin, "kund-b"))
+        self.assertTrue(can_access(member, "kund-a"))
+        self.assertFalse(can_access(member, "kund-b"))
+        self.assertFalse(can_access(other, "kund-a"))
+
+    def test_groups_are_stored_and_follow_the_config(self):
+        log = EventLog(None)
+        log.seed_users([{"name": "anna", "token": "t", "groups": ["b", "a", "a"]}])
+        u = log.user_by_token_hash(hash_token("t"))
+        self.assertEqual(u["groups"], ["a", "b"])
+        sid = log.create_session(u["id"])
+        self.assertEqual(log.resolve_session(sid)["groups"], ["a", "b"])
+        # an edit in the config applies to the live session immediately
+        log.seed_users([{"name": "anna", "token": "t", "groups": ["c"]}])
+        self.assertEqual(log.resolve_session(sid)["groups"], ["c"])
+
+    def test_subscribers_respect_groups_and_mutes(self):
+        log = EventLog(None)
+        log.seed_users([{"name": "admin", "token": "a", "role": "admin"},
+                        {"name": "member", "token": "b", "groups": ["kund-a"]},
+                        {"name": "other", "token": "c"}])
+        ids = {n: log.user_by_token_hash(hash_token(t))["id"]
+               for n, t in (("admin", "a"), ("member", "b"), ("other", "c"))}
+        self.assertEqual(sorted(log.subscribers(DEV_EUI, "")), sorted(ids.values()))
+        self.assertEqual(sorted(log.subscribers(DEV_EUI, "kund-a")),
+                         sorted([ids["admin"], ids["member"]]))
+        self.assertEqual(sorted(log.subscribers(DEV_EUI, "kund-b")), [ids["admin"]])
+        log.set_muted(ids["member"], [DEV_EUI])
+        self.assertEqual(log.subscribers(DEV_EUI, "kund-a"), [ids["admin"]])
+
+    def test_recent_can_be_limited_to_devices(self):
+        log = EventLog(None)
+        log.log(utc_now(), DEV_EUI, "a", "motion", True)
+        log.log(utc_now(), OTHER_EUI, "b", "motion", True)
+        self.assertEqual(len(log.recent()), 2)
+        self.assertEqual([r[6] for r in log.recent(dev_euis=[OTHER_EUI])], [OTHER_EUI])
+        self.assertEqual(log.recent(dev_euis=[]), [])
+
+    def test_config_parses_groups_and_device_group(self):
+        cfg = Config({"web_users": [{"name": "a", "token": "t", "groups": ["kund-a"]},
+                                    {"name": "b", "token": "u", "groups": "kund-a"},
+                                    {"name": "c", "token": "v"}],
+                      "devices": {DEV_EUI: {"name": "x", "group": "kund-a"}}})
+        self.assertEqual([u["groups"] for u in cfg.web_users], [["kund-a"], [], []])
+        self.assertEqual(cfg.for_event(DEV_EUI, "", "").group, "kund-a")
+        self.assertEqual(cfg.for_event(OTHER_EUI, "", "").group, "")
+
+    def test_old_database_without_groups_column_is_migrated(self):
+        import os, sqlite3, tempfile
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "old.db")
+            con = sqlite3.connect(path)
+            con.execute("CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL "
+                        "UNIQUE, token_hash TEXT NOT NULL UNIQUE, role TEXT NOT NULL DEFAULT 'user', "
+                        "created_at TEXT NOT NULL, disabled INTEGER NOT NULL DEFAULT 0)")
+            con.execute("INSERT INTO users (name, token_hash, created_at) VALUES ('old', 'h', 'x')")
+            con.commit()
+            con.close()
+            log = EventLog(path)
+            self.assertEqual(log.user_by_token_hash("h")["groups"], [])
+            log._conn.close()
 
 
 class SessionTest(unittest.TestCase):

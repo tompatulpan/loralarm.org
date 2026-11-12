@@ -102,6 +102,9 @@ class DeviceConfig:
     ntfy_topic: str = "loralarm"
     pushover_user: str = ""
     pushover_token: str = ""
+    # PWA visibility: members of this group (and admins) see the device in the web
+    # app and get its pushes; "" = visible to everyone. Assigned by the admin here.
+    group: str = ""
     # notification texts: {name} {detail} {label} are substituted; keys are
     # alarm kinds (temp_low, temp_high, battery_low, battery_empty, motion, circuit, tilt, stale)
     notify_title: str = "loralarm {name}"
@@ -123,7 +126,7 @@ _FIELD_TYPES: dict[str, tuple[type, ...]] = {
     "alarm_window": (str,), "alarm_window_kinds": (list,), "timezone": (str,),
     "threshold": (int,), "frequency": (int, str), "duration": (int,),
     "ntfy_topic": (str,),
-    "pushover_user": (str,), "pushover_token": (str,),
+    "pushover_user": (str,), "pushover_token": (str,), "group": (str,),
     "notify_title": (str,), "notify_fire": (dict,), "notify_clear": (dict,),
     "params": (dict,),
 }
@@ -201,12 +204,17 @@ class Config:
                 log.warning("config web_users: %s duplicates another entry's name or "
                             "token; ignored", name)
                 continue
+            groups = u.get("groups", [])
+            if not isinstance(groups, list) or not all(isinstance(g, str) and g for g in groups):
+                log.warning("config web_users: groups of %s must be a list of names; "
+                            "ignored (user sees only ungrouped devices)", name)
+                groups = []
             if len(token) < 20:
                 log.warning("config web_users: token of %s is short (<20 chars); use a "
                             "random one, e.g. `openssl rand -hex 16`", name)
             names.add(name)
             tokens.add(token)
-            users.append({"name": name, "token": token, "role": role})
+            users.append({"name": name, "token": token, "role": role, "groups": groups})
         return users
 
     @staticmethod

@@ -136,7 +136,7 @@ class WebPushWorker:
             return
         cfg = job["cfg"]
         try:
-            user_ids = self.event_log.subscribers(cfg.dev_eui)
+            user_ids = self.event_log.subscribers(cfg.dev_eui, cfg.group)
         except Exception:
             log.exception("could not resolve subscribers for %s", cfg.dev_eui)
             return

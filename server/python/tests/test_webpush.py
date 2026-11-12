@@ -156,6 +156,20 @@ class WebPushWorkerTest(unittest.TestCase):
         w._queue.join()
         self.assertEqual(log2._conn.execute("select count(*) from webpush_log").fetchone()[0], 0)
 
+    def test_grouped_device_is_pushed_only_to_members_and_admins(self):
+        self.log.seed_users([{"name": "anna", "token": "t", "groups": ["kund-a"]},
+                             {"name": "bosse", "token": "u"},
+                             {"name": "chef", "token": "v", "role": "admin"}])
+        ids = {n: self.log._conn.execute("select id from users where name=?", (n,)).fetchone()[0]
+               for n in ("anna", "bosse", "chef")}
+        for i, n in enumerate(("anna", "bosse", "chef")):
+            add_endpoint(self.log, ids[n], f"https://push.example/{n}")
+        seen = []
+        w = self.make_worker(lambda si, p, u, t, to: seen.append(si["endpoint"]) or 201)
+        w.fan_out(make_cfg(group="kund-a"), "motion", True, "t", "m", 1)
+        self.drain(w)
+        self.assertEqual(sorted(e.rsplit("/", 1)[1] for e in seen), ["anna", "chef"])
+
     def test_muted_device_is_not_pushed_to_that_user(self):
         add_endpoint(self.log, 1, "https://push.example/aaa")
         self.log.set_muted(1, [DEV_EUI])

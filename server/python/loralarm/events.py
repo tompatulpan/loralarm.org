@@ -83,7 +83,8 @@ CREATE TABLE IF NOT EXISTS users (
     token_hash TEXT NOT NULL UNIQUE,     -- sha256 hex of the invite token
     role       TEXT NOT NULL DEFAULT 'user',   -- user | admin (admin may disarm "tills vidare")
     created_at TEXT NOT NULL,
-    disabled   INTEGER NOT NULL DEFAULT 0
+    disabled   INTEGER NOT NULL DEFAULT 0,
+    groups     TEXT NOT NULL DEFAULT '[]'      -- JSON list: device groups this user may see
 );
 CREATE TABLE IF NOT EXISTS sessions (
     id         TEXT PRIMARY KEY,          -- sha256 hex of the random cookie value
@@ -100,6 +101,21 @@ CREATE TABLE IF NOT EXISTS push_ack (
     PRIMARY KEY (event_id, endpoint_id)
 );
 """
+
+
+def can_access(user: dict[str, Any], group: str) -> bool:
+    """Device visibility (config-driven, admin-assigned): admins see everything,
+    a device without a group is visible to everyone (so a new or unassigned
+    device can never alarm to nobody), a grouped device only to members."""
+    return not group or user.get("role") == "admin" or group in user.get("groups", ())
+
+
+def _groups(raw: str) -> list[str]:
+    try:
+        groups = json.loads(raw)
+    except ValueError:
+        return []
+    return [g for g in groups if isinstance(g, str)] if isinstance(groups, list) else []
 
 
 def hash_token(token: str) -> str:
@@ -127,6 +143,9 @@ class EventLog:
             cols = {r[1] for r in self._conn.execute("PRAGMA table_info(events)")}
             if "user" not in cols:
                 self._conn.execute("ALTER TABLE events ADD COLUMN user TEXT NOT NULL DEFAULT ''")
+            ucols = {r[1] for r in self._conn.execute("PRAGMA table_info(users)")}
+            if "groups" not in ucols:
+                self._conn.execute("ALTER TABLE users ADD COLUMN groups TEXT NOT NULL DEFAULT '[]'")
             self._conn.commit()
 
     @staticmethod
@@ -148,13 +167,22 @@ class EventLog:
             self._conn.commit()
             return int(cur.lastrowid)
 
-    def recent(self, hours: float = 24.0, limit: int = 500) -> list[tuple]:
+    def recent(self, hours: float = 24.0, limit: int = 500,
+               dev_euis: list[str] | None = None) -> list[tuple]:
+        """Newest events first: (ts, device_name, kind, active, detail, user,
+        dev_eui). `dev_euis` restricts to those devices (per-user visibility)."""
         since = utc_now() - timedelta(hours=hours)
+        sql = ("SELECT ts, device_name, kind, active, detail, user, dev_eui FROM events "
+               "WHERE ts >= ?")
+        params: list[Any] = [self._utc(since)]
+        if dev_euis is not None:
+            if not dev_euis:
+                return []
+            sql += f" AND dev_eui IN ({','.join('?' for _ in dev_euis)})"
+            params += dev_euis
         with self._lock:
-            return self._conn.execute(
-                "SELECT ts, device_name, kind, active, detail, user FROM events "
-                "WHERE ts >= ? ORDER BY id DESC LIMIT ?",
-                (self._utc(since), limit)).fetchall()
+            return self._conn.execute(sql + " ORDER BY id DESC LIMIT ?",
+                                      params + [limit]).fetchall()
 
     def last_seen(self, dev_eui: str) -> datetime | None:
         """Most recent event timestamp for a device, or None."""
@@ -223,12 +251,15 @@ class EventLog:
                 "WHERE armed = 0 AND until IS NOT NULL AND until <= ?",
                 (self._utc(now),))]
 
-    def subscribers(self, dev_eui: str) -> list[int]:
-        """Enabled users who have not muted the device (default: everyone)."""
+    def subscribers(self, dev_eui: str, group: str = "") -> list[int]:
+        """Enabled users who may see the device (see can_access) and have not
+        muted it. Default: everyone."""
         with self._lock:
-            return [r[0] for r in self._conn.execute(
-                "SELECT id FROM users WHERE disabled = 0 AND id NOT IN "
-                "(SELECT user_id FROM device_mutes WHERE dev_eui = ?)", (dev_eui,))]
+            rows = self._conn.execute(
+                "SELECT id, role, groups FROM users WHERE disabled = 0 AND id NOT IN "
+                "(SELECT user_id FROM device_mutes WHERE dev_eui = ?)", (dev_eui,)).fetchall()
+        return [r[0] for r in rows
+                if can_access({"role": r[1], "groups": _groups(r[2])}, group)]
 
     def endpoints_for_users(self, user_ids: list[int]) -> list[dict[str, Any]]:
         if not user_ids:
@@ -279,11 +310,13 @@ class EventLog:
         A changed token or a disabled user loses all sessions (so re-adding a
         user never revives old ones). Raises sqlite3.Error (e.g. a token shared
         by two users) after rolling back; callers must not let that stop the service."""
-        rows = [(u["name"], hash_token(u["token"]), u.get("role", "user")) for u in users]
+        rows = [(u["name"], hash_token(u["token"]), u.get("role", "user"),
+                 json.dumps(sorted(set(u.get("groups", [])))))
+                for u in users]
         now = self._utc(utc_now())
         with self._lock:
             try:
-                for name, th, _role in rows:
+                for name, th, _role, _groups_json in rows:
                     # free the old hash first: swapping tokens between two users
                     # would otherwise collide on the UNIQUE column mid-statement
                     self._revoke_where("name = ? AND token_hash != ?", (name, th))
@@ -298,12 +331,13 @@ class EventLog:
                 self._conn.execute(
                     f"UPDATE users SET disabled = 1, token_hash = 'disabled-' || id "
                     f"WHERE {gone}", names)
-                for name, th, role in rows:
+                for name, th, role, groups_json in rows:
                     self._conn.execute(
-                        "INSERT INTO users (name, token_hash, role, created_at, disabled) "
-                        "VALUES (?, ?, ?, ?, 0) ON CONFLICT(name) DO UPDATE SET "
-                        "token_hash=excluded.token_hash, role=excluded.role, disabled=0",
-                        (name, th, role, now))
+                        "INSERT INTO users (name, token_hash, role, created_at, disabled, groups) "
+                        "VALUES (?, ?, ?, ?, 0, ?) ON CONFLICT(name) DO UPDATE SET "
+                        "token_hash=excluded.token_hash, role=excluded.role, disabled=0, "
+                        "groups=excluded.groups",
+                        (name, th, role, now, groups_json))
                 self._conn.commit()
             except sqlite3.Error:
                 self._conn.rollback()
@@ -319,9 +353,10 @@ class EventLog:
         returned — a disabled user is logged out immediately."""
         with self._lock:
             row = self._conn.execute(
-                "SELECT id, name, role FROM users WHERE token_hash = ? AND disabled = 0",
+                "SELECT id, name, role, groups FROM users WHERE token_hash = ? AND disabled = 0",
                 (token_hash,)).fetchone()
-        return {"id": row[0], "name": row[1], "role": row[2]} if row else None
+        return ({"id": row[0], "name": row[1], "role": row[2], "groups": _groups(row[3])}
+                if row else None)
 
     def create_session(self, user_id: int, ttl_hours: float = 24 * 30) -> str:
         import secrets
@@ -340,7 +375,7 @@ class EventLog:
         """Session -> user, or None when unknown/revoked/expired/disabled."""
         with self._lock:
             row = self._conn.execute(
-                "SELECT u.id, u.name, u.role, s.expires_at, s.revoked, u.disabled "
+                "SELECT u.id, u.name, u.role, s.expires_at, s.revoked, u.disabled, u.groups "
                 "FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.id = ?",
                 (hash_token(sid),)).fetchone()
         if not row:
@@ -349,7 +384,7 @@ class EventLog:
             return None
         if row[3] <= self._utc(utc_now()):
             return None
-        return {"id": row[0], "name": row[1], "role": row[2]}
+        return {"id": row[0], "name": row[1], "role": row[2], "groups": _groups(row[6])}
 
     def revoke_session(self, sid: str) -> None:
         with self._lock:

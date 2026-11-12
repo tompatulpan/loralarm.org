@@ -367,6 +367,77 @@ class PushApiTest(unittest.TestCase):
 PWA_DIR = Path(__file__).resolve().parents[3] / "PWA" / "web"
 
 
+def make_group_client():
+    """kund-a device (DEV_EUI), kund-b device (OTHER_EUI) and an ungrouped one."""
+    from fastapi.testclient import TestClient
+    ungrouped = "0a0b0c0d0e0f1011"
+    users = [ADMIN,
+             {"name": "bosse", "token": USER["token"], "role": "user", "groups": ["kund-a"]},
+             {"name": "carin", "token": "carin-token-" + "c" * 32, "role": "user"}]
+    log = EventLog(None)
+    log.seed_users(users)
+    cfg = make_config(devices={DEV_EUI: {"name": "sensor3", "group": "kund-a"},
+                               OTHER_EUI: {"name": "sensor16", "group": "kund-b"},
+                               ungrouped: {"name": "shared"}},
+                      defaults={"motion_mode": "level"})
+    engine = Engine(cfg, log, None)
+    engine.on_uplink(make_uplink(obj=sensor_obj(motion_alert=1)))      # alarm on DEV_EUI (kund-a)
+    return TestClient(create_app(engine, log, cookie_secure=False)), engine, log, ungrouped, users
+
+
+@needs_web
+class GroupAccessApiTest(unittest.TestCase):
+    def setUp(self):
+        self.client, self.engine, self.log, self.ungrouped, self.users = make_group_client()
+
+    def euis(self, token):
+        login(self.client, token)
+        return {d["dev_eui"] for d in self.client.get("/api/devices").json()["devices"]}
+
+    def test_each_user_sees_only_their_groups_plus_ungrouped(self):
+        self.assertEqual(self.euis(self.users[0]["token"]), {DEV_EUI, OTHER_EUI, self.ungrouped})  # admin
+        self.assertEqual(self.euis(USER["token"]), {DEV_EUI, self.ungrouped})                      # kund-a
+        self.assertEqual(self.euis(self.users[2]["token"]), {self.ungrouped})                      # no groups
+
+    def test_alarms_and_events_of_other_groups_are_hidden(self):
+        login(self.client, self.users[2]["token"])                       # carin: only ungrouped
+        self.assertEqual(self.client.get("/api/state").json()["alarms"], [])
+        self.assertEqual(self.client.get("/api/events?hours=87600").json()["events"], [])
+        login(self.client, USER["token"])                                # bosse: kund-a
+        alarms = self.client.get("/api/state").json()["alarms"]
+        self.assertEqual([a["dev_eui"] for a in alarms], [DEV_EUI])
+        events = self.client.get("/api/events?hours=87600").json()["events"]
+        self.assertEqual({e["dev_eui"] for e in events}, {DEV_EUI})
+
+    def test_other_groups_devices_cannot_be_read_or_changed(self):
+        login(self.client, USER["token"])
+        r = self.client.get(f"/api/devices/{OTHER_EUI}/armed")
+        self.assertEqual(r.status_code, 404)                              # not 403: no existence leak
+        r = self.client.put(f"/api/devices/{OTHER_EUI}/armed", headers=HEADERS,
+                            json={"armed": False, "snooze_hours": 1})
+        self.assertEqual(r.status_code, 404)
+        self.assertTrue(self.engine.is_armed(OTHER_EUI))                  # untouched
+        r = self.client.put(f"/api/devices/{DEV_EUI}/armed", headers=HEADERS,
+                            json={"armed": False, "snooze_hours": 1})
+        self.assertEqual(r.status_code, 200)                              # own group: fine
+
+    def test_subscriptions_only_cover_visible_devices(self):
+        login(self.client, USER["token"])
+        self.assertEqual(self.client.get("/api/subscriptions").json()["devices"],
+                         sorted([DEV_EUI, self.ungrouped]))
+        # trying to follow a foreign device is ignored, mutes stay within the visible set
+        self.client.put("/api/subscriptions", headers=HEADERS, json={"devices": [OTHER_EUI]})
+        self.assertEqual(self.log.get_muted(self.log.user_by_token_hash(
+            hash_token(USER["token"]))["id"]), sorted([DEV_EUI, self.ungrouped]))
+
+    def test_group_edit_in_config_applies_without_new_login(self):
+        login(self.client, USER["token"])
+        self.assertNotIn(OTHER_EUI, {d["dev_eui"] for d in self.client.get("/api/devices").json()["devices"]})
+        self.log.seed_users([self.users[0], {**self.users[1], "groups": ["kund-a", "kund-b"]},
+                             self.users[2]])
+        self.assertIn(OTHER_EUI, {d["dev_eui"] for d in self.client.get("/api/devices").json()["devices"]})
+
+
 @needs_web
 class HeadersAndStaticTest(unittest.TestCase):
     def setUp(self):

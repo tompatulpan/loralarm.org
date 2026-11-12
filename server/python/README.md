@@ -274,6 +274,35 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt   # paho-mqtt
 Expected replay output: the two `* alarm` logs each raise one `Rörelselarm`
 (motion_alert=1); sensor3 shows `temp=24.0 °C` (raw 32 − Tk 8) and battery 37.8 %.
 
+## Web app (PWA) users and device access
+
+`--web` starts the status page / push app (needs `requirements-web.txt`; `--static
+../../PWA/web` serves the frontend). Users and what they may see are set by the
+admin in `devices.json`; the file is hot-reloaded, no restart:
+
+```json
+"web_users": [
+  {"name": "anna",  "token": "${LORALARM_TOKEN_ANNA}",  "role": "admin"},
+  {"name": "bosse", "token": "${LORALARM_TOKEN_BOSSE}", "groups": ["kund-a"]}
+],
+"devices": {
+  "ac1f09fffe1003ae": {"name": "sensor3",  "group": "kund-a"},
+  "ac1f09fffe12da63": {"name": "sensor16", "group": "kund-b"},
+  "a84041a5d759d001": {"name": "Door1"}
+}
+```
+
+- A token is the login (`openssl rand -hex 16`); keep it in an environment variable.
+- A device with a `group` is visible to members of that group and to admins only; a
+  device **without** a group is visible to everyone (so an unassigned device can never
+  alarm to nobody). `group` can also be set in `families` or `defaults`.
+- The restriction is enforced by the API, not just hidden in the UI: the device list,
+  active alarms, event history, arm/disarm, follow settings **and push notifications**
+  all honour it. Other groups' devices answer 404.
+- Changing `groups` or a device's `group` applies to logged-in users immediately.
+- Admins see everything and are the only ones who may disarm "tills vidare"; ntfy and
+  Pushover are per-device topics set in the same file and are not affected by groups.
+
 ## Delivery and reliability notes
 
 - Notifications are queued and sent by one worker with retries (1 s / 5 s backoff);

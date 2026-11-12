@@ -33,7 +33,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-from .events import EventLog, hash_token, utc_now
+from .events import EventLog, can_access, hash_token, utc_now
 from .service import Engine
 
 try:  # optional dependency: requirements-web.txt; module must import without it
@@ -251,11 +251,23 @@ def create_app(engine: Engine, event_log: EventLog, webpush: Any = None,
         resp.delete_cookie(COOKIE)
         return resp
 
+    # ---- device visibility: the admin assigns devices to groups and users to
+    # groups in the config; everything below only ever sees the user's devices ----
+
+    def _group_of(eui: str, snap: dict[str, Any]) -> str:
+        entry = snap.get(eui, {})
+        return engine.config.for_event(eui, entry.get("name", ""), entry.get("family", "")).group
+
+    def _visible(user: dict[str, Any], snap: dict[str, Any] | None = None) -> set[str]:
+        snap = engine.snapshot() if snap is None else snap
+        known = set(engine.config.devices) | set(snap) | set(event_log.known_devices())
+        return {e for e in known if can_access(user, _group_of(e, snap))}
+
     # ---- fleet / state ----
 
     def _fleet(user: dict[str, Any]) -> list[dict[str, Any]]:
         snap = engine.snapshot()          # lock-protected, in-memory only
-        euis = set(engine.config.devices) | set(snap) | set(event_log.known_devices())
+        euis = _visible(user, snap)
         muted = set(event_log.get_muted(user["id"]))   # opt-out: default = follow all
         out = []
         for eui in sorted(euis):
@@ -269,6 +281,7 @@ def create_app(engine: Engine, event_log: EventLog, webpush: Any = None,
                 "name": entry.get("name") or cfg.name,
                 "family": entry.get("family") or cfg.family,
                 "kind": cfg.kind,
+                "group": cfg.group,
                 "active": state.get("active", []),
                 "last_seen": state.get("last_seen"),
                 "temperature": lv.get("temperature"),
@@ -289,9 +302,11 @@ def create_app(engine: Engine, event_log: EventLog, webpush: Any = None,
     @app.get("/api/state")
     def state(user: dict = Depends(_guard)):
         snap = engine.snapshot()
+        visible = _visible(user, snap)
         alarms = [{"dev_eui": eui, "name": e.get("name", ""), "kind": k,
                    "detail": e.get("state", {}).get("last_detail", {}).get(k, "")}
-                  for eui, e in snap.items() for k in e.get("state", {}).get("active", [])]
+                  for eui, e in snap.items() if eui in visible
+                  for k in e.get("state", {}).get("active", [])]
         return {"ok": not alarms, "alarms": alarms}
 
     @app.get("/api/events")
@@ -301,17 +316,16 @@ def create_app(engine: Engine, event_log: EventLog, webpush: Any = None,
                         0.1), 24 * 90)
         limit = int(min(max(_number(request.query_params.get("limit", 200), "limit",
                                     -math.inf, math.inf), 1), 500))
-        rows = event_log.recent(hours=hours, limit=limit)
+        rows = event_log.recent(hours=hours, limit=limit, dev_euis=sorted(_visible(user)))
         return {"events": [{"ts": r[0], "device": r[1], "kind": r[2], "active": bool(r[3]),
-                            "detail": r[4], "user": r[5]} for r in rows]}
+                            "detail": r[4], "user": r[5], "dev_eui": r[6]} for r in rows]}
 
     # ---- subscriptions (per-user follow set; stored as opt-out mutes so the
     # default is "follow all" and a new device never alarms to nobody) ----
 
     @app.get("/api/subscriptions")
     def get_subs(user: dict = Depends(_guard)):
-        snap = engine.snapshot()
-        known = set(engine.config.devices) | set(snap) | set(event_log.known_devices())
+        known = _visible(user)
         muted = set(event_log.get_muted(user["id"]))
         followed = sorted(known - muted)
         return {"devices": followed, "all": not muted}
@@ -324,8 +338,7 @@ def create_app(engine: Engine, event_log: EventLog, webpush: Any = None,
         devs = [d.lower() for d in devs]
         if not all(_EUI_RE.match(d) for d in devs):
             raise HTTPException(status_code=422, detail="devices must be a list of devEUIs")
-        snap = engine.snapshot()
-        known = set(engine.config.devices) | set(snap) | set(event_log.known_devices())
+        known = _visible(user)
         event_log.set_muted(user["id"], sorted(known - set(devs)))
         return {"ok": True, "devices": devs}
 
@@ -334,6 +347,8 @@ def create_app(engine: Engine, event_log: EventLog, webpush: Any = None,
     @app.get("/api/devices/{eui}/armed")
     def get_armed(eui: str, user: dict = Depends(_guard)):
         eui = eui.lower()
+        if eui not in _visible(user):      # 404, not 403: do not reveal other users' devices
+            raise HTTPException(status_code=404, detail="unknown device")
         row = event_log.get_armed(eui) or {"armed": True, "until": None}
         return {"dev_eui": eui, "armed": bool(row["armed"]), "until": row["until"],
                 "can_disarm_forever": user["role"] == "admin"}
@@ -343,8 +358,7 @@ def create_app(engine: Engine, event_log: EventLog, webpush: Any = None,
         eui = eui.lower()
         if not _EUI_RE.match(eui):
             raise HTTPException(status_code=422, detail="bad devEUI")
-        if eui not in engine.config.devices and eui not in engine.snapshot() \
-                and eui not in event_log.known_devices():
+        if eui not in _visible(user):
             raise HTTPException(status_code=404, detail="unknown device")
         armed = body.get("armed")
         if not isinstance(armed, bool):

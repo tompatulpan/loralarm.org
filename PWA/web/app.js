@@ -141,7 +141,8 @@ function route() {
   $('#tab-settings').classList.toggle('on', onSettings);
   $('#appbar-title').textContent = devMatch ? device(devMatch[1])?.name || 'Enhet' : 'LoRaLarm';
   if (devMatch) renderDevice(devMatch[1]);
-  if (onSettings) renderSettings();
+  else if (onSettings) renderSettings();
+  else renderFleet();          // the fleet view is not re-rendered while hidden: refresh it on return
   renderChrome();
   renderConn();
 }
@@ -204,7 +205,7 @@ function renderFleet() {
         <div class="nm">${esc(d.name)}
           <span class="arm ${d.armed ? 'on' : 'off'}">🛡 larm ${d.armed ? 'på' : 'av'}${d.armed ? '' : ' ' + esc(fmtUntil(d.armed_until))}</span>
         </div>
-        <div class="meta">${esc(d.family)}${d.following ? '' : ' · följs ej'}</div>
+        <div class="meta">${esc(d.family)}${d.group ? ' · ' + esc(d.group) : ''}${d.following ? '' : ' · följs ej'}</div>
       </div>
       <div class="right">${pillFor(d)}${battLine(d)}</div>
     </div>`).join('');
