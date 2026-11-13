@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <!-- LoraLarm owl mascot - green LoRa variant -->
+  <!-- RF waves: three concentric arcs from a common center -->
+  <g fill="none" stroke="#ffffff" stroke-width="6" stroke-linecap="round">
+    <path d="M60 101 A14 14 0 0 0 60 129"/>
+    <path d="M60 85 A30 30 0 0 0 60 145"/>
+    <path d="M60 69 A46 46 0 0 0 60 161"/>
+  </g>
+  <!-- body -->
+  <ellipse cx="115" cy="115" rx="60" ry="65" fill="#2e7d32"/>
+  <!-- belly -->
+  <ellipse cx="115" cy="138" rx="38" ry="32" fill="#a5d6a7"/>
+  <!-- wing dots -->
+  <circle cx="88" cy="132" r="5" fill="#1b5e20"/>
+  <circle cx="102" cy="146" r="5" fill="#1b5e20"/>
+  <!-- eyes -->
+  <circle cx="93" cy="95" r="22" fill="#fff"/>
+  <circle cx="137" cy="95" r="22" fill="#fff"/>
+  <circle cx="93" cy="95" r="9" fill="#d32f2f"/>
+  <circle cx="137" cy="95" r="9" fill="#4caf50"/>
+  <!-- beak -->
+  <path d="M115 108 L103 122 H127 Z" fill="#ff9800"/>
+  <!-- ear tufts -->
+  <path d="M62 62 L70 34 L88 55 Z" fill="#2e7d32"/>
+  <path d="M168 62 L160 34 L142 55 Z" fill="#2e7d32"/>
+  <!-- feet -->
+  <path d="M95 178 l-10 10 h20 Z" fill="#ff9800"/>
+  <path d="M135 178 l-10 10 h20 Z" fill="#ff9800"/>
+</svg>

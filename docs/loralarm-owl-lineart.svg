@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <!-- LoraLarm owl mascot - line art outline variant -->
+  <g fill="none" stroke="#000" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+    <!-- RF waves: three concentric arcs from a common center -->
+    <path d="M60 101 A14 14 0 0 0 60 129"/>
+    <path d="M60 85 A30 30 0 0 0 60 145"/>
+    <path d="M60 69 A46 46 0 0 0 60 161"/>
+    <!-- body -->
+    <ellipse cx="115" cy="115" rx="58" ry="63"/>
+    <!-- eyes -->
+    <circle cx="93" cy="95" r="22"/>
+    <circle cx="137" cy="95" r="22"/>
+    <circle cx="93" cy="95" r="8"/>
+    <circle cx="137" cy="95" r="8"/>
+    <!-- beak -->
+    <path d="M115 112 L104 124 H126 Z"/>
+    <!-- ear tufts -->
+    <path d="M64 64 L71 38 L88 56"/>
+    <path d="M166 64 L159 38 L142 56"/>
+    <!-- feet -->
+    <path d="M95 176 l-9 9 h18 Z"/>
+    <path d="M135 176 l-9 9 h18 Z"/>
+  </g>
+  <!-- feather dot -->
+  <circle cx="88" cy="132" r="5" fill="#000"/>
+</svg>
