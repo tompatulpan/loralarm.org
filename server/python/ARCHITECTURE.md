@@ -269,8 +269,10 @@ class Channel:                         # loralarm/channels/base.py
 - **Storm control** (optional policy, phase 4): N `stale` transitions inside
   M seconds collapse into one rollup message ("37 enheter utan kontakt —
   gateway?"); critical kinds are never rolled up.
-- Built-ins: `ntfy`, `pushover` (priority 2 for `critical` with retry/expire,
-  per the PWA brief). Later: `webpush` (PWA), `webhook`, `mqtt`.
+- Built-ins: `ntfy`, `pushover` — as implemented (2026-11-12): ntfy 5 on fire /
+  3 on clear, **Pushover 1 on fire / 0 on clear, never priority 2** (emergency
+  re-sends every `retry` s until acknowledged in the app — unwanted for
+  unattended alarms; see §12.6). Later: `webpush` (PWA), `webhook`, `mqtt`.
 - Credentials stay in named `channels`, expanded from env; never in type files.
 
 ## 8. Settings / downlinks
@@ -416,8 +418,13 @@ narrows, the plan above:
 5. **`notify` across layers — DECIDED (2026-11-11): replace.** The most specific
    layer that sets `notify` wins completely; a device that wants the default
    recipients too lists them again. No additive `notify+`.
-6. **Severity → priority — DECIDED (2026-11-11):** `critical` → Pushover 2 /
-   ntfy 5, `warning` → 1 / 4, `info` (incl. all "cleared" messages) → 0 / 3.
+6. **Severity → priority — REVISED DECISION (2026-11-12), supersedes the
+   2026-11-11 "Pushover 2 for `critical`":** **Pushover never uses the
+   emergency priority 2** — it re-sends every `retry` s until acknowledged in
+   the app, which is wrong for unattended alarms (and the reason commit
+   171605b removed it). Pushover is 1 on fire and 0 on clear, independent of
+   severity; ntfy is 5 on fire and 3 on clear today, and phase 4 may refine it
+   to 5 (critical) / 4 (warning) / 3 (info, incl. all "cleared" messages).
 
 ## 13. Alarm window (`alarm_window`) — implemented 2026-11-11
 

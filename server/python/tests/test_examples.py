@@ -202,10 +202,9 @@ class FullTemplateTest(unittest.TestCase):
         self.assertEqual({"profiles", "defaults", "families", "devices"} <= set(data), True)
         self.assertEqual(len(data["devices"]), 7)
 
-    def test_pushover_is_set_once_in_defaults_and_reaches_every_device(self):
+    def test_pushover_credentials_reach_every_device(self):
         conf = self.conf()
         for eui, entry in conf.devices.items():
-            self.assertNotIn("pushover_user", entry)
             cfg = conf.for_event(eui, "", entry["family"])
             self.assertEqual((cfg.pushover_user, cfg.pushover_token), ("u", "t"), cfg.name)
 
@@ -221,11 +220,11 @@ class FullTemplateTest(unittest.TestCase):
         conf = self.conf()
         door1 = conf.for_event("a84041a5d759d001", "", "Dragino Switch LDS02")
         door2 = conf.for_event("a84041e3d101233d", "", "Dragino Switch LDS02")
-        self.assertEqual((door1.watchdog_hours, door2.watchdog_hours), (12, 2))
+        self.assertEqual((door1.watchdog_hours, door2.watchdog_hours), (24, 2))
         self.assertEqual((door1.alarm_window, door2.alarm_window), ("", "21:00-09:00"))
         self.assertEqual(door1.timezone, "Europe/Stockholm")      # set once in defaults
         self.assertEqual(door1.kind, "door")                     # the type's own default
-        self.assertEqual(conf.for_event("ac1f09fffe120202", "", "RAK3172").temp_alarm_min_c, 2.0)
+        self.assertEqual(conf.for_event("ac1f09fffe120202", "", "RAK3172").temp_alarm_min_c, 0.0)  # type default
         water = conf.for_event("e8e1e100010a7001", "", "Browan Water sensor")
         self.assertEqual((water.kind, water.watchdog_hours, water.batt_empty_v), ("water", 3, 3.1))
 

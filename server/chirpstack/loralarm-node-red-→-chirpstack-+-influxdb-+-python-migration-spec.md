@@ -3,7 +3,7 @@
 Working document for implementing the migration in VS Code with Mistral Vibe.
 Companion repo: `github.com/tompatulpan/loralarm.org` (Node-RED flows in `server/node-red/`).
 
-## 0. Status (2026-11-11)
+## 0. Status (2026-11-13)
 
 Authoritative for *what exists*; the numbered sections below are the plan and
 were corrected where they had drifted. Highest priority now: **modular
@@ -13,20 +13,26 @@ phases 0–6).
 
 | Area | State |
 |---|---|
-| ChirpStack decode | ✅ three device types: RUI3/Cayenne, RAK4631 custom, Dragino LDS02 (third-party codec, fPort 10) |
-| Python service | ✅ runs live: alarms, watchdog, ntfy + Pushover, SQLite events, downlinks with read-back, hot-reloaded config, data-driven device families |
-| Python service architecture | 🔧 v1 is rigid in places (fixed temp/battery readings, hardcoded stateful detectors, two hardwired channels, flat config); **v2 refactor is the current priority** |
-| Runtime model | **Threaded, stdlib-only core** (paho thread + main-thread watchdog + per-channel workers). Not asyncio — the original §7 wording is superseded |
+| ChirpStack decode | ✅ five device families live: RUI3/Cayenne, RAK4631 custom, Dragino LDS02, Browan TBWL100 (water), Milesight WS101 (button, `ws101-decoder.js`) — codec copies + example configs + fixtures for all |
+| Python service | ✅ runs live: alarms (temp low **and** high, with hysteresis), watchdog, ntfy + Pushover, per-device `alarm_window`, SQLite events, downlinks with read-back, hot-reloaded config, data-driven device families |
+| Web / PWA in the service | ✅ first version built: FastAPI app (`loralarm/webapp.py`, `--web-host:--web-port`), static PWA (`PWA/web/`: manifest, service worker, silent push), users seeded from `devices.json` (`web_users`), token login, web push (VAPID), per-device arm/snooze/mute, group-based visibility, recent alarms, security headers. Optional deps via `requirements-web.txt` (web tests skip without it) |
+| Python service architecture | 🔧 v2 phase 1 done; **phases 2–5 not started** (stateful detectors still in `AlarmState`, flat `DeviceConfig`, ntfy+Pushover hardwired). Alarm window + temp high alarm + web layer shipped ahead of v2 on the v1 structure |
+| Runtime model | **Threaded, stdlib-only core** (paho thread + main-thread watchdog + web app in a uvicorn thread). Not asyncio — the original §7 wording is superseded |
 | ChirpStack REST registry cache | ⏳ not built; deferred (v2 leaves a `DeviceSource` seam) |
 | InfluxDB + Grafana | ⏳ no repo artefacts yet (no compose, no config); §11 step 4 unverified |
-| Status page / PWA | ⏳ designed in [`PWA/docs/pwa-design.md`](../../PWA/docs/pwa-design.md) (authoritative; §9 below is a pointer); not built |
 | Node-RED parallel run | 🔧 service replays real events and sends notifications; no recorded alarm-for-alarm comparison, no cutover decision yet |
-| Remaining device types | ⏳ Button 1, water1/water2 have no type yet (needs only JSON under v2) |
+| Seeded devices | ✅ all 10 in `devices.json` typed: sensor3/8/9/11/16 (RAK), Door1/2 (LDS02), water1/2 (TBWL100), Button 1 (WS101) |
 
-Known gaps that v2 addresses: no hysteresis on temp/battery, delivery results not
+Known gaps that v2 addresses: no hysteresis on battery, delivery results not
 recorded, notification queue in memory only, one ntfy topic + one Pushover
-recipient per device. **v2 phase 1 is done** (registry instance, frame/values with
-declared fields, golden parity test, fixtures tracked); phases 2–5 are next.
+recipient per device (temp now *has* hysteresis: `temp_alarm_hysteresis_c`).
+**v2 phase 1 is done** (registry instance, frame/values with declared fields,
+golden parity test, fixtures tracked); phases 2–5 are next. Shipped on the v1
+structure since 2026-11-11: alarm windows (`schedule.py`, health kinds always
+notify), temp alarms split low/high (`temp_alarm_min_c`/`temp_alarm_max_c`),
+and the web/PWA layer above. Pushover never uses emergency priority any more
+(stays 1/0; supersedes ARCHITECTURE §12.6's "critical → 2" — the repeat-until-ack
+behaviour was unwanted).
 
 ## 1. Goal
 
@@ -110,9 +116,11 @@ device_frmpayload_data_digital_input_7 ... _10
 
 ## 4. Sensor protocols
 
-Three device types are live (RUI3 and RAK4631 below; the third, **Dragino LDS02 door
-switch**, is a third-party codec on fPort 10 with `BAT_V`/`DOOR_OPEN_STATUS`, battery
-3.0/2.5/2.2 V assumed, no settings or downlinks). The two LoRaLarm firmware families:
+Five device families are live (RUI3 and RAK4631 below; the others are third-party
+codecs: **Dragino LDS02** door switch, fPort 10, `BAT_V`/`DOOR_OPEN_STATUS`,
+battery 3.0/2.5/2.2 V assumed, no settings or downlinks; **Browan TBWL100**
+water-leak sensor; **Milesight WS101** smart button, `ws101-decoder.js`). The two
+LoRaLarm firmware families:
 
 | | RUI3 sensors (e.g. RAK3172) | RAK4631 Android |
 |---|---|---|
@@ -138,8 +146,10 @@ type and overrides per group/device in the service config. A third-party codec
 
 ## 5. Codecs
 
-All three device-profile codecs are implemented and verified working (RUI3: Cayenne
-LPP; RAK4631: custom JavaScript; Dragino LDS02: `payload_codec_dragino_lds02.js`).
+All five device-profile codecs are implemented and verified working (RUI3:
+Cayenne LPP; RAK4631: custom JavaScript; Dragino LDS02:
+`payload_codec_dragino_lds02.js`; Browan TBWL100 and Milesight WS101:
+`payload_codec_browan_tbwl100.js`, `ws101-decoder.js`).
 Canonical copies live in git at `server/chirpstack/payload_codec_*.js` (ChirpStack
 stores them in its DB; without git copies they will drift). The real-event fixtures
 that guard the codecs and the Python service live in
@@ -164,8 +174,9 @@ that guard the codecs and the Python service live in
 > being restructured per [`server/python/ARCHITECTURE.md`](../python/ARCHITECTURE.md).
 > Items below describe *responsibilities*; where they name config keys
 > (`temp_alarm_c`, `tk_correction`, …) or modules, ARCHITECTURE.md and
-> `server/python/README.md` win. `httpx`, `influxdb-client` and the status page stack
-> come only when those features are built (PWA brief: FastAPI in a uvicorn thread).
+> `server/python/README.md` win. The web layer is now built (`webapp.py`, FastAPI
+> in a uvicorn thread, deps in `requirements-web.txt`); `httpx` and
+> `influxdb-client` remain unused until their features are built.
 
 Responsibilities:
 
@@ -249,7 +260,10 @@ Cayenne fPort 2 (ChirpStack already did it), dashboards (Grafana).
 7. 🔧 Python service written (§7) and running; **parallel run vs Node-RED not yet
    compared.** Define the criterion first: N days, alarm-for-alarm diff per device,
    zero missed alarms.
-8. ⏳ Status page / PWA (§9 → PWA brief).
+8. 🔧 Status page / PWA: **first version built** (FastAPI in a uvicorn thread,
+   `webapp.py`; static PWA in `PWA/web/`; web push, arm/snooze/mute, group
+   visibility, recent alarms). Live deployment and parity with the PWA brief
+   not yet verified.
 9. ⏳ Cut over notifications (disable Node-RED ntfy/Pushover nodes), then retire flows:
    `flow_inputs.json`, `nodered_copy_flow.py`, per-sensor flow JSONs. Cutover should
    wait for architecture v2 phases 1–4 (hysteresis, delivery log, persistent outbox)
@@ -265,12 +279,22 @@ Cayenne fPort 2 (ChirpStack already did it), dashboards (Grafana).
 - [ ] Confirm the InfluxDB meta measurement name in this ChirpStack version (rssi/snr).
 - [x] Events store choice: SQLite (events, device state; delivery + outbox tables planned in v2).
 - [ ] ChirpStack version pinned (codec copies are in `server/chirpstack/payload_codec_*.js`).
-- [ ] **Architecture v2** (`server/python/ARCHITECTURE.md`): review → phases 1–5.
+- [ ] **Architecture v2** (`server/python/ARCHITECTURE.md`): phase 1 done;
+      **phases 2–5 open** (Detector API, config layering, channels/dispatcher
+      + delivery log + outbox, engine split).
+- [x] Device types for Button 1 and water1/water2 added: Milesight WS101
+      (`ws101-decoder.js`, `families/milesight_ws101.json`, `watchdog_hours` 0 —
+      reports only on press) and Browan TBWL100 (`payload_codec_browan_tbwl100.js`,
+      `families/browan_tbwl100.json`).
+- [x] Per-device alarm window (e.g. `21:00-09:00`, overnight ok): shipped
+      2026-11-11 (`schedule.py`); outside the window an alarm is logged but not
+      sent, health kinds (temp/battery/stale) always notify. README "Alarm window".
+- [x] High-temperature alarm: `temp_alarm_max_c` (+ `temp_alarm_hysteresis_c`
+      for both limits). Pushover stays priority 1/0 — emergency (2) removed.
 - [ ] ChirpStack REST registry cache (`DeviceSource` seam) — after v2.
 - [ ] Alarm-storm handling (gateway outage → many `stale` at once): per-channel
       queues, priority lanes, optional rollup — v2 phase 4.
 - [ ] Define Node-RED retirement criteria (see §11 step 7).
-- [ ] Add device types for Button 1 and water1/water2 (JSON only under v2).
 - [ ] LDS02 battery limits (3.0/2.5/2.2 V) are an assumption; check a real discharge.
 
 ## 13. Verification snippets
