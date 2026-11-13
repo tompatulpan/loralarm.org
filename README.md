@@ -104,7 +104,7 @@ See [`server/python/ARCHITECTURE.md`](server/python/ARCHITECTURE.md) for the des
 Already running [Meshtastic](https://meshtastic.org) on a RAK4631? Then half the work is done — it's the same board, and the nRF52840 + SX1262 radio it carries is exactly what LoRaLarm firmware expects. Flash the firmware over USB through the board's built-in bootloader, join it to your LoRaWAN gateway via OTAA, and you have a working sensor node for testing. Going back to Meshtastic is just a re-flash away.
 
 1. Build and flash the Arduino firmware from [`devices/android_rak4631/`](devices/android_rak4631/) to the RAK4631 over USB (Arduino IDE with the RAK nRF52 board package and the `SX126x-Arduino` and `SparkFun LIS3DH` libraries). Copy `example.secrets.h` to `secrets.h` and fill in the OTAA credentials (`NODE_DEVICE_EUI`, `NODE_APP_EUI`, `NODE_APP_KEY`, with `DO_OTAA` set to `true`). The region is hard-coded to EU868 in `lora_handler.cpp`; change it there if your gateway uses another band.
-2. Register the device (OTAA) in ChirpStack with the bundled [`payload_codec_rak4631.js`](server/chirpstack/payload_codec_rak4631.js) codec.
+2. Register the device (OTAA) in ChirpStack with the bundled [`payload_codec_rak4631.js`](server/chirpstack/codecs/payload_codec_rak4631.js) codec.
 3. Watch the uplinks arrive and the alarms fire — no soldering required to get started.
 
 ## License

@@ -1,7 +1,7 @@
 // Runnable tests for the split ChirpStack payload codecs:
 //   payload_codec_rak4631.js  (custom 14-byte frame)
 //   payload_codec_rui3.js     (Cayenne LPP, RUI3 channel map)
-// Usage: node payload_codec_test.js
+// Usage: node codecs/payload_codec_test.js   (from server/chirpstack/)
 'use strict';
 const fs = require('fs');
 const vm = require('vm');
@@ -119,15 +119,15 @@ const f5 = rui.encodeDownlink({ data: { duration: 1 } });
 check('rui: encode duration 1 -> p7 "001"', f5.fPort === 7 && ascii(f5.outBytes) === '001', f5);
 check('rui: encode unrecognized -> error', rui.encodeDownlink({ data: { nothing: true } }).errors.length === 1);
 
-// ============================== real captured uplinks (fixtures/)
+// ============================== real captured uplinks (../fixtures/)
 // ChirpStack MQTT up events: "object" was produced by these very codecs;
 // decode the raw payload and require at least that output (superset: the
 // rui3 codec now also adds acc_frequency_hz on uplinks).
 const LOGS = [
-  ['fixtures/single-log(rak4631).json', rak, { motion_switch: 0, motion_alert: 0, battery_voltage: 3.578095238095238, temperature: 32, acc_frequency_hz: 10 }],
-  ['fixtures/single-log(rak4631 alarm).json', rak, { motion_switch: 0, motion_alert: 1, status_raw: 2, acc_frequency: 47 }],
-  ['fixtures/single-log(RUI).json', rui, { battery_voltage: 2.98, temperature: 23.1, humidity: 43, acc_threshold: 16, acc_duration: 4, acc_frequency_hz: 100 }],
-  ['fixtures/single-log(RUI alarm).json', rui, { motion_alert: 1 }],
+  ['../fixtures/single-log(rak4631).json', rak, { motion_switch: 0, motion_alert: 0, battery_voltage: 3.578095238095238, temperature: 32, acc_frequency_hz: 10 }],
+  ['../fixtures/single-log(rak4631 alarm).json', rak, { motion_switch: 0, motion_alert: 1, status_raw: 2, acc_frequency: 47 }],
+  ['../fixtures/single-log(RUI).json', rui, { battery_voltage: 2.98, temperature: 23.1, humidity: 43, acc_threshold: 16, acc_duration: 4, acc_frequency_hz: 100 }],
+  ['../fixtures/single-log(RUI alarm).json', rui, { motion_alert: 1 }],
 ];
 for (const [file, codec, extra] of LOGS) {
   const ev = JSON.parse(fs.readFileSync(path.join(__dirname, file), 'utf8'));

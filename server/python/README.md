@@ -31,7 +31,7 @@ Verify on the lora box with `mosquitto_sub -h localhost -t 'application/+/device
 | `devices.example.json` | Tracked config template — placeholders only, no secrets |
 | `tests/` | `python3 -m unittest discover -s tests -t .` (stdlib only); `tests/test_golden.py` replays the real fixtures plus synthetic scenarios and compares console output, notifications and alarm state with `tests/golden/engine.json` — regenerate only for an intended behaviour change: `python3 -m tests.golden --update` |
 
-Codecs stay in ChirpStack (`../chirpstack/payload_codec_*.js`); this package never
+Codecs stay in ChirpStack (`../chirpstack/codecs/payload_codec_*.js`); this package never
 decodes fPort 2 itself — it trusts `object`. The real captured uplinks used as
 fixtures are in `../chirpstack/fixtures/`.
 
@@ -225,7 +225,7 @@ repeat it.
 ### Browan TBWL100 water-leak sensor
 
 Built in as `families/browan_tbwl100.json` (profile name = the ChirpStack
-device profile `Browan Water sensor`, codec `payload_codec_browan_tbwl100.js`):
+device profile `Browan Water sensor`, codec `chirpstack/codecs/payload_codec_browan_tbwl100.js`):
 fPort 106, `status` → `water_leak`, `battery` → `battery_voltage`, `humidity`,
 kind `water`, no downlinks, battery limits for the 3.6 V Li-SOCl2 cell (full 3.6 /
 warn 3.4 / empty 3.1 V). A wet sensor raises `Vattenläcka` (`water_leak`) once,
@@ -236,7 +236,7 @@ because the sensor sends a keep-alive every 60 min).
 ### Milesight WS101 smart button
 
 Built in as `families/milesight_ws101.json` (profile name = the ChirpStack
-device profile `Smart Button [Milesight]`, codec `chirpstack/ws101-decoder.js`):
+device profile `Smart Button [Milesight]`, codec `chirpstack/codecs/ws101-decoder.js`):
 fPort 85, `button_event.status` → `button` (dotted `from` path), kind `button`,
 no downlinks. Battery arrives as a percentage (`battery` → `battery_pct`), so
 the volt-based battery alarms do not apply; `button_battery` alerts below 20 % (override per device with `"params": {"batt_low_pct": 30}`). The
@@ -472,10 +472,24 @@ Both log one `kind="downlink"` row per frame to the events table:
 mosquitto_pub -h <lora-box> -t 'loralarm/down/sensor16' -m '{"frequency": 50}'
 ```
 
-## Next steps toward fleet dashboards (spec §7/§9)
+## Next steps (spec §11, ARCHITECTURE.md §10)
 
-1. ChirpStack REST registry cache (devEUI → name/profile) at startup + interval refresh.
-2. ~~Downlinks via ChirpStack MQTT downlink topic~~ — done, see above (`loralarm/downlink.py`).
-3. Status page (FastAPI, spec §9) reading the events SQLite log; trigger
-   downlinks over `loralarm/down/<device>`.
-4. Optional: debounce on battery thresholds (temperature already has `temp_alarm_hysteresis_c`).
+1. **Architecture v2 phase 2 — detectors** (the current priority):
+   `Detector` API, generic `AlarmTracker`, snapshot v2 + v1 converter,
+   threshold hysteresis/debounce — closes the battery-hysteresis gap. Exit
+   criteria: parity on the fixtures, per-detector tests, `alarms.py` reduced.
+2. Then phases 3–5: config layering (`groups`, named channels + routes),
+   dispatcher + delivery log + persistent outbox, engine split.
+3. ~~Downlinks via ChirpStack MQTT downlink topic~~ — done (`loralarm/downlink.py`).
+4. ~~Status page / PWA (spec §9)~~ — done, first version (`--web`,
+   `loralarm/webapp.py` + `PWA/web/`): live deployment and parity with the PWA
+   brief still to verify.
+5. **Node-RED parallel run** (spec §11 step 7): define the retirement criteria
+   (N days, alarm-for-alarm diff per device, zero missed) and start recording
+   the comparison now, so the data accumulates while v2 is built. Notification
+   cutover waits for v2 phases 1–4.
+6. ChirpStack REST registry cache (devEUI → name/profile) — after v2
+   (`DeviceSource` seam).
+7. On the lora box (quick live checks, no repo work): verify the
+   `device_frmpayload_data_*` measurements in the Influx bucket (spec §11
+   step 4) and drag out the meta measurement name (rssi/snr, spec §12).

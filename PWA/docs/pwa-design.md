@@ -167,7 +167,10 @@ Small, but not zero — the design is not "nothing changes":
 4. `AlarmState`: add `last_reading` and include it in `snapshot()`/`restore()`.
 5. `Notifier`: webpush queue/worker, `channels` config, per-channel delivery logging.
 6. `EventLog`: new tables, WAL, shared lock; optional `user` column.
-7. Pushover: today only priority 1 is sent; critical kinds need priority 2 (§7).
+7. ~~Pushover: critical kinds need priority 2~~ — REVISED (2026-11-12, supersedes
+   this brief): Pushover stays 1 on fire / 0 on clear, **never** emergency 2
+   (it re-sends every `retry` s until acknowledged in the app — unwanted for
+   unattended alarms). See ARCHITECTURE.md §12.6.
 
 ## 6. Frontend pieces (PWA)
 
@@ -200,9 +203,10 @@ retry-until-acknowledged, and it respects iOS Focus / Do Not Disturb.
 Plan: run all three channels in parallel; compare delivery over a month of real
 alarms; then decide per-channel retirement. **Metric:** a push-service 201 does not mean
 the phone got it — count `push_ack` rows per `event_id` vs. sent. Retiring a channel =
-removing it from `channels` in config, nothing else — **except** that Pushover
-(priority 2) stays for critical kinds (temp/frost, motion/tilt, circuit) indefinitely;
-only ntfy and non-critical kinds are candidates for retirement.
+removing it from `channels` in config, nothing else — **except** that Pushover stays
+as the backstop for critical kinds (temp/frost, motion/tilt, circuit) indefinitely
+(at priority 1, see §5.1 #7); only ntfy and non-critical kinds are candidates for
+retirement.
 
 ## 8. Shortcut alternative (evaluate before building)
 
@@ -214,15 +218,39 @@ Decision: build the custom PWA for UX and control; keep ntfy for automation.
 
 ## 9. Implementation order
 
-0. Prerequisites: engine hooks from §5.1 (event-id-first `_emit`, `Engine.snapshot()`,
+**Status (2026-11-13): steps 0–6 are code-complete and tested** (`tests/test_webapp.py`,
+`test_webauth.py`, `test_webpush.py`, `test_armed.py` — need `requirements-web.txt`);
+**the app has not run live yet** — no deployment (tunnel, blue-104), so step 7's
+clock has not started. Shipped beyond this brief: group-based device visibility
+(`web_users[].groups`, enforced by the API end to end), recent-alarm list
+(event-mode pulse alarms shown once), silent clear notifications (`silent` in
+`sw.js` instead of a lower `Urgency`), and an externally supplied
+`vapid_public_key`.
+
+0. ✅ Prerequisites: engine hooks from §5.1 (event-id-first `_emit`, `Engine.snapshot()`,
    `last_reading`, separate webpush worker skeleton); fleet source decided (§3).
-1. Cloudflare Tunnel to the service on blue-104, HTTPS live (optionally Access).
-2. FastAPI static serving + `/api/devices` + invite-token auth + sessions + CSRF.
-3. Web Push: VAPID keys, `/api/push/subscribe`, fan-out branch, `sw.js` handler, ack.
-4. Subscription UI: fleet list with toggles; per-user device_mutes (opt-out, so default = follow all).
-5. Arm/disarm with snooze, roles, audit, notifications to followers.
-6. Status views: banner + fleet table (status-page spec §9 applies to both surfaces).
-7. Delivery log + ack metric + 1 month parallel comparison with Pushover; then decision.
+1. ⏳ Go live on the **loralarm LXC (Proxmox)** — LAN first; Cloudflare Tunnel,
+   HTTPS (optionally Access) afterwards. **This is the next step.** Also needs
+   `requirements-web.txt` installed, a VAPID keypair (public key via
+   config/env), `tzdata` in slim images (§3 in the migration spec), and the
+   service started with `--web --static ../../PWA/web`. Runbook for the
+   container: [`server/deploy/README.md`](../../server/deploy/README.md).
+   Public-go-live specifics: `cloudflared` (container or Proxmox host) →
+   `127.0.0.1:8080`; remove `--web-insecure-cookie` from the unit so session
+   cookies become `Secure` again; VAPID keys in `LORALARM_VAPID_PRIVATE_KEY` /
+   `LORALARM_VAPID_PUBLIC_KEY` (commented in
+   `server/deploy/loralarm.env.example`). Web Push sending only needs outbound
+   HTTPS — tunnel down = no status page, never missing alarms.
+2. ✅ FastAPI static serving + `/api/devices` + invite-token auth + sessions + CSRF.
+3. ✅ Web Push: VAPID keys, `/api/push/subscribe`, fan-out branch, `sw.js` handler, ack.
+4. ✅ Subscription UI: fleet list with toggles; per-user device_mutes (opt-out, so
+   default = follow all).
+5. ✅ Arm/disarm with snooze, roles, audit, notifications to followers (snooze
+   presets 1/8/24 h, "tills vidare" admin-only; re-arm works with the web side down).
+6. ✅ Status views: banner + fleet table (status-page spec §9 applies to both surfaces).
+7. ⏳ Delivery log + ack metric + 1 month parallel comparison with Pushover; then
+   decision. The `webpush_log`/`push_ack` machinery is built; the month starts when
+   the app is live.
 
 ## 10. Security notes
 

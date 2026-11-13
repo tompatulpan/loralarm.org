@@ -1,20 +1,30 @@
 # server/chirpstack/
 
+```
+codecs/          payload codec JS, one per device profile + runnable test
+fixtures/        captured real ChirpStack MQTT up events (shared with the
+                 Python golden tests)
+loralarm-node-red-→-chirpstack-+-influxdb-+-python-migration-spec.md
+                 migration plan this repo executes
+```
+
 Payload codecs for the ChirpStack **device profiles**, one per sensor
 family -- the device profile already pins the protocol, so each codec
-is unambiguous. Ported 1:1 from the Node-RED unified flow's
+is unambiguous. They live in `codecs/`; ChirpStack stores the pasted
+copies in its own DB, so `codecs/` is the canonical git master. Ported 1:1 from the Node-RED unified flow's
 `decode uplink` / Cayenne LPP logic and the buffer-parser chain for the
 custom RAK4631 frame.
 
-## Files
+## Files (`codecs/`)
 
 | File | Sensor | Uplink |
 |---|---|---|
-| `payload_codec_rak4631.js` | RAK4631 (Arduino/Android) | custom 14-byte binary frame |
-| `payload_codec_rui3.js` | RUI3 | Cayenne LPP (`devices/rui3_sensor/app.h` channel map) |
-| `payload_codec_dragino_lds02.js` | Dragino LDS02 door switch | third-party format, fPort 10 (`DOOR_OPEN_STATUS`, `BAT_V`) |
-| `ws101-decoder.js` | Milesight WS101 smart button | vendor decoder, unmodified; fPort 85, `button_event.status` = short/long/double press (captures in `fixtures/`) |
-| `payload_codec_test.js` | runnable test: `node payload_codec_test.js` | |
+| `codecs/payload_codec_rak4631.js` | RAK4631 (Arduino/Android) | custom 14-byte binary frame |
+| `codecs/payload_codec_rui3.js` | RUI3 | Cayenne LPP (`devices/rui3_sensor/app.h` channel map) |
+| `codecs/payload_codec_dragino_lds02.js` | Dragino LDS02 door switch | third-party format, fPort 10 (`DOOR_OPEN_STATUS`, `BAT_V`) |
+| `codecs/ws101-decoder.js` | Milesight WS101 smart button | vendor decoder, unmodified; fPort 85, `button_event.status` = short/long/double press (captures in `fixtures/`) |
+| `codecs/payload_codec_browan_tbwl100.js` | Browan TBWL100 water-leak sensor | fPort 106: `status` 1 = leak / 0 = dry, re-sent while wet, plus a 60 min keep-alive with `battery` (V), `temperature`, `humidity` |
+| `codecs/payload_codec_test.js` | runnable test: `node codecs/payload_codec_test.js` | |
 
 `fixtures/` holds four captured real ChirpStack MQTT up events — one
 heartbeat and one alarm uplink each for a RAK4631 (`sensor3`) and a
@@ -87,11 +97,11 @@ handling -- it serves both families on one flow instance and does not
 know which device profile an uplink came from.)
 
 The Node-RED flows could later be simplified to consume `object`
-directly instead of the buffer-parser chain. `payload_codec_test.js`
+directly instead of the buffer-parser chain. `codecs/payload_codec_test.js`
 keeps the frame parsing testable without a live ChirpStack:
 
 ```bash
-node payload_codec_test.js   # 43 checks
+node codecs/payload_codec_test.js   # 43 checks, run from server/chirpstack/
 ```
 
 Note: the codec sandbox is plain JavaScript — no `Buffer`, no

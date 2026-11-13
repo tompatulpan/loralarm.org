@@ -356,7 +356,7 @@ and alarm state. Where the implementation deliberately differs from, or
 narrows, the plan above:
 
 - **Fixtures** live in `server/chirpstack/fixtures/` (renamed from the ignored
-  `log/`), tracked, and shared by the codec test (`node payload_codec_test.js`)
+  `log/`), tracked, and shared by the codec test (`node codecs/payload_codec_test.js`)
   and the Python golden test. The old "skip if missing" guard is gone.
 - **`Registry`** (`loralarm/registry.py`) holds rules, profiles, transforms and
   derivations. `builtin_registry()` is the shared base; each `Config` forks it

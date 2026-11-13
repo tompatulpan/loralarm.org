@@ -150,7 +150,7 @@ All five device-profile codecs are implemented and verified working (RUI3:
 Cayenne LPP; RAK4631: custom JavaScript; Dragino LDS02:
 `payload_codec_dragino_lds02.js`; Browan TBWL100 and Milesight WS101:
 `payload_codec_browan_tbwl100.js`, `ws101-decoder.js`).
-Canonical copies live in git at `server/chirpstack/payload_codec_*.js` (ChirpStack
+Canonical copies live in git at `server/chirpstack/codecs/payload_codec_*.js` (ChirpStack
 stores them in its DB; without git copies they will drift). The real-event fixtures
 that guard the codecs and the Python service live in
 `server/chirpstack/fixtures/` (tracked; previously the git-ignored `log/`).
@@ -241,12 +241,17 @@ Cayenne fPort 2 (ChirpStack already did it), dashboards (Grafana).
 | Host | Runs | Notes |
 |---|---|---|
 | lora box (existing) | ChirpStack, Mosquitto, gateway bridge | unchanged + InfluxDB integration config |
-| blue-104 (or successor) | InfluxDB, Grafana, ntfy, Python service | one docker-compose stack, everything in git |
+| **loralarm LXC (Proxmox)** | loralarm service + PWA web app | native systemd, no Docker; runbook + unit + env in [`server/deploy/`](../deploy/) (decided 2026-11-13: successor to blue-104, LAN-first go-live, fresh `loralarm.db`, `vzdump` = the backup) |
+| (later) InfluxDB, Grafana | own stack on the same Proxmox host | when §11 step 4 is picked up |
 
-- Python service and Influx/Grafana containers under `server/` in the repo.
+- The Python service runs as a system user with the unit in `server/deploy/`;
+  config in `/etc/loralarm/` (devices.json, mqtt.pass, env), DB in
+  `/var/lib/loralarm/`. Docker-compose stays the option for the Influx/Grafana
+  stack only.
 - Node-RED keeps running in parallel during migration (MQTT fans out to both) and is
   retired per-sensor-type once Python output matches.
-- Registry DB/ChirpStack is the asset that must be backed up; test restore path.
+- Registry DB/ChirpStack is the asset that must be backed up; test restore path
+  (LXC: `vzdump` + a copy of `loralarm.db`).
 
 ## 11. Migration checklist (order)
 
@@ -278,7 +283,7 @@ Cayenne fPort 2 (ChirpStack already did it), dashboards (Grafana).
       `server/python/loralarm/downlink.py`.
 - [ ] Confirm the InfluxDB meta measurement name in this ChirpStack version (rssi/snr).
 - [x] Events store choice: SQLite (events, device state; delivery + outbox tables planned in v2).
-- [ ] ChirpStack version pinned (codec copies are in `server/chirpstack/payload_codec_*.js`).
+- [ ] ChirpStack version pinned (codec copies are in `server/chirpstack/codecs/payload_codec_*.js`).
 - [ ] **Architecture v2** (`server/python/ARCHITECTURE.md`): phase 1 done;
       **phases 2–5 open** (Detector API, config layering, channels/dispatcher
       + delivery log + outbox, engine split).
