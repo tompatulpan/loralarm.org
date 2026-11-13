@@ -1,0 +1,40 @@
+[Unit]
+Description=LoRaLarm alarm service (MQTT -> alarms -> ntfy/Pushover + PWA)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=loralarm
+Group=loralarm
+WorkingDirectory=/opt/loralarm/python
+EnvironmentFile=/etc/loralarm/loralarm.env
+
+# Absolute --db: the default is ./loralarm.db and must never land in the code
+# directory (rsync --delete would remove it on the next code sync).
+ExecStart=/opt/loralarm/.venv/bin/python3 -m loralarm \
+    --mqtt 192.168.2.26 \
+    --config /etc/loralarm/devices.json \
+    --pass-file /etc/loralarm/mqtt.pass \
+    --db /var/lib/loralarm/loralarm.db \
+    --ntfy-url http://192.168.2.26:8075 \
+    --web --web-host 0.0.0.0 --web-port 8080 \
+    --static /opt/loralarm/web \
+    --web-insecure-cookie
+
+Restart=always
+RestartSec=5
+
+# Local security hardening (alarm path needs only: code, config, db, LAN sockets)
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/loralarm
+ReadOnlyPaths=/opt/loralarm
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target
