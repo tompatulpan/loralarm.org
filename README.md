@@ -1,3 +1,5 @@
+<p align="right"><img src="docs/loralarm-owl.svg" width="150" alt="LoRaLarm owl mascot"></p>
+
 # loralarm.org
 
 **An open, battery-powered LoRaWAN alarm and sensor system** — from firmware on the sensor nodes to the gateways, network server and notification service, collected in one repository. Published at [loralarm.org](https://loralarm.org).
