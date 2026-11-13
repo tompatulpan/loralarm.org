@@ -212,13 +212,16 @@ function sigMeter(d) {
 }
 
 function battLine(d) {
-  const parts = [];
-  if (d.battery_voltage != null) parts.push(`${d.battery_voltage.toFixed(2)} V`);
-  if (d.battery_pct != null) parts.push(`${Math.round(d.battery_pct)} %`);
-  parts.push(relTime(d.last_seen));
+  const batt = [];
+  if (d.battery_voltage != null) batt.push(`${d.battery_voltage.toFixed(2)} V`);
+  if (d.battery_pct != null) batt.push(`${Math.round(d.battery_pct)} %`);
   const low = d.battery_pct != null && d.battery_pct < 20;
-  const b = parts.slice(0, 2).join(' · ');
-  return `<div class="batt">${b ? `<b class="${low ? 'low' : ''}">${esc(b)}</b> · ` : ''}${esc(parts[parts.length - 1])}</div>`;
+  const parts = [
+    d.temperature != null ? `<span class="temp">${d.temperature.toFixed(1)} °C</span>` : '',
+    batt.length ? `<b class="${low ? 'low' : ''}">${esc(batt.join(' · '))}</b>` : '',
+    relTime(d.last_seen),
+  ].filter(Boolean);
+  return `<div class="batt">${parts.join(' · ')}</div>`;
 }
 
 function renderFleet() {
