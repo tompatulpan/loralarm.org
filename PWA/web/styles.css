@@ -43,6 +43,7 @@ input.pin:focus{outline:none;border-color:#1f6feb}
 .tabbar div{flex:1;text-align:center;font-size:.68rem;color:#8b949e;padding-top:4px;cursor:pointer}
 .tabbar div.on{color:#58a6ff}
 .tabbar .ic{display:block;font-size:1.05rem;margin-bottom:1px}
+.tabbar .ic svg{width:17px;height:17px;margin:0 auto}
 
 /* alarm banner */
 .banner{
