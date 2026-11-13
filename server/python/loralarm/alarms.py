@@ -122,6 +122,10 @@ class AlarmRule:
     # latching rule (button): once fired it stays active across frames that say
     # nothing about it, and clears only when release(cfg, frame, values) is True
     release: Callable[[DeviceConfig, Frame, dict], bool] | None = None
+    # fire-only rule: every frame whose check hits raises one fire notification;
+    # the kind is never latched into `active` and never cleared. Event-style
+    # input (a smart button press) as opposed to a level or latched condition.
+    pulse: bool = False
     # name of the device family whose definition declared the rule ("" = built-in
     # core rule); register_definition refuses two families sharing an alarm kind
     family: str = ""
@@ -159,6 +163,11 @@ def _known_kind(registry: Registry, value: str) -> AlarmKind:
 def _group(registry: Registry, kind: AlarmKind) -> str | None:
     r = registry.rule_for(kind)
     return r.group if r else None
+
+
+def _is_pulse(registry: Registry, kind: AlarmKind) -> bool:
+    r = registry.rule_for(kind)
+    return r is not None and r.pulse
 
 
 def _temp_low_check(cfg: DeviceConfig, frame: Frame, obj: dict) -> str | None:
@@ -365,6 +374,14 @@ class AlarmState:
                 motion = self._motion_event(cfg, up)
                 if motion:
                     transitions_pre.append(motion)
+
+        # fire-only (pulse) rules: every hit is reported, never latched, never
+        # cleared. A pulse kind is never part of `active`; a snapshot from a
+        # latched past (the button used to latch) is dropped here instead of
+        # producing an orphan clear on the first frame after the upgrade.
+        transitions_pre.extend(t for t in fired if _is_pulse(registry, t.kind))
+        fired = [t for t in fired if not _is_pulse(registry, t.kind)]
+        self.active = {k for k in self.active if not _is_pulse(registry, k)}
 
         now_active = {t.kind for t in fired}
         for kind in self.active - now_active:

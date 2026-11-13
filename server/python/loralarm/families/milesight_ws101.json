@@ -1,6 +1,6 @@
 {
   "name": "Smart Button [Milesight]",
-  "description": "Milesight WS101 smart button (codec ws101-decoder.js, fPort 85): `button_event.status` is 'short press' / 'long press' / 'double press', sent once per press; `battery` is a percentage (not volts), so the standard volt-based battery alarms do not apply; `button_battery` alerts below 20 % (param `batt_low_pct`). Latching: short press = ON (alarm), long press = OFF (clears), double press = not used. Frames that carry no press (battery, status) change nothing.",
+  "description": "Milesight WS101 smart button (codec ws101-decoder.js, fPort 85): `button_event.status` is 'short press' / 'long press' / 'double press', sent once per press; `battery` is a percentage (not volts), so the standard volt-based battery alarms do not apply; `button_battery` alerts below 20 % (param `batt_low_pct`). Transparent fire-only rule (`pulse`): every press of any kind raises one notification, nothing latches and nothing is ever cleared. Frames that carry no press (battery, status) change nothing.",
   "aliases": ["ws101", "milesight"],
   "data_ports": [85],
   "fields": {
@@ -17,14 +17,12 @@
       "kind": "button",
       "label": "Knapplarm",
       "field": "button",
-      "when": "eq",
-      "value": "short press",
-      "release": {"when": "eq", "value": "long press"},
-      "fire": "knapp PÅ (kort tryck)",
-      "clear": "knapp AV (långt tryck)",
+      "when": "in",
+      "value": ["short press", "long press", "double press"],
+      "pulse": true,
+      "fire": "knapptryck ({value})",
       "device_kinds": ["button"],
-      "notify_fire": "🔘 KNAPP PÅ: {name} — {detail}",
-      "notify_clear": "⚪ KNAPP AV: {name} — {detail}"
+      "notify_fire": "🔘 KNAPP: {name} — {detail}"
     },
     {
       "kind": "button_battery",

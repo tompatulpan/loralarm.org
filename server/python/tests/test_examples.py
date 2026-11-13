@@ -172,7 +172,7 @@ class Tbwl100ExampleTest(unittest.TestCase):
 
 
 class Ws101ExampleTest(unittest.TestCase):
-    def test_resolved_config_and_on_off_notify_the_device_topic(self):
+    def test_resolved_config_and_every_press_notifies_the_device_topic(self):
         conf = load("milesight_ws101.example.json")
         cfg = conf.for_event(BTN_EUI, "", WS101_PROFILE)
         self.assertEqual((cfg.kind, cfg.ntfy_topic), ("button", "button1"))
@@ -182,7 +182,7 @@ class Ws101ExampleTest(unittest.TestCase):
         engine.on_uplink(press("short press", 0))
         engine.on_uplink(press("long press", 10))
         self.assertEqual([(c[1], c[2]) for c in notifier.calls],
-                         [("button", True), ("button", False)])
+                         [("button", True), ("button", True)])
 
 
 class FullTemplateTest(unittest.TestCase):

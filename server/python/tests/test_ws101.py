@@ -1,6 +1,7 @@
 """Milesight WS101 smart button: the three real captured uplinks (fPort 85, profile
-"Smart Button [Milesight]") through the field map, the latching `button` rule and
-the Engine. Short press = ON, long press = OFF, double press = not used."""
+"Smart Button [Milesight]") through the field map, the fire-only `button` rule and
+the Engine. Transparent: every press (short, long, double) raises one alarm,
+nothing latches, nothing is ever cleared."""
 from __future__ import annotations
 
 import unittest
@@ -13,7 +14,7 @@ from loralarm.event import Uplink
 from loralarm.frame import build_values
 from loralarm.service import Engine
 
-from .common import REG, T0, make_cfg, make_config
+from .common import REG, T0, AlarmState, make_cfg, make_config
 from .test_engine import RecordingNotifier
 
 get_profile = REG.get_profile
@@ -22,7 +23,6 @@ LOG_DIR = Path(__file__).resolve().parent.parent.parent / "chirpstack" / "fixtur
 LOGS = {"double": "double press", "long": "long press", "short": "short press"}
 BTN_EUI = "24e124535d243458"
 PROFILE = "Smart Button [Milesight]"
-BUTTON = AlarmKind("button")
 
 
 def real(name: str) -> Uplink:
@@ -80,47 +80,49 @@ class Ws101EngineTest(unittest.TestCase):
     def active(self):
         return self.engine.devices[BTN_EUI][1].active
 
-    def test_short_press_is_on_and_long_press_is_off(self):
-        self.engine.on_uplink(press("short press", 0))
-        self.assertEqual(self.notifier.calls,
-                         [(BTN_EUI, "button", True, "knapp PÅ (kort tryck)")])
-        self.assertEqual(self.active(), {BUTTON})
-        self.engine.on_uplink(press("long press", 30))
-        self.assertEqual(self.notifier.calls[-1], (BTN_EUI, "button", False, "knapp AV (långt tryck)"))
-        self.assertEqual(self.active(), set())
+    def test_every_press_notifies_and_nothing_latches(self):
+        for i, status in enumerate(("short press", "long press", "double press")):
+            self.engine.on_uplink(press(status, 10 * i))
+            self.assertEqual(self.notifier.calls[-1],
+                             (BTN_EUI, "button", True, f"knapptryck ({status})"))
+            self.assertEqual(self.active(), set())       # fire-only: never latched
+        self.engine.on_uplink(press("short press", 30))   # repeated press: fires again
+        self.assertEqual(len(self.notifier.calls), 4)
 
-    def test_on_stays_latched_through_double_press_and_battery_frames(self):
-        self.engine.on_uplink(press("short press", 0))
-        self.engine.on_uplink(press("double press", 10))
-        self.engine.on_uplink(battery(90, 20))
-        self.engine.on_uplink(press("short press", 30))       # already ON: no repeat
-        self.assertEqual(len(self.notifier.calls), 1)
-        self.assertEqual(self.active(), {BUTTON})
-
-    def test_off_and_double_press_while_off_are_quiet(self):
-        self.engine.on_uplink(press("long press", 0))
-        self.engine.on_uplink(press("double press", 10))
-        self.engine.on_uplink(battery(90, 20))
+    def test_battery_and_status_frames_are_quiet(self):
+        self.engine.on_uplink(battery(90, 0))
+        self.engine.on_uplink(battery(100, 10))
         self.assertEqual(self.notifier.calls, [])
         self.assertEqual(self.active(), set())
 
-    def test_low_battery_alarms_once_and_survives_press_frames(self):
+    def test_low_battery_alarms_once_and_presses_do_not_latch(self):
         self.engine.on_uplink(battery(80, 0))
         self.engine.on_uplink(battery(15, 10))
         self.engine.on_uplink(battery(14, 20))                 # still low: no repeat
         self.engine.on_uplink(press("short press", 30))        # a press frame has no battery
         self.assertEqual([(c[1], c[2]) for c in self.notifier.calls],
                          [("button_battery", True), ("button", True)])
-        self.assertEqual(self.active(), {AlarmKind("button_battery"), BUTTON})
+        self.assertEqual(self.active(), {AlarmKind("button_battery")})
         self.engine.on_uplink(battery(100, 40))                # new battery
         self.assertEqual(self.notifier.calls[-1][1:3], ("button_battery", False))
-        self.assertEqual(self.active(), {BUTTON})
+        self.assertEqual(self.active(), set())
+
+    def test_latched_snapshot_from_before_the_pulse_rule_is_dropped(self):
+        conf = make_config(devices={}, defaults={"kind": "sensor"})
+        state = AlarmState()
+        state.restore({"active": ["button"]}, REG)
+        engine = Engine(conf, notifier=self.notifier)
+        engine.devices[BTN_EUI] = (conf.for_event(BTN_EUI, "Button 1", PROFILE), state)
+        engine.on_uplink(press("double press", 0))              # fires, no orphan clear
+        self.assertEqual([(c[1], c[2]) for c in self.notifier.calls], [("button", True)])
+        self.assertEqual(engine.devices[BTN_EUI][1].active, set())
 
     def test_real_logs_in_sequence(self):
-        # logged order: double, long (both quiet), then short -> ON
+        # logged order: double, long, short -> one alarm per press
         for name in ("double", "long", "short"):
             self.engine.on_uplink(real(name))
-        self.assertEqual([(c[1], c[2]) for c in self.notifier.calls], [("button", True)])
+        self.assertEqual([(c[1], c[2]) for c in self.notifier.calls],
+                         [("button", True)] * 3)
 
 
 if __name__ == "__main__":

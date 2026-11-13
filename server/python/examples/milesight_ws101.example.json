@@ -7,8 +7,8 @@
     "4. Secrets stay as ${ENV_VAR} placeholders; export LORALARM_PUSHOVER_USER / LORALARM_PUSHOVER_TOKEN.",
     "5. Save devices.json: it is hot-reloaded, no restart. Press the button to test.",
     "Everything except name and family is optional; the type's defaults fill the gaps.",
-    "Short press = ON (raises Knapplarm), long press = OFF (clears it), double press = not used.",
-    "The state is latched: battery/status frames and double presses change nothing; a second short press while ON does not repeat the message.",
+    "Transparent (fire-only): every press — short, long or double — raises one notification; nothing latches and nothing is cleared.",
+    "Battery/status frames without a press are quiet.",
     "No batt_* limits: the button reports battery as a percentage. Instead \"button_battery\" alerts below 20 % (add \"params\": {\"batt_low_pct\": 30} to a device to change it); the button only reports battery on its long interval.",
     "watchdog_hours: 0 = off. The button only sends on a press and on a long reporting interval (default 18 h), so keep it long or off.",
     "No alarm_window: add \"alarm_window\" to a device to silence it outside given hours."
