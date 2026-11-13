@@ -11,7 +11,14 @@ const KIND_LABEL = {
   motion: 'Rörelselarm', circuit: 'Kretslarm', tilt: 'Tiltlarm',
   door: 'Dörrlarm', stale: 'Ingen kontakt', armed: 'Larm',
 };
-const KIND_ICON = { door: '🚪', water: '💧', button: '🔘', sensor: '🌡️' };
+// Lucide outline icons (ISC License, lucide-icons/lucide), inline to keep the
+// CSP (`default-src 'self'`) and offline PWA intact; colored via currentColor.
+const KIND_ICON = {
+  door: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 21H2"/><path d="M10 3H7a2 2 0 00-2 2v16"/><path d="M14 12h.01"/><path d="M19 21V5a2 2 0 00-1.675-1.974l-6.163-1.013A1 1 0 0010 3v18a1 1 0 001.124.992z"/><path d="M22 21h-3"/></svg>',
+  water: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"/></svg>',
+  button: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="12" r="10"/></svg>',
+  sensor: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z"/></svg>',
+};
 
 let ME = null;            // {name, role}
 let DEVICES = [];         // GET /api/devices
