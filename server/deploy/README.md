@@ -1,11 +1,9 @@
-# server/deploy/ — loralarm on a Debian LXC (Proxmox)
+# server/deploy/ — loralarm on a Debian host
 
 Runs the loralarm service natively: a systemd unit, a virtualenv, SQLite in a
 file. No Docker inside the container.
 
-For a dedicated host installed by hand (git checkout under `/opt/loralarm`,
-manual unit) see `loralarm-service-deployment-guide.md` in this directory —
-same service, different layout.
+For a dedicated host installed by hand (git checkout under /opt/loralarm, manual unit) see loralarm-service-deployment-guide.md in this directory — same service, different layout, including the web/PWA layer, Cloudflare tunnel exposure and the git-based update workflow.
 
 | File | Role |
 |---|---|

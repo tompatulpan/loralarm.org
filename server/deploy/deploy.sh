@@ -13,5 +13,8 @@ rsync -a --delete \
     server/python/ "$TARGET:/opt/loralarm/python/"
 rsync -a --delete PWA/web/ "$TARGET:/opt/loralarm/web/"
 
-ssh "$TARGET" 'chown -R loralarm:loralarm /opt/loralarm && systemctl restart loralarm'
-echo "restarted. Journal: ssh '"$TARGET"' journalctl -u loralarm -f"
+ssh "$TARGET" '/opt/loralarm/.venv/bin/pip install -q \
+    -r /opt/loralarm/python/requirements.txt \
+    -r /opt/loralarm/python/requirements-web.txt && \
+    chown -R loralarm:loralarm /opt/loralarm && \
+    systemctl restart loralarm'
