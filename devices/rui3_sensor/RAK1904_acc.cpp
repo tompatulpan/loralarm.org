@@ -229,6 +229,13 @@ void send_acc_alert(void* unused)
 	MYLOG("ACC", "Motion detected! Sending immediate alert...");
 	g_solution_data.reset();
 	g_solution_data.addDigitalOutput(LPP_CHANNEL_DIG_6, 0x01);
+	// Motion frames keep flowing while a low-battery latch suppresses heartbeats, so they
+	// carry the supply state too: the server must never see a latched node as healthy.
+	float battery_reading = platform_battery_get();
+	if (battery_reading > 0.0f) {
+		g_solution_data.addVoltage(LPP_CHANNEL_BATT_1, battery_reading);
+	}
+	g_solution_data.addDigitalInput(LPP_CHANNEL_DIG_7, battery_shutdown_latched ? 1 : 0);
 	// Reset flag unconditionally so ISR can arm the next event regardless of TX outcome.
 	// A missed alert due to TX failure is recoverable; a stuck flag silences all future alerts.
 	motion_detected = false;

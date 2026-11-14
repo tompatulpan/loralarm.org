@@ -65,7 +65,7 @@ Firmware for LoRaWAN sensor/alarm nodes based on the RAKWireless RAK3172 (STM32W
 | 10 | Digital Input | ACC ODR frequency index | Same as above |
 | 11 | Digital Input | Switch state (0x01 = open, 0x00 = closed) | Every heartbeat + immediately on change |
 | 12 | Digital Input | Motion alert flag (0x01) | Immediately on motion; deferred to next heartbeat if radio busy |
-| 13 | Digital Input | Low-battery shutdown flag (0x01) | Final packet before entering indefinite sleep |
+| 13 | Digital Input | Low-battery shutdown flag (0x01) | Reserved — not transmitted since v30 |
 | 14 | Digital Input | Gas resistance (kΩ) — RAK1906 | Every heartbeat |
 
 ---
@@ -115,7 +115,7 @@ Config is applied on the next heartbeat tick and saved to flash.
 
 | Platform | Base board | Reported value | Range |
 |---|---|---|---|
-| RAK3172 | RAK19009 (no LDO) | True battery voltage | 2.8 → 4.2V operating range |
+| RAK3172 | RAK19009 (no LDO) | True battery voltage | 2.5 → 4.2V operating range |
 | RAK3172 | RAK19007 / RAK19003 (3.3V LDO) | LDO output (VDDA) | Flat ~3.34V until LDO droops near cell depletion |
 | RAK4631-R | RAK19007 / RAK19003 | True battery voltage | 3.5 → 4.2V |
 
@@ -144,21 +144,27 @@ Two independent checks protect the battery from deep discharge:
 | **Boot guard** | Platform default in `platform_stm32.cpp` / `platform_nrf52.cpp` | Immediately after platform init, before AT delay, flash, LoRa, or sensors |
 | **Runtime check** | `ATC+BATCRIT` stored in flash | Before every heartbeat; every 60 s while unjoined or telemetry is disabled |
 
+Both checks **latch instead of parking**: activity stays suppressed while the supply is at or below the threshold, but the supply is re-checked on every wake (motion interrupt, timers) and before every heartbeat, and telemetry resumes by itself once the supply recovers above critical + `BATT_RESUME_MARGIN_V` (default 50 mV hysteresis, `app.h`). Motion events keep sending while a shutdown is latched. The boot guard re-checks on a timed sleep (`BOOT_GUARD_RECHECK_MS`, 60 s in `app.h`), because at that early stage no GPIO interrupt, RUI3 timer, or LoRa event can wake the MCU yet.
+
 | Platform | Default threshold | Rationale |
 |---|---|---|
-| RAK3172 (Mode A) | **2800 mV** | Leaves margin above 2.5 V for radio/sensor load transients and measurement error |
+| RAK3172 (Mode A) | **2500 mV** | ~0.2 V above the brown-out reset, but clear of the ±0.1 V Vrefint error on a healthy 3 V cell (2800 mV latched healthy cells in v30/v31) |
 | RAK4631-R (Mode B) | **2800 mV** | True VBAT via divider; 2.8V = deeply discharged LiPo |
 
 Useful AT commands:
 
 ```
 ATC+BATCRIT?         read current runtime threshold
-ATC+BATCRIT=2800     recommended for RAK3172
+ATC+BATCRIT=2500     recommended for RAK3172
 ATC+BATCRIT=2800     recommended for RAK4631-R
 ATC+BATCRIT=0        disable runtime check entirely (boot guard still active)
 ```
 
-Values below the platform minimum are rejected and obsolete lower values in flash are migrated to the platform default. At the critical threshold the firmware **does not transmit a final LoRa packet**, because that current pulse is exactly when a marginal supply is most likely to brown out.
+Values below the platform minimum are rejected and obsolete lower values in flash are migrated to the platform default. On RAK3172 a stored value of exactly 2800 mV (the v30/v31 default) is also migrated to 2500 mV at boot, so 2800 cannot be kept there; set a value between 2501 and 4200 mV if you need a higher threshold.
+
+A low reading only latches after `BATT_LATCH_CONFIRM_READS` (3) consecutive readings at or below the threshold; each reading is the median of 5 Vrefint samples on RAK3172. While latched, heartbeats stay suppressed until the supply is above the resume threshold.
+
+The supply state is visible on the server: every heartbeat **and every motion frame** carries the battery voltage (ch 1) and the latch state (ch 13 `low_battery_shutdown`, 1 = latched). At the critical threshold the firmware **does not transmit a final LoRa packet**, because that current pulse is exactly when a marginal supply is most likely to brown out.
 
 > Software sleep reduces load but cannot physically disconnect a failing source. For guaranteed protection, use a regulator/load switch with UVLO or a supervisor that holds reset/removes power below the required voltage. Add local bulk and ceramic decoupling and verify the voltage at the module during a maximum-power LoRa TX with an oscilloscope.
 

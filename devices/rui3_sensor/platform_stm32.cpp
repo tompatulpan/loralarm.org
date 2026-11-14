@@ -43,9 +43,13 @@ static const uint32_t        VREFINT_CAL_VDDA_MV  = 3000UL;
 static const float BATT_CAL_GAIN   = 1.102f;
 static const float BATT_CAL_OFFSET = 0.022f;
 
-// Boot-time battery critical threshold (mV). Keep margin above 2.5 V so a
-// radio/sensor current pulse cannot pull a marginal direct supply into BOR.
-static const uint16_t BATT_CRITICAL_MV = 2800;
+// Boot-time battery critical threshold (mV). 2.5 V keeps ~0.2 V above the
+// STM32WLE5 brown-out reset while staying clear of the +/-0.1 V error of the
+// Vrefint measurement on a healthy 3 V cell (v30's 2.8 V latched healthy cells).
+static const uint16_t BATT_CRITICAL_MV = 2500;
+
+// Vrefint samples per reading; the median rejects a single wake-up outlier.
+static const uint8_t BATT_SAMPLES = 5;
 
 // ── API implementation ────────────────────────────────────────────────────────
 
@@ -63,21 +67,38 @@ float platform_battery_get(void)
     uint16_t vrefint_cal = *VREFINT_CAL_ADDR_PTR;
     analogReadResolution(12);
     analogRead(254);                              // warm-up: enable VREFEN, let Vrefint settle
-    uint16_t vref_raw = (uint16_t)analogRead(254); // UDRV_ADC_CHANNEL_VREFINT
+
+    // Collect valid VDDA samples (insertion-sorted) and take the median.
+    float vdda[BATT_SAMPLES];
+    uint8_t n = 0;
+    for (uint8_t i = 0; i < BATT_SAMPLES; i++) {
+        if (i > 0) {
+            delay(2);
+        }
+        uint16_t vref_raw = (uint16_t)analogRead(254); // UDRV_ADC_CHANNEL_VREFINT
+        if (vref_raw == 0 || vref_raw > 4095) {
+            continue;
+        }
+        float v = (VREFINT_CAL_VDDA_MV * (float)vrefint_cal) / (vref_raw * 1000.0f);
+        uint8_t j = n++;
+        while (j > 0 && vdda[j - 1] > v) {
+            vdda[j] = vdda[j - 1];
+            j--;
+        }
+        vdda[j] = v;
+    }
     analogReadResolution(10);                     // restore RUI3 default
 
-    MYLOG("BATT", "STM32 Vrefint: raw=%u (cal=%u)", vref_raw, vrefint_cal);
-
-    if (vref_raw == 0 || vref_raw > 4095) {
+    if (n == 0) {
         MYLOG("BATT", "Vrefint OOB — monitoring disabled");
         return 0.0f;  // 0.0 V skips boot guard (>0.5f) and runtime check
     }
 
-    float vdda_raw  = (VREFINT_CAL_VDDA_MV * (float)vrefint_cal) / (vref_raw * 1000.0f);
+    float vdda_raw  = vdda[n / 2];
     float vdda_corr = (vdda_raw * BATT_CAL_GAIN) + BATT_CAL_OFFSET;
 
-    MYLOG("BATT", "STM32: raw=%.3fV gain=%.3f off=%.3f -> %.3fV",
-          vdda_raw, BATT_CAL_GAIN, BATT_CAL_OFFSET, vdda_corr);
+    MYLOG("BATT", "STM32: %u/%u samples, median raw=%.3fV (min %.3f max %.3f) gain=%.3f off=%.3f -> %.3fV",
+          n, BATT_SAMPLES, vdda_raw, vdda[0], vdda[n - 1], BATT_CAL_GAIN, BATT_CAL_OFFSET, vdda_corr);
 
     return vdda_corr;
 }

@@ -1,5 +1,46 @@
 # Changelog
 
+## [v32] — Battery supervision: fewer false latches, visible state
+
+Field report (sensor16, RAK3172): heartbeats stopped, the server showed a low battery while a
+meter confirmed a healthy cell, motion alarms kept working. Cause: the v30/v31 undervoltage
+latch tripped on a healthy ~3 V cell (2.8 V cutoff vs. +/-0.1 V Vrefint error and a 1.102
+calibration gain), silently suppressing every heartbeat while motion frames still went out.
+
+- RAK3172 default cutoff 2800 → **2500 mV** (`platform_stm32.cpp`). A stored `ATC+BATCRIT`
+  of exactly 2800 mV (the old default) is migrated to the platform default at boot; other
+  values are kept. nRF52840 stays at 2800 mV (LiPo).
+- `platform_battery_get()` (STM32): median of 5 Vrefint samples instead of one read right after wake-up.
+- The latch needs a **confirmed** low reading: `BATT_LATCH_CONFIRM_READS` (3) readings in a row,
+  `BATT_LATCH_CONFIRM_GAP_MS` (100 ms) apart. One outlier no longer latches the device.
+- Fix: while latched and between critical and critical + `BATT_RESUME_MARGIN_V`, heartbeats were
+  sent although the latch was still set; they now stay suppressed until the real recovery point.
+- Battery voltage (ch 1) plus the latch state (ch 13, `low_battery_shutdown`, 1 = latched) are
+  sent in **every heartbeat and every motion frame**, so a latched node is visible on the server
+  (the heartbeat keeps its voltage; motion frames used to carry none).
+- `version_byte` 31 → 32.
+
+## [v31] — Recoverable low-battery shutdown
+
+The undervoltage latch no longer parks the firmware in a never-returning untimed
+`sleep.all()` loop. It latches a flag and recovers by itself:
+
+- New `battery_shutdown_latched` flag; radio TX stays suppressed while the supply
+  is at or below the `ATC+BATCRIT` threshold, but RUI3 callback dispatch stays
+  alive — motion events (RAK_TIMER_1) keep sending during the outage.
+- Recovery with hysteresis: telemetry resumes once the supply exceeds
+  critical + `BATT_RESUME_MARGIN_V` (50 mV). Checked on every wake in `loop()`
+  (which also sends an immediate heartbeat) and before every heartbeat in
+  `sensor_handler()`.
+- Boot guard (platform default threshold; custom parameters load later): sleeps
+  in a timed re-check loop (`api.system.sleep.all(BOOT_GUARD_RECHECK_MS)`, 60 s —
+  at that point no GPIO interrupt, RUI3 timer, or LoRa event exists yet, so an
+  untimed sleep could never wake) and continues startup once the supply recovers —
+  previously it never returned.
+- No parked callback frames: a guard failure now returns normally instead of
+  stacking a `while (1)` frame inside the RUI3 timer dispatch context.
+- `version_byte` 30 → 31.
+
 ## [v30] — Undervoltage hardening
 
 - Raise the RAK3172 direct-supply cutoff from 2.5 V to 2.8 V and include equality in cutoff checks.
@@ -10,7 +51,7 @@
 
 All notable changes to this project are documented here.
 
-> The runtime `version_byte` (currently `30`) remains in `loralarm_RUI3_sensor.ino` because
+> The runtime `version_byte` (currently `32`) remains in `rui3_sensor.ino` because
 > it is transmitted in every payload. This file holds the human-readable history.
 
 ---

@@ -839,7 +839,7 @@
    "    temp=None °C  batt=None V (None %, unknown)",
    "    >>> Rörelselarm: LARM — rörelse upptäckt — 1 detektering inom 30 s",
    "2026-11-09 15:31:21 sensor16   RAK3172  fPort=2 fCnt=1792 rssi=-38 snr=11.5",
-   "    temp=23.1 °C  batt=2.98 V (60.0 %, ok)",
+   "    temp=23.1 °C  batt=2.98 V (80.0 %, ok)",
    "2026-11-09 15:33:14 sensor3    RAK4631  fPort=2 fCnt=1493 rssi=-35 snr=13.2",
    "    temp=24.0 °C  batt=3.578095238095238 V (37.8 %, ok)",
    "    >>> Rörelselarm: LARM — rörelse upptäckt — 1 detektering inom 30 s",
@@ -949,9 +949,8 @@
  "unconfigured_device": {
   "console": [
    "2026-11-09 15:33:14 newbie     RAK3172  fPort=2 fCnt=1 rssi=-35 snr=13.2",
-   "    temp=-3.0 °C  batt=2.85 V (16.7 %, low)",
+   "    temp=-3.0 °C  batt=2.85 V (58.3 %, ok)",
    "    >>> Lågtemperaturalarm: LARM — -3.0 °C ≤ nedre gräns 0.0 °C",
-   "    >>> Batterinivå låg: LARM — 2.85 V (16.7 %) ≤ varningsgräns 2.9 V",
    "2026-11-09 15:33:24 newbie              fPort=2 fCnt=1 rssi=-35 snr=13.2",
    "    temp=32.0 °C  batt=2.7 V (0.0 %, empty)",
    "    >>> Batteri tomt: LARM — 2.70 V (0.0 %) < tomt 2.8 V",
@@ -962,13 +961,6 @@
     "active": true,
     "channel": "ntfy",
     "message": "❄️ LÅG TEMPERATUR: newbie — -3.0 °C ≤ nedre gräns 0.0 °C",
-    "target": "loralarm",
-    "title": "loralarm newbie"
-   },
-   {
-    "active": true,
-    "channel": "ntfy",
-    "message": "🔋 BATTERI LÅGT: newbie — 2.85 V (16.7 %) ≤ varningsgräns 2.9 V",
     "target": "loralarm",
     "title": "loralarm newbie"
    },

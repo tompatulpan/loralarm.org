@@ -65,7 +65,7 @@ void platform_ble_rearm(void);
  * Used before flash settings are loaded (get_at_setting has not run yet).
  * At runtime the value from flash (ATC+BATCRIT) is used instead.
  *
- * STM32WLE5: 2800 mV
+ * STM32WLE5: 2500 mV
  * nRF52840:  2800 mV
  */
 uint16_t platform_batt_critical_default_mv(void);

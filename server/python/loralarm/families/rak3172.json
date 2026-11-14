@@ -6,12 +6,28 @@
     "label": "index",
     "table": {"1": 1, "2": 10, "3": 25, "4": 50, "5": 100, "6": 200, "7": 400}
   },
+  "fields": {
+    "low_battery_shutdown": {"from": "low_battery_shutdown"}
+  },
   "defaults": {
     "tk_correction_c": 0.0,
     "temp_alarm_min_c": 0.0,
     "batt_full_v": 3.1,
-    "batt_warn_v": 2.9,
-    "batt_empty_v": 2.8,
+    "batt_warn_v": 2.8,
+    "batt_empty_v": 2.5,
     "circuit_mode": "level"
-  }
+  },
+  "rules": [
+    {
+      "kind": "battery_shutdown",
+      "label": "Batteri-avstängning",
+      "field": "low_battery_shutdown",
+      "when": "truthy",
+      "fire": "noden har stängt av hjärtslag (batteri kritiskt)",
+      "clear": "noden sänder hjärtslag igen",
+      "windowed": false,
+      "notify_fire": "🪫 BATTERI AVSTÄNGD: {name} — {detail}",
+      "notify_clear": "🔋 Batteri återhämtat: {name} — {detail}"
+    }
+  ]
 }

@@ -1,8 +1,7 @@
 /**
  * @file app.h
  * @author Bernd Giesecke (bernd@giesecke.tk)
- * @brief Defines, includes, global definitions
- * @version 0.1
+ * @brief Original file by Bernd Giesecke: RAKwireless RUI3 sensor application header
  * @date 2023-05-04
  * 
  * @copyright Copyright (c) 2023
@@ -16,6 +15,7 @@ extern bool gpioInterruptEnabled;
 extern volatile bool switch_state;
 extern uint8_t previous_switch_state;
 extern volatile bool motion_detected;
+extern bool battery_shutdown_latched;
 
 extern uint8_t rx_data_0;
 extern uint8_t rx_data_1;
@@ -65,7 +65,7 @@ struct custom_param_s
 	uint8_t interrupt_threshold = 0x08;
 	uint8_t interrupt_duration = 0x01;
 	uint8_t acc_frequency = 2;
-	uint16_t batt_critical_mv = 2800;  // Shutdown threshold in millivolts (ATC+BATCRIT); 0 = disabled
+	uint16_t batt_critical_mv = 2500;  // Shutdown threshold in millivolts (ATC+BATCRIT); 0 = disabled. get_at_setting() applies the platform default
 };
 
 /** Custom flash parameters */
@@ -89,6 +89,14 @@ extern custom_param_s custom_parameters;
 #define JOIN_MAX_TXP   0    // LoRaWAN TXP index 0 = max EIRP for region (LoRaWAN std: 0=max, 7=min)
 #define JOIN_RETRY_SEC 255  // Seconds between auto-rejoin attempts (valid RUI3 range: 7-255 s)
 #define BATTERY_CHECK_INTERVAL_MS 60000UL // Protection cadence while unjoined or periodic TX is disabled
+#define BATT_RESUME_MARGIN_V 0.05f      // Hysteresis: supply must exceed the critical threshold by this margin
+                                        // before telemetry resumes after a low-battery shutdown
+#define BATT_LATCH_CONFIRM_READS 3      // A low reading must repeat this many times in a row (BATT_LATCH_CONFIRM_GAP_MS apart)
+#define BATT_LATCH_CONFIRM_GAP_MS 100   // before the shutdown latch is set; one outlier never latches the device
+#define BATT_LEGACY_DEFAULT_MV 2800     // v30/v31 default; a stored value equal to it is migrated to a lower platform default
+#define BOOT_GUARD_RECHECK_MS 60000UL   // Boot-guard re-check cadence while the supply is critical at boot:
+                                        // timed sleep so the MCU wakes even with no external wake source
+                                        // (no GPIO interrupts/timers/LoRa configured yet at that point)
 // After a successful join the device stays at JOIN_MAX_TXP (max EIRP) until the network
 // sends a LinkADRReq. In close-range deployments this saturates the gateway LNA, causing
 // wild RSSI swings and COLLISION_PACKET on the RX1 downlink. Starting at a moderate level
@@ -122,7 +130,7 @@ extern volatile time_t last_trigger;
 #define LPP_CHANNEL_DIG_4   10   // RAK1904 acc-sensor update frequency
 #define LPP_CHANNEL_DIG_5   11   // switch state (GPIO)
 #define LPP_CHANNEL_DIG_6   12   // RAK1904 motion detection alert
-#define LPP_CHANNEL_DIG_7   13   // low-battery shutdown notification
+#define LPP_CHANNEL_DIG_7   13   // low-battery shutdown latch state (1 = latched), sent in heartbeats and motion frames
 #define LPP_CHANNEL_GAS_1   14   // RAK1906 gas resistance (kΩ)
 
 extern WisCayenne g_solution_data;
@@ -160,5 +168,5 @@ bool setup_rak1904(void);
 // Circuit Switch stuff
 bool init_gpio(void);
 void switch_int_handler(void);
-void switch_bounce_check(void* unused);  // Changed
-void handle_gpio(void* unused);          // Changed
+void switch_bounce_check(void* unused);
+void handle_gpio(void* unused);

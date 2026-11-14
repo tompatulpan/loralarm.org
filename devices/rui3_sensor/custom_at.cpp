@@ -388,10 +388,19 @@ bool get_at_setting(void)
 		? temp_params.acc_frequency : 2;
 
 	// Restore battery critical threshold. Migrate obsolete low thresholds so an
-	// older flash record cannot silently defeat the safer platform minimum.
+	// older flash record cannot silently defeat the safer platform minimum, and
+	// move the v30/v31 default (2800 mV) down to a lower platform default
+	// (RAK3172: 2500 mV) — 2800 mV latched healthy 3 V cells on that platform.
 	custom_parameters.batt_critical_mv = (temp_params.batt_critical_mv == 0 ||
 	    (temp_params.batt_critical_mv >= platform_batt_critical_default_mv() && temp_params.batt_critical_mv <= 4200))
 		? temp_params.batt_critical_mv : platform_batt_critical_default_mv();
+	if (custom_parameters.batt_critical_mv == BATT_LEGACY_DEFAULT_MV &&
+	    platform_batt_critical_default_mv() < BATT_LEGACY_DEFAULT_MV)
+	{
+		custom_parameters.batt_critical_mv = platform_batt_critical_default_mv();
+		MYLOG("AT_CMD", "Batt critical %d mV is the old default, migrated to %d mV",
+		      BATT_LEGACY_DEFAULT_MV, custom_parameters.batt_critical_mv);
+	}
 	MYLOG("AT_CMD", "Batt critical restored: %d mV", custom_parameters.batt_critical_mv);
 
 	// Apply to the global variables used by setup_rak1904()

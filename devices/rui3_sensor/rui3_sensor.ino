@@ -27,9 +27,10 @@ bool gpioInterruptEnabled = false; // set true if switch sensor is going to be u
 bool acc_config_pending = false;  // Set in receiveCallback, applied safely in sensor_handler
 bool setup_complete = false;      // Set true at end of setup(); guards joinCallback TX
 bool timer_started = false;       // Set true when timer+first TX have been armed; prevents double-start
+bool battery_shutdown_latched = false; // Low-battery shutdown latch; clears when the supply recovers (see enterLowBatteryShutdown)
 
 /** version byte */
-uint8_t version_byte = 30;
+uint8_t version_byte = 32;  // Version byte for the device firmware
 
 /** Packet is confirmed/unconfirmed (Set with AT commands) */
 bool g_confirmed_mode = false;
@@ -218,20 +219,73 @@ void linkcheckCallback(SERVICE_LORA_LINKCHECK_T *data)
 }
 
 /**
- * @brief Sleep indefinitely when the supply reaches the critical threshold.
- * Called before any further flash, sensor, or radio activity.
+ * @brief True once the supply has recovered above the resume threshold
+ * (critical threshold + BATT_RESUME_MARGIN_V). Invalid readings (<= 0.5 V)
+ * never count as recovered; a disabled runtime guard (BATCRIT=0) has
+ * nothing to recover from.
+ */
+bool battery_recovered(float voltage) {
+	if (voltage <= 0.5f) {
+		return false;
+	}
+	if (custom_parameters.batt_critical_mv == 0) {
+		return true;
+	}
+	return voltage > (custom_parameters.batt_critical_mv / 1000.0f) + BATT_RESUME_MARGIN_V;
+}
+
+/**
+ * @brief True only if a low reading is confirmed by fresh follow-up readings.
  *
- * RUI3/RAK3172 has no hardware power-off; untimed deep sleep minimises current
- * but is not a substitute for a hardware undervoltage disconnect.
+ * @param first_reading Voltage just measured by the caller
+ * @return true when first_reading and BATT_LATCH_CONFIRM_READS-1 further readings
+ *         are all at or below the critical threshold. A single outlier right
+ *         after wake-up returns false, so it can never latch the device.
+ */
+bool battery_confirmed_critical(float first_reading) {
+	if (custom_parameters.batt_critical_mv == 0) {
+		return false;
+	}
+	const float critical_v = custom_parameters.batt_critical_mv / 1000.0f;
+	if (!(first_reading > 0.5f && first_reading <= critical_v)) {
+		return false;
+	}
+	for (uint8_t i = 1; i < BATT_LATCH_CONFIRM_READS; i++) {
+		delay(BATT_LATCH_CONFIRM_GAP_MS);
+		float v = platform_battery_get();
+		if (!(v > 0.5f && v <= critical_v)) {
+			MYLOG("POWER", "Low reading %.2fV not confirmed (%.2fV) — not latching", first_reading, v);
+			return false;
+		}
+	}
+	return true;
+}
+
+/**
+ * @brief Latch the low-battery shutdown state when the supply reaches the
+ * critical threshold. Called before any further flash, sensor, or radio
+ * activity.
+ *
+ * Latches a flag instead of parking in a never-returning untimed sleep loop:
+ * RUI3 callback dispatch stays alive, motion events (RAK_TIMER_1) keep
+ * sending, and the latch clears — without a power cycle — as soon as the
+ * supply recovers above critical + BATT_RESUME_MARGIN_V. Recovery is
+ * re-checked on every wake in loop() and before every heartbeat in
+ * sensor_handler().
+ *
+ * RUI3/RAK3172 has no hardware power-off; the latch suppresses radio TX but
+ * is not a substitute for a hardware undervoltage disconnect.
  */
 void enterLowBatteryShutdown(float voltage) {
-	MYLOG("POWER", "Battery critical (%.2fV <= %.2fV); radio TX suppressed", voltage, custom_parameters.batt_critical_mv / 1000.0f);
-
-	MYLOG("POWER", "Entering indefinite deep sleep to protect battery");
-	Serial.flush();
-	while (1) {
-		api.system.sleep.all(); // untimed — no LPTIM wakeup needed, minimises sleep current
+	// Log only on the latch transition — sensor_handler calls this on every
+	// tick while the outage persists, and the recovery path logs its own line.
+	if (!battery_shutdown_latched) {
+		MYLOG("POWER", "Battery critical (%.2fV <= %.2fV); radio TX suppressed", voltage, custom_parameters.batt_critical_mv / 1000.0f);
+		MYLOG("POWER", "Latching low-battery shutdown until supply recovers above %.2fV",
+		      (custom_parameters.batt_critical_mv / 1000.0f) + BATT_RESUME_MARGIN_V);
+		Serial.flush();
 	}
+	battery_shutdown_latched = true;
 }
 
 /**
@@ -469,9 +523,23 @@ void setup()
 		float boot_voltage = platform_battery_get();
 		MYLOG("SETUP", "Boot battery: %.2fV", boot_voltage);
 		if (boot_voltage > 0.5f && boot_voltage <= (platform_batt_critical_default_mv() / 1000.0f)) {
-			MYLOG("SETUP", "Battery too low at boot (%.2fV), entering indefinite sleep", boot_voltage);
+			// custom_parameters is not loaded from flash yet — use the platform default threshold.
+			const float boot_resume_v = (platform_batt_critical_default_mv() / 1000.0f) + BATT_RESUME_MARGIN_V;
+			MYLOG("SETUP", "Battery too low at boot (%.2fV); sleeping until supply recovers above %.2fV",
+			      boot_voltage, boot_resume_v);
 			Serial.flush();
-			while (1) { api.system.sleep.all(); }
+			// Timed deep sleep: at this point no GPIO interrupts, RUI3 timers, or
+			// LoRa events exist yet, so an untimed sleep could never wake (e.g. the
+			// device is simply plugged into a charger). The timeout guarantees a
+			// re-check every BOOT_GUARD_RECHECK_MS; external events still wake earlier.
+			while (1) {
+				api.system.sleep.all(BOOT_GUARD_RECHECK_MS);
+				float v = platform_battery_get();
+				if (v > boot_resume_v) {
+					MYLOG("SETUP", "Battery recovered (%.2fV) — continuing startup", v);
+					break;
+				}
+			}
 		}
 	}
 
@@ -783,11 +851,20 @@ void sensor_handler(void* unused)
 	// This must be the first substantive action: do not write flash, wake
 	// sensors, or key the radio while the direct supply is marginal.
 	float battery_reading = platform_battery_get();
-	if (battery_reading > 0.5f &&
-	    custom_parameters.batt_critical_mv != 0 &&
-	    battery_reading <= (custom_parameters.batt_critical_mv / 1000.0f)) {
+
+	// Clear the shutdown latch once the supply recovers above the resume
+	// threshold (hysteresis) — this tick continues as a normal heartbeat, so
+	// the server sees the recovered device without waiting for the next wake.
+	if (battery_shutdown_latched && battery_recovered(battery_reading)) {
+		battery_shutdown_latched = false;
+		MYLOG("POWER", "Supply recovered (%.2fV); telemetry resumed", battery_reading);
+	}
+
+	// Stay quiet while latched until the supply is back above the resume threshold
+	// (hysteresis), not merely above the critical threshold.
+	if (battery_shutdown_latched || battery_confirmed_critical(battery_reading)) {
 		enterLowBatteryShutdown(battery_reading);
-		return; // never reached
+		return;
 	}
 
 	// A zero interval disables telemetry, not the protection timer.
@@ -873,6 +950,7 @@ void sensor_handler(void* unused)
 		g_solution_data.addDigitalInput(LPP_CHANNEL_DIG_2, interrupt_threshold);
 		g_solution_data.addDigitalInput(LPP_CHANNEL_DIG_3, interrupt_duration);
 		g_solution_data.addDigitalInput(LPP_CHANNEL_DIG_4, acc_frequency);
+		g_solution_data.addDigitalInput(LPP_CHANNEL_DIG_7, battery_shutdown_latched ? 1 : 0);
 		
 		// Update previous values
 		previous_version_byte = version_byte;
@@ -923,11 +1001,27 @@ void sensor_handler(void* unused)
 
 /**
  * @brief This example is complete timer driven.
- * The loop() does nothing than sleep.
+ * The loop() sleeps, but while a low-battery shutdown is latched it
+ * re-checks the supply on every wake (RAK1904 INT1 motion, RUI3 timers) and
+ * resumes telemetry — with an immediate heartbeat — once the supply
+ * recovers above the resume threshold.
  *
  */
 void loop()
 {
+	if (battery_shutdown_latched)
+	{
+		float v = platform_battery_get();
+		if (battery_recovered(v))
+		{
+			battery_shutdown_latched = false;
+			MYLOG("POWER", "Supply recovered (%.2fV) — resuming telemetry", v);
+			// Immediate heartbeat so the server sees the device without
+			// waiting for the next periodic tick.
+			sensor_handler(NULL);
+		}
+	}
+
 	// Disable ADC/peripherals before sleep (no-op on STM32WLE5).
 	// See platform_pre_sleep() in platform_nrf52.cpp for details.
 	platform_pre_sleep();
