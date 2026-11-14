@@ -21,7 +21,14 @@
     "\"web_users\": PWA accounts for --web (invite tokens, stored hashed in SQLite; seeded at startup and on every",
     "   reload — removing a user disables them immediately). role \"admin\" may also disarm a device \"tills vidare\";",
     "   everyone else gets snooze presets (1/8/24 h). Tokens are ${ENV_VAR} placeholders, never literal secrets.",
+    "",
+    "Device visibility: \"group\" on a device + \"groups\" on a web_user decide who sees it in the PWA (and gets its",
+    "   pushes). Groups only affect role \"user\": an admin ALWAYS sees every device, grouped or not — a \"groups\"",
+    "   key on an admin is ignored, so omit it. A device WITHOUT a group is visible to every user (so a new device",
+    "   can never alarm to nobody). If non-admins must only see their own devices, give EVERY device a group.",
     "Several recipients per device are not available yet (planned).",
+    "PWA Web Push (VAPID) is NOT configured here: one keypair per server, a secret like Pushover — set",
+    "   LORALARM_VAPID_PRIVATE_KEY (+ LORALARM_VAPID_SUB) in the env file; users subscribe in the PWA.",
     "Temperature alarms: temp_alarm_min_c (alarm at or below), temp_alarm_max_c (alarm at or above; unset = off),",
     "   temp_alarm_hysteresis_c (applies to both limits: the alarm clears only this many degrees back inside the limit)."
   ],
@@ -45,7 +52,7 @@
   },
   "web_users": [
     {"name": "anna", "token": "${LORALARM_WEB_TOKEN_ANNA}", "role": "admin"},
-    {"name": "bosse", "token": "${LORALARM_WEB_TOKEN_BOSSE}", "role": "user"}
+    {"name": "bosse", "token": "${LORALARM_WEB_TOKEN_BOSSE}", "role": "user", "groups": ["villa", "garage"]}
   ],
   "defaults": {
     "kind": "sensor",
@@ -112,6 +119,7 @@
     "ac1f09fffe1001aa": {
       "name": "sensor1",
       "family": "RAK4631",
+      "group": "villa",
       "application_id": "${LORALARM_CS_APP_LARM}",
       "pushover_user": "${LORALARM_PUSHOVER_USER}",
       "pushover_token": "${LORALARM_PUSHOVER_TOKEN}",
@@ -133,6 +141,7 @@
     "ac1f09fffe120202": {
       "name": "sensor2",
       "family": "RAK3172",
+      "group": "garage",
       "application_id": "${LORALARM_CS_APP_SUBLARM}",
       "pushover_user": "${LORALARM_PUSHOVER_USER}",
       "pushover_token": "${LORALARM_PUSHOVER_TOKEN}",
@@ -142,6 +151,7 @@
     "a84041a5d759d001": {
       "name": "Door1",
       "family": "Dragino Switch LDS02",
+      "group": "villa",
       "pushover_user": "${LORALARM_PUSHOVER_USER}",
       "pushover_token": "${LORALARM_PUSHOVER_TOKEN}",
       "ntfy_topic": "door1"
@@ -149,6 +159,7 @@
     "a84041e3d101233d": {
       "name": "Door2",
       "family": "Dragino Switch LDS02",
+      "group": "garage",
       "ntfy_topic": "door2",
       "watchdog_hours": 2,
       "alarm_window": "21:00-09:00",
@@ -157,17 +168,20 @@
     "e8e1e100010a7001": {
       "name": "water1",
       "family": "Browan Water sensor",
+      "group": "garage",
       "temp_alarm_max_c": 30.0,
       "ntfy_topic": "water1"
     },
     "e8e1e100010a7002": {
       "name": "water2",
       "family": "Browan Water sensor",
+      "group": "villa",
       "ntfy_topic": "water2"
     },
     "0a0b0c0d0e0f1011": {
       "name": "co2-hall",
       "family": "CO2-1",
+      "group": "villa",
       "ntfy_topic": "co2-hall",
       "params": {"co2_max": 1000}
     }
