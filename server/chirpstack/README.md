@@ -22,7 +22,7 @@ custom RAK4631 frame.
 | `codecs/payload_codec_rak4631.js` | RAK4631 (Arduino/Android) | custom 14-byte binary frame |
 | `codecs/payload_codec_rui3.js` | RUI3 | Cayenne LPP (`devices/rui3_sensor/app.h` channel map) |
 | `codecs/payload_codec_dragino_lds02.js` | Dragino LDS02 door switch | third-party format, fPort 10 (`DOOR_OPEN_STATUS`, `BAT_V`) |
-| `codecs/ws101-decoder.js` | Milesight WS101 smart button | vendor decoder, unmodified; fPort 85, `button_event.status` = short/long/double press (captures in `fixtures/`) |
+| `codecs/payload_codec_milesight_button_ws101.js` | Milesight WS101 smart button | vendor decoder, byte-identical copy (see *Licensing of the vendor codec* below); fPort 85, `button_event.status` = short/long/double press (captures in `fixtures/`) |
 | `codecs/payload_codec_browan_tbwl100.js` | Browan TBWL100 water-leak sensor | fPort 106: `status` 1 = leak / 0 = dry, re-sent while wet, plus a 60 min keep-alive with `battery` (V), `temperature`, `humidity` |
 | `codecs/payload_codec_test.js` | runnable test: `node codecs/payload_codec_test.js` | |
 
@@ -37,6 +37,18 @@ firmware frames serve as regression fixtures. They are tracked in git
 The Dragino LDS02 codec (`payload_codec_dragino_lds02.js`) is a third-party
 decoder, fPort 10; its decoded objects are the inline fixtures in
 `server/python/tests/test_lds02.py` and the golden scenarios.
+
+## Licensing of the vendor codec
+
+`payload_codec_milesight_button_ws101.js` is a byte-identical copy of the
+official decoder © 2025 Milesight IoT from
+[Milesight-IoT/SensorDecoders](https://github.com/Milesight-IoT/SensorDecoders),
+whose repo is licensed **GPL-3.0**. Do not strip its copyright header and
+do not treat it as MIT: the project's MIT LICENSE does not cover this file.
+A copy of the upstream license text is kept alongside it
+(`milesight_ws101.LICENSE.md`).
+The other codecs were written for this project and are MIT like the rest
+of the repo.
 
 ## Install in ChirpStack
 

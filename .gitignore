@@ -6,6 +6,9 @@ site/.hugo_build.lock
 
 # Secrets – LoRaWAN keys, device credentials (keep example.secrets.h!)
 secrets.h
+loralarm.db
+notes.txt
+note.txt
 
 # Logs from device firmware / debugging
 *.log

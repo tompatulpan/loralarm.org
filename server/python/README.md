@@ -236,7 +236,7 @@ because the sensor sends a keep-alive every 60 min).
 ### Milesight WS101 smart button
 
 Built in as `families/milesight_ws101.json` (profile name = the ChirpStack
-device profile `Smart Button [Milesight]`, codec `chirpstack/codecs/ws101-decoder.js`):
+device profile `Smart Button [Milesight]`, codec `chirpstack/codecs/payload_codec_milesight_button_ws101.js`):
 fPort 85, `button_event.status` → `button` (dotted `from` path), kind `button`,
 no downlinks. Battery arrives as a percentage (`battery` → `battery_pct`), so
 the volt-based battery alarms do not apply; `button_battery` alerts below 20 % (override per device with `"params": {"batt_low_pct": 30}`). The

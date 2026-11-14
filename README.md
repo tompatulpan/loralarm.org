@@ -10,7 +10,7 @@
 
 ## What is LoRaLarm?
 
-LoRaLarm is a DIY alarm and monitoring system built on LoRaWAN sensors (RAK WisBlock hardware) that report switch state, motion, temperature, battery voltage and more over the air. Uplinks travel through a LoRa gateway to ChirpStack, where a rule-driven service evaluates every frame and pushes notifications (ntfy, Pushover) when something happens — a door opens, motion is detected, a battery runs low, a device goes silent. Everything is open source under the MIT license.
+LoRaLarm is a DIY alarm and monitoring system built on LoRaWAN sensors (RAK WisBlock hardware) that report switch state, motion, temperature, battery voltage and more over the air. Uplinks travel through a LoRa gateway to ChirpStack, where a rule-driven service evaluates every frame and pushes notifications (ntfy, Pushover) when something happens — a door opens, motion is detected, a battery runs low, notify a device goes silent. Everything is open source — the MIT license throughout, with the single vendored Milesight decoder kept under its upstream GPL-3.0 (see License below).
 
 Highlights:
 
@@ -112,3 +112,11 @@ Already running [Meshtastic](https://meshtastic.org) on a RAK4631? Then half the
 ## License
 
 [MIT](LICENSE) © Tomas · SM0ONR
+
+Exception: `server/chirpstack/codecs/payload_codec_milesight_button_ws101.js`
+is a byte-identical copy of a vendor decoder © 2025 Milesight IoT, published
+under GPL-3.0 in
+[Milesight-IoT/SensorDecoders](https://github.com/Milesight-IoT/SensorDecoders).
+The MIT license does not cover that file; it stays under its upstream
+copyright and GPL-3.0 terms. A copy of the license text is kept alongside
+it at `server/chirpstack/codecs/milesight_ws101.LICENSE.md`.
