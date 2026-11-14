@@ -11,6 +11,7 @@ calibration gain), silently suppressing every heartbeat while motion frames stil
   of exactly 2800 mV (the old default) is migrated to the platform default at boot; other
   values are kept. nRF52840 stays at 2800 mV (LiPo).
 - `platform_battery_get()` (STM32): median of 5 Vrefint samples instead of one read right after wake-up.
+  nRF52840 (`platform_nrf52.cpp`): median of 5 SAADC samples instead of the mean of 3.
 - The latch needs a **confirmed** low reading: `BATT_LATCH_CONFIRM_READS` (3) readings in a row,
   `BATT_LATCH_CONFIRM_GAP_MS` (100 ms) apart. One outlier no longer latches the device.
 - Fix: while latched and between critical and critical + `BATT_RESUME_MARGIN_V`, heartbeats were

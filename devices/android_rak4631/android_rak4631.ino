@@ -21,6 +21,8 @@ Using the accelerometer LIS3DH mounted on Slot C RAK19007 i.e interupt pin WB_IO
  ver29 - Send immediately - read_acc(); read_temp(); read_batt(); 	sendLoRaDataWithRetry();
  ver30 - Battery protection: boot guard + runtime shutdown below 2.5V (raw 1707)
  ver31 - LoRa join retry: 3x every 2 min, then every 30 min until joined
+ ver32 - Battery supervision: median ADC, 2.8 V recoverable latch (no System OFF), checked on every wake,
+         latch reported in status byte bit3 (0x08), boot guard waits instead of shutting down
  
  */
 #include "main.h"
@@ -31,7 +33,10 @@ int16_t acc_z = 0; // accelerometer Z value
 float temperature = 0;
 uint16_t raw_adc = 0;
 uint8_t status_byte = 0x00; // status byte
-uint8_t version_byte = 31; // version byte
+uint8_t version_byte = 32; // version byte
+
+bool battery_latched = false;      // Low-battery latch; clears when the supply recovers (see read_batt)
+uint8_t latched_tick_count = 0;    // Periodic ticks seen while latched (heartbeat thinning)
 
 // TODO: Consider replacing with a #define compile-time flag for cleaner configuration,
 // since this value is never changed at runtime.
@@ -137,13 +142,23 @@ void setup(void)
   analogReference(AR_INTERNAL_3_0);
   analogReadResolution(12);
 
-  // Boot-time battery guard: shut down immediately if battery is critically low.
-  // This prevents a restart loop when the battery sits below the threshold.
+  // Boot-time battery guard: while the supply is critical, wait (timed re-check) instead of
+  // joining/transmitting, so a marginal supply is not pushed into a brown-out loop.
+  // No System OFF: that needed a power cycle to recover. Near-zero readings mean no battery
+  // (USB only) and never block startup.
   delay(10); // allow ADC to stabilize
-  if (analogRead(WB_A0) < BATT_CRITICAL_RAW) {
-    // SoftDevice not yet running, use direct register shutdown
-    NRF_POWER->SYSTEMOFF = 1;
-    __WFE();
+  {
+    const uint16_t resume_mv = BATT_CRITICAL_MV + BATT_RESUME_MARGIN_MV;
+    uint16_t mv = batt_raw_to_mv(read_batt_raw());
+    if (mv > BATT_NO_BATTERY_MV && mv <= BATT_CRITICAL_MV) {
+      while (true) {
+        delay(BATT_BOOT_RECHECK_MS);
+        mv = batt_raw_to_mv(read_batt_raw());
+        if (mv <= BATT_NO_BATTERY_MV || mv > resume_mv) {
+          break;
+        }
+      }
+    }
   }
 
 	// Setup GPIO interrupt pin only if gpioInterruptEnabled is true
@@ -283,6 +298,13 @@ void loop(void)
 			read_acc();
       read_temp();
       read_batt();
+			if (battery_latched && (++latched_tick_count % BATT_LATCHED_HEARTBEAT_EVERY) != 0) {
+#ifndef MAX_SAVE
+				Serial.println("Battery latched: periodic frame skipped");
+#endif
+				clear_acc_int();
+				break;
+			}
 			sendLoRaDataWithRetry();
 			clear_acc_int();
 		  break;
@@ -293,6 +315,7 @@ void loop(void)
 #endif
 		read_acc();
 		read_temp();
+		read_batt();
 	    status_byte = 0x02; // set status byte for acc alarm
 	    sendLoRaDataWithRetry(); // send status byte
 	    status_byte = 0x00; // reset status byte
@@ -315,6 +338,7 @@ void loop(void)
 			Serial.println("GPIO triggered");
 #endif
 	    if (digitalRead(GPIO_PIN) == HIGH) {
+		read_batt();
 		status_byte = 0x01; // set status byte for the GPIO alarm
 		// read_acc();
 		sendLoRaDataWithRetry(); // send status byte
@@ -343,45 +367,80 @@ void loop(void)
 }
 
 /**
- * @brief Reads the battery voltage as raw data from the ADC on pin A0.
- * 
- * This function reads the battery voltage multiple times to average out the readings
- * and stores the result in the global variable `raw_adc`.
+ * @brief Converts a raw 12-bit ADC count on A0 to battery millivolts (same formula as the codec).
+ */
+uint16_t batt_raw_to_mv(uint16_t raw) {
+	return (uint16_t)(raw * (3000.0f / 4095.0f) * BATT_DIVIDER);
+}
+
+/**
+ * @brief Raw ADC count on A0: median of BATT_SAMPLES reads after one discarded warm-up read.
+ *
+ * The median rejects a single outlier (wake-up glitch, wrong resolution), which a mean of
+ * three samples did not: one bad sample pulled the mean close to the shutdown threshold.
+ */
+uint16_t read_batt_raw(void) {
+	uint16_t samples[BATT_SAMPLES];
+
+	analogRead(WB_A0); // warm-up: charge the sample-and-hold capacitor
+	for (int i = 0; i < BATT_SAMPLES; i++) {
+		delay(5);
+		uint16_t v = (uint16_t)analogRead(WB_A0);
+		int j = i;
+		while (j > 0 && samples[j - 1] > v) { // insertion sort
+			samples[j] = samples[j - 1];
+			j--;
+		}
+		samples[j] = v;
+	}
+	return samples[BATT_SAMPLES / 2];
+}
+
+/**
+ * @brief Measures the battery into `raw_adc` and updates the low-battery latch.
+ *
+ * Latch sets only when the low measurement repeats BATT_CONFIRM_READS times in a row.
+ * It clears above BATT_CRITICAL_MV + BATT_RESUME_MARGIN_MV (hysteresis), or when the
+ * reading drops to "no battery attached" (USB power). Replaces the old one-sample
+ * System OFF, which needed a power cycle to recover.
  */
 void read_batt() {
-  const int NUM_SAMPLES = 3;  // Number of ADC readings to be averaged
-	int sum = 0;
-
-	for (int i = 0; i < NUM_SAMPLES; i++) {
-		sum += analogRead(WB_A0);
-		vTaskDelay(pdMS_TO_TICKS(10)); // Small delay between samples
-	}
-	int average_adc = sum / NUM_SAMPLES;
-	raw_adc = average_adc;
+	raw_adc = read_batt_raw();
+	uint16_t mv = batt_raw_to_mv(raw_adc);
 #ifndef MAX_SAVE
-	Serial.printf("raw ADC %d\n", raw_adc);  // raw data that will be converted on application side
+	Serial.printf("raw ADC %d (%u mV)\n", raw_adc, mv);  // raw data is converted on the application side
 #endif
 
-	if (raw_adc < BATT_CRITICAL_RAW) {
-		// Battery critically low: send one final packet then shut down
-		status_byte = 0x04; // signal last packet before shutdown
-		sendLoRaDataWithRetry();
-		enterSystemOff();
-	}
-}
-
-void enterSystemOff(void) {
+	if (battery_latched) {
+		if (mv <= BATT_NO_BATTERY_MV || mv > BATT_CRITICAL_MV + BATT_RESUME_MARGIN_MV) {
+			battery_latched = false;
+			latched_tick_count = 0;
 #ifndef MAX_SAVE
-	Serial.println("Battery critical, entering System OFF");
-	delay(100); // flush serial
+			Serial.printf("Battery recovered (%u mV), latch cleared\n", mv);
 #endif
-	detachInterrupt(digitalPinToInterrupt(INT1_PIN));
-	if (gpioInterruptEnabled) {
-		detachInterrupt(digitalPinToInterrupt(GPIO_PIN));
+		}
+		return;
 	}
-	sd_power_system_off(); // SoftDevice-safe shutdown
-}
 
+	if (mv <= BATT_NO_BATTERY_MV || mv > BATT_CRITICAL_MV) {
+		return;
+	}
+	for (int i = 1; i < BATT_CONFIRM_READS; i++) {
+		delay(BATT_CONFIRM_GAP_MS);
+		uint16_t again = batt_raw_to_mv(read_batt_raw());
+		if (again <= BATT_NO_BATTERY_MV || again > BATT_CRITICAL_MV) {
+#ifndef MAX_SAVE
+			Serial.printf("Low reading %u mV not confirmed (%u mV), not latching\n", mv, again);
+#endif
+			return;
+		}
+	}
+	battery_latched = true;
+	latched_tick_count = 0;
+#ifndef MAX_SAVE
+	Serial.printf("Battery critical (%u mV <= %u mV): latched, alarm frames only\n", mv, BATT_CRITICAL_MV);
+#endif
+}
 
 /**
  * @brief Sends a LoRaWan data package with a retry mechanism in case of failure.

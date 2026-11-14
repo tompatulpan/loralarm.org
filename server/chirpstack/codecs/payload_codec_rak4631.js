@@ -32,7 +32,7 @@ function freqHz(registerValue) {
 //   2-3  int16be X (0.001 g)      4-5: Y        6-7: Z
 //   8    int8 temperature, raw (Tk offset is applied in Node-RED)
 //   9    status byte: bit0 = switch alarm, bit1 = accelerometer alarm,
-//        bit2 = FUNK_ON, bits3-7 reserved
+//        bit2 = FUNK_ON, bit3 = low-battery latch (firmware ver32+), bits4-7 reserved
 //   10   version
 //   11   interrupt threshold
 //   12   interrupt duration
@@ -56,6 +56,7 @@ function decodeUplink(input) {
       temperature: b[8] >= 0x80 ? b[8] - 0x100 : b[8],   // raw, no Tk
       motion_switch: (status & 0x01) !== 0 ? 1 : 0,
       motion_alert: (status & 0x02) !== 0 ? 1 : 0,
+      low_battery_shutdown: (status & 0x08) !== 0 ? 1 : 0,
       status_raw: status,
       version_byte: b[10],
       acc_threshold: b[11],

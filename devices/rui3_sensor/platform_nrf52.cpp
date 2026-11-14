@@ -48,8 +48,8 @@ static const float BAT_ADC_DIVIDER = 0.587f;
 // WB_A0 pin for the voltage divider input.
 static const uint8_t BAT_ADC_PIN = WB_A0;
 
-// Number of SAADC samples to average (with 2 ms inter-sample delay).
-static const uint8_t BATTERY_SAMPLES = 3;
+// Number of SAADC samples per reading (odd; the median is used), 2 ms apart.
+static const uint8_t BATTERY_SAMPLES = 5;
 
 // Boot-time battery critical threshold (mV). 2.8 V = deeply discharged LiPo.
 static const uint16_t BATT_CRITICAL_MV = 2800;
@@ -98,21 +98,28 @@ float platform_battery_get(void)
     // to subsequent calls.
     analogReadResolution(12);
     analogRead(BAT_ADC_PIN);  // warm-up: charge S&H capacitor
-    float sum = 0.0f;
+    float samples[BATTERY_SAMPLES];
     for (uint8_t i = 0; i < BATTERY_SAMPLES; i++) {
         delay(2);  // allow S&H capacitor to fully recharge between samples
         uint16_t raw = (uint16_t)analogRead(BAT_ADC_PIN);
         float vbat = (raw / 4095.0f) * SAADC_VREF_V / BAT_ADC_DIVIDER;
         MYLOG("BATT", "  sample[%u]: raw=%u  VBAT=%.3fV", i, raw, vbat);
-        sum += vbat;
+        uint8_t j = i;
+        while (j > 0 && samples[j - 1] > vbat) {  // insertion sort
+            samples[j] = samples[j - 1];
+            j--;
+        }
+        samples[j] = vbat;
     }
 
     analogReadResolution(10);  // restore RUI3 default
 
-    float result = sum / BATTERY_SAMPLES;
+    // Median, not mean: one 10-bit/glitch sample (~1 V) among the reads would drag a mean
+    // down towards the critical threshold, but cannot move the median.
+    float result = samples[BATTERY_SAMPLES / 2];
 
 #if MY_DEBUG > 0
-    MYLOG("BATT", "nRF52 avg=%.3fV rui3=%.3fV  cal_check: DIV=%.3f",
+    MYLOG("BATT", "nRF52 median=%.3fV rui3=%.3fV  cal_check: DIV=%.3f",
           result, rui3_bat, (result / rui3_bat) * BAT_ADC_DIVIDER);
 #else
     MYLOG("BATT", "nRF52 VBAT=%.3fV", result);

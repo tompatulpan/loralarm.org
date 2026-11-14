@@ -43,6 +43,10 @@ check('rak: temp raw 20', d1.temperature === 20, d1.temperature);
 const customNeg = custom.slice(); customNeg[8] = 0xEC; // -20
 check('rak: negative temp', rak.decodeUplink({ bytes: customNeg, fPort: 1 }).data.temperature === -20);
 check('rak: status bits', d1.motion_switch === 1 && d1.motion_alert === 0 && d1.status_raw === 5, d1);
+check('rak: latch bit clear', d1.low_battery_shutdown === 0, d1);
+const latched = custom.slice(); latched[9] = 0x0A; // ACC alarm (0x02) + low-battery latch (0x08)
+const dl = rak.decodeUplink({ bytes: latched, fPort: 1 }).data;
+check('rak: latch bit set, other bits intact', dl.low_battery_shutdown === 1 && dl.motion_alert === 1 && dl.motion_switch === 0 && dl.status_raw === 10, dl);
 check('rak: settings fields', d1.version_byte === 3 && d1.acc_threshold === 32 && d1.acc_duration === 2 && d1.acc_frequency === 47, d1);
 check('rak: freq 47 -> 10 Hz', d1.acc_frequency_hz === 10, d1.acc_frequency_hz);
 const rshort = rak.decodeUplink({ bytes: [1,2,3], fPort: 1 });

@@ -65,8 +65,23 @@ void setAccFrequency(uint8_t value);
 // ADC
 // #define NUM_SAMPLES 5   // Number of ADC readings to be averaged
 
-// Battery protection thresholds (raw 12-bit ADC, AR_INTERNAL_3_0, 1:1 divider)
-#define BATT_CRITICAL_RAW 1707  // ~2.5V: hard shutdown
-void enterSystemOff(void);
+// Battery protection. Raw 12-bit ADC, AR_INTERNAL_3_0; volts = raw * (3.0 / 4095) * BATT_DIVIDER,
+// the same formula as the ChirpStack codec (payload_codec_rak4631.js). Calibrate BATT_DIVIDER
+// against a meter and change the codec with it.
+#define BATT_DIVIDER 1.7f
+#define BATT_CRITICAL_MV 2800            // At or below: latch (alarm frames only, rare heartbeats)
+#define BATT_RESUME_MARGIN_MV 50         // Hysteresis: latch clears above BATT_CRITICAL_MV + this
+#define BATT_NO_BATTERY_MV 500           // At or below: no battery attached (USB only), never a latch reason
+#define BATT_SAMPLES 5                   // Median of this many ADC reads per measurement
+#define BATT_CONFIRM_READS 3             // A low measurement must repeat this many times in a row
+#define BATT_CONFIRM_GAP_MS 100          // ... this far apart, before the latch is set
+#define BATT_BOOT_RECHECK_MS 60000UL     // Boot guard: re-check interval while the supply is critical
+#define BATT_LATCHED_HEARTBEAT_EVERY 12  // While latched, send every Nth periodic tick (12 x 5 min = 1 h)
+#define STATUS_BATT_LATCH 0x08           // Status byte bit3: low-battery latch (bit0 switch, bit1 ACC, bit2 FUNK_ON)
+
+extern bool battery_latched;
+uint16_t read_batt_raw(void);
+uint16_t batt_raw_to_mv(uint16_t raw);
+void read_batt(void);
 
 #endif // MAIN_H

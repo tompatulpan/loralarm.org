@@ -384,7 +384,8 @@ bool sendLoRaFrame(void)
   // Send temperature from LIS3DH
   m_lora_app_data.buffer[i++] = (int8_t)temperature;      // Byte 8, (-128 to 127 range)
   // Send info bytes
-  m_lora_app_data.buffer[i++] = status_byte;              // Byte 9
+  // Byte 9. The latch bit is added here so every frame reports it, whatever status_byte holds.
+  m_lora_app_data.buffer[i++] = status_byte | (battery_latched ? STATUS_BATT_LATCH : 0);
   m_lora_app_data.buffer[i++] = version_byte;
   // Send LIS3DH_INT1_THS, LIS3DH_INT1_DURATION and LIS3DH_CTRL_REG1 here
   m_lora_app_data.buffer[i++] = (uint8_t)interrupt_threshold;          // Byte 11
