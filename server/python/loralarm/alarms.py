@@ -293,7 +293,7 @@ def clear_detail(kind: AlarmKind, cfg: DeviceConfig, frame: Frame, registry: Reg
     rule = registry.rule_for(kind)
     if rule is not None and rule.clear is not None:
         return rule.clear(cfg, frame)
-    return "kvitterad"
+    return "återställt"
 
 
 def tilt_deviation(acc: dict, baseline: dict[str, float], sense: float) -> str | None:

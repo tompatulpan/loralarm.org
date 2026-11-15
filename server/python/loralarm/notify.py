@@ -46,11 +46,11 @@ DEFAULT_TEXT: dict[str, tuple[str, str]] = {
     "battery_empty": ("🪫 BATTERI TOMT: {name} — {detail}",
                       "🔌 Batteri OK: {name} — {detail}"),
     "motion":       ("🚨 RÖRELSELARM: {name} — {detail}",
-                     "✔️ Rörelse kvitterad: {name} — {detail}"),
+                     "✔️ Rörelselarm återställt: {name} — {detail}"),
     "circuit":       ("⚠️ KRETSALARM (öppen krets): {name} — {detail}",
                       "✔️ Krets sluten: {name} — {detail}"),
     "tilt":         ("📐 TILTLARM: {name} — {detail}",
-                     "✔️ Tilt kvitterad: {name} — {detail}"),
+                     "✔️ Tiltlarm återställt: {name} — {detail}"),
     "stale":         ("📵 INGEN KONTAKT: {name} — {detail}",
                       "✔️ Kommunikationen med {name} är återupptagen"),
     # PWA arm/disarm audit notification: active=True means "larm på" again
@@ -97,7 +97,7 @@ def message_text(kind: str, name: str, active: bool, detail: str,
         text = _safe_format(template, f"rule text for {kind}", **fields)
         if text is not None:
             return text
-    state = "LARM" if active else "kvitterad"
+    state = "LARM" if active else "återställt"
     return f"{name}: {label} {state} — {detail}"
 
 

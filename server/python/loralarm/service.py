@@ -271,7 +271,7 @@ class Engine:
                 self._log_event(up.time, up.dev_eui, up.device_name,
                                 f"settings_f{up.f_port}", False, text)
             for t in transitions:
-                print(f"    >>> {self.registry.label_for(t.kind)}: {'LARM' if t.active else 'kvitterad'} — {t.detail}",
+                print(f"    >>> {self.registry.label_for(t.kind)}: {'LARM' if t.active else 'återställt'} — {t.detail}",
                       flush=True)
                 self._emit(cfg, up.time, t, state)
             state.suppressed.intersection_update(state.active)
@@ -295,7 +295,7 @@ class Engine:
                 self.devices[dev_eui] = (cfg, state)
                 for t in state.watchdog(cfg, now):
                     print(f"{now:%Y-%m-%d %H:%M:%S} {cfg.name:<10} watchdog "
-                          f">>> {self.registry.label_for(t.kind)}: {'LARM' if t.active else 'kvitterad'} — {t.detail}",
+                          f">>> {self.registry.label_for(t.kind)}: {'LARM' if t.active else 'återställt'} — {t.detail}",
                           flush=True)
                     self._emit(cfg, now, t, state)
                     if t.active:

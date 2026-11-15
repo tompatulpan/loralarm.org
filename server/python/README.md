@@ -185,7 +185,7 @@ Only notify inside a daily time window, per device (or per type / for all in
   `"alarm_window_kinds": ["door", "temp_low"]` (this list replaces the default).
 - **Clears:** a clear is sent only if its alarm was sent. An alarm that fired
   inside the window and clears after it closed is still reported; a suppressed
-  alarm never produces a lone "kvitterad".
+  alarm never produces a lone "återställt".
 - **A mistake never silences alarms:** a bad window (`"evenings"`, start = end)
   or an unknown time zone is logged once per device as an error and treated as
   "no window".
@@ -219,7 +219,7 @@ device profile `Dragino Switch LDS02`): fPort 10, `DOOR_OPEN_STATUS` →
 `door_open`, `BAT_V` → `battery_voltage` (both declared in its `fields`), kind
 `door`, no downlinks, battery
 limits for 2 × AAA (full 3.0 / warn 2.5 / empty 2.2 V). Opening the door raises
-`Dörrlarm`, closing it clears it ("kvitterad"); heartbeats while open do not
+`Dörrlarm`, closing it clears it ("återställt"); heartbeats while open do not
 repeat it.
 
 ### Browan TBWL100 water-leak sensor
@@ -336,14 +336,14 @@ the server, so no firmware change is needed.
 - `event` (RAK4631, default for that family): the firmware sends the circuit bit in
   **one** frame when the contact opens and nothing when it closes, and every other
   frame (timer, ACC alarm) has the bit clear. So each pulse is a fire-only alarm
-  (pulses within `circuit_hold_s`, default 30 s, count as one) and no "kvitterad" is
+  (pulses within `circuit_hold_s`, default 30 s, count as one) and no "återställt" is
   sent. Override per family or device in `devices.json` with `circuit_mode`.
 ## Motion alarm (`motion_mode`)
 
 - The firmware sends `motion_alert=1` in **one** frame per accelerometer interrupt
   and never in heartbeats, so the bit is a pulse, not a level.
 - `event` (**default**): every detection is reported — each pulse fires a
-  fire-only `Rörelselarm` (no "kvitterad"), so shaking a device shows every
+  fire-only `Rörelselarm` (no "återställt"), so shaking a device shows every
   detection. Detections are counted in a sliding `motion_window_s` (default 30 s)
   window and included in the alarm detail ("3 detekteringar inom 30 s").
 - `motion_min_detections` (default 1) sets how many detections within

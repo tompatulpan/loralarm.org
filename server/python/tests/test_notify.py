@@ -13,13 +13,13 @@ from .common import make_cfg
 class MessageTextTest(unittest.TestCase):
     def test_config_template_wins_and_supports_label(self):
         cfg = make_cfg(notify_fire={"motion": "{label} på {name}"},
-                       notify_clear={"motion": "{label} kvitterad på {name}"})
+                       notify_clear={"motion": "Larm återställt: {label} på {name}"})
         fire = message_text("motion", cfg.name, True, "rörelse upptäckt",
                             cfg.notify_fire, cfg.notify_clear)
         clear = message_text("motion", cfg.name, False, "ingen rörelse",
                              cfg.notify_fire, cfg.notify_clear)
         self.assertEqual(fire, "Rörelselarm på sensor3")
-        self.assertEqual(clear, "Rörelselarm kvitterad på sensor3")
+        self.assertEqual(clear, "Larm återställt: Rörelselarm på sensor3")
 
     def test_builtin_default_text(self):
         for kind, label in (("temp_low", "Lågtemperaturalarm"), ("temp_high", "Högtemperaturalarm")):

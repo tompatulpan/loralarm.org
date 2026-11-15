@@ -10,21 +10,21 @@
    "2026-11-09 15:35:14 Door1      Dragino Switch LDS02 fPort=10 fCnt=121 rssi=-68 snr=9.0",
    "    temp=None °C  batt=2.4 V (25.0 %, low)",
    "    >>> Batterinivå låg: LARM — 2.40 V (25.0 %) ≤ varningsgräns 2.5 V",
-   "    >>> Dörrlarm: kvitterad — dörren är stängd",
+   "    >>> Dörrlarm: återställt — dörren är stängd",
    "    (ej skickat: larmet var utanför larmtid)",
    "2026-11-09 20:33:14 Door1      Dragino Switch LDS02 fPort=10 fCnt=18001 rssi=-68 snr=9.0",
    "    temp=None °C  batt=2.95 V (93.8 %, ok)",
    "    >>> Dörrlarm: LARM — dörren är öppen",
-   "    >>> Batterinivå låg: kvitterad — 2.95 V > varningsgräns 2.5 V",
+   "    >>> Batterinivå låg: återställt — 2.95 V > varningsgräns 2.5 V",
    "2026-11-09 20:34:14 Door1      Dragino Switch LDS02 fPort=10 fCnt=18061 rssi=-68 snr=9.0",
    "    temp=None °C  batt=2.95 V (93.8 %, ok)",
-   "    >>> Dörrlarm: kvitterad — dörren är stängd",
+   "    >>> Dörrlarm: återställt — dörren är stängd",
    "2026-11-10 07:40:14 Door1      Dragino Switch LDS02 fPort=10 fCnt=58021 rssi=-68 snr=9.0",
    "    temp=None °C  batt=2.95 V (93.8 %, ok)",
    "    >>> Dörrlarm: LARM — dörren är öppen",
    "2026-11-10 08:30:14 Door1      Dragino Switch LDS02 fPort=10 fCnt=61021 rssi=-68 snr=9.0",
    "    temp=None °C  batt=2.95 V (93.8 %, ok)",
-   "    >>> Dörrlarm: kvitterad — dörren är stängd"
+   "    >>> Dörrlarm: återställt — dörren är stängd"
   ],
   "notifications": [
    {
@@ -131,7 +131,7 @@
    "2026-11-09 15:33:24 sensor3    🛡️ larm på",
    "2026-11-09 15:33:34 sensor3    RAK4631  fPort=2 fCnt=21 rssi=-35 snr=13.2",
    "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)",
-   "    >>> Rörelselarm: kvitterad — ingen rörelse",
+   "    >>> Rörelselarm: återställt — ingen rörelse",
    "2026-11-09 15:33:44 sensor3    RAK4631  fPort=2 fCnt=31 rssi=-35 snr=13.2",
    "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)",
    "    >>> Rörelselarm: LARM — rörelse upptäckt"
@@ -182,14 +182,14 @@
    {
     "active": false,
     "channel": "ntfy",
-    "message": "✔️ Rörelse kvitterad: sensor3 — ingen rörelse",
+    "message": "✔️ Rörelselarm återställt: sensor3 — ingen rörelse",
     "target": "sensor3",
     "title": "loralarm sensor3"
    },
    {
     "active": false,
     "channel": "pushover",
-    "message": "✔️ Rörelse kvitterad: sensor3 — ingen rörelse",
+    "message": "✔️ Rörelselarm återställt: sensor3 — ingen rörelse",
     "target": "sensor3",
     "title": "loralarm sensor3"
    },
@@ -230,7 +230,7 @@
    "    temp=None °C  batt=2.95 V (93.8 %, ok)",
    "2026-11-09 15:33:44 Door1      Dragino Switch LDS02 fPort=10 fCnt=31 rssi=-68 snr=9.0",
    "    temp=None °C  batt=2.95 V (93.8 %, ok)",
-   "    >>> Dörrlarm: kvitterad — dörren är stängd",
+   "    >>> Dörrlarm: återställt — dörren är stängd",
    "2026-11-09 15:33:54 Door1      Dragino Switch LDS02 fPort=10 fCnt=41 rssi=-68 snr=9.0",
    "    temp=None °C  batt=2.4 V (25.0 %, low)",
    "    >>> Batterinivå låg: LARM — 2.40 V (25.0 %) ≤ varningsgräns 2.5 V",
@@ -239,7 +239,7 @@
    "    >>> Batteri tomt: LARM — 2.10 V (0.0 %) < tomt 2.2 V",
    "2026-11-09 15:34:14 Door1      Dragino Switch LDS02 fPort=10 fCnt=61 rssi=-68 snr=9.0",
    "    temp=None °C  batt=2.95 V (93.8 %, ok)",
-   "    >>> Batteri tomt: kvitterad — 2.95 V ≥ tomt 2.2 V",
+   "    >>> Batteri tomt: återställt — 2.95 V ≥ tomt 2.2 V",
    "2026-11-09 15:34:24 Door1      Dragino Switch LDS02 fPort=2 fCnt=71"
   ],
   "notifications": [
@@ -366,7 +366,7 @@
    "    temp=32.0 °C  batt=3.9 V (100.0 %, ok)",
    "2026-11-09 15:33:44 sensor16   RAK3172  fPort=2 fCnt=31 rssi=-35 snr=13.2",
    "    temp=32.0 °C  batt=3.9 V (100.0 %, ok)",
-   "    >>> Kretsalarm: kvitterad — krets sluten"
+   "    >>> Kretsalarm: återställt — krets sluten"
   ],
   "notifications": [
    {
@@ -558,7 +558,7 @@
    "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)",
    "2026-11-09 15:33:34 sensor3    RAK4631  fPort=2 fCnt=21 rssi=-35 snr=13.2",
    "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)",
-   "    >>> Rörelselarm: kvitterad — ingen rörelse",
+   "    >>> Rörelselarm: återställt — ingen rörelse",
    "2026-11-09 15:33:44 sensor3    RAK4631  fPort=2 fCnt=31 rssi=-35 snr=13.2",
    "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)"
   ],
@@ -580,14 +580,14 @@
    {
     "active": false,
     "channel": "ntfy",
-    "message": "✔️ Rörelse kvitterad: sensor3 — ingen rörelse",
+    "message": "✔️ Rörelselarm återställt: sensor3 — ingen rörelse",
     "target": "sensor3",
     "title": "loralarm sensor3"
    },
    {
     "active": false,
     "channel": "pushover",
-    "message": "✔️ Rörelse kvitterad: sensor3 — ingen rörelse",
+    "message": "✔️ Rörelselarm återställt: sensor3 — ingen rörelse",
     "target": "sensor3",
     "title": "loralarm sensor3"
    }
@@ -610,7 +610,7 @@
    "    temp=1.0 °C  batt=3.9 V (70.0 %, ok)",
    "2026-11-09 15:36:14 sensor3    RAK4631  fPort=2 fCnt=181 rssi=-35 snr=13.2",
    "    temp=12.0 °C  batt=3.9 V (70.0 %, ok)",
-   "    >>> Lågtemperaturalarm: kvitterad — 12.0 °C > nedre gräns 2.0 °C",
+   "    >>> Lågtemperaturalarm: återställt — 12.0 °C > nedre gräns 2.0 °C",
    "2026-11-09 15:37:14 sensor3    RAK4631  fPort=2 fCnt=241 rssi=-35 snr=13.2",
    "    temp=24.0 °C  batt=3.4 V (20.0 %, low)",
    "    >>> Batterinivå låg: LARM — 3.40 V (20.0 %) ≤ varningsgräns 3.5 V",
@@ -622,7 +622,7 @@
    "    >>> Batterinivå låg: LARM — 3.40 V (20.0 %) ≤ varningsgräns 3.5 V",
    "2026-11-09 15:40:14 sensor3    RAK4631  fPort=2 fCnt=421 rssi=-35 snr=13.2",
    "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)",
-   "    >>> Batterinivå låg: kvitterad — 3.90 V > varningsgräns 3.5 V",
+   "    >>> Batterinivå låg: återställt — 3.90 V > varningsgräns 3.5 V",
    "2026-11-09 15:41:14 sensor3    RAK4631  fPort=2 fCnt=481 rssi=-35 snr=13.2",
    "    temp=None °C  batt=3.9 V (70.0 %, ok)",
    "2026-11-09 15:42:14 sensor3    RAK4631  fPort=2 fCnt=541 rssi=-35 snr=13.2",
@@ -786,7 +786,7 @@
    "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)",
    "2026-11-09 15:33:52 sensor3    RAK4631  fPort=2 fCnt=39 rssi=-35 snr=13.2",
    "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)",
-   "    >>> Tiltlarm: kvitterad — inom baslinje ± 0.3 g",
+   "    >>> Tiltlarm: återställt — inom baslinje ± 0.3 g",
    "2026-11-09 15:33:53 sensor3    RAK4631  fPort=2 fCnt=40 rssi=-35 snr=13.2",
    "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)",
    "2026-11-09 15:33:54 sensor3    RAK4631  fPort=2 fCnt=41 rssi=-35 snr=13.2",
@@ -814,14 +814,14 @@
    {
     "active": false,
     "channel": "ntfy",
-    "message": "✔️ Tilt kvitterad: sensor3 — inom baslinje ± 0.3 g",
+    "message": "✔️ Tiltlarm återställt: sensor3 — inom baslinje ± 0.3 g",
     "target": "sensor3",
     "title": "loralarm sensor3"
    },
    {
     "active": false,
     "channel": "pushover",
-    "message": "✔️ Tilt kvitterad: sensor3 — inom baslinje ± 0.3 g",
+    "message": "✔️ Tiltlarm återställt: sensor3 — inom baslinje ± 0.3 g",
     "target": "sensor3",
     "title": "loralarm sensor3"
    }
@@ -954,7 +954,7 @@
    "2026-11-09 15:33:24 newbie              fPort=2 fCnt=1 rssi=-35 snr=13.2",
    "    temp=32.0 °C  batt=2.7 V (0.0 %, empty)",
    "    >>> Batteri tomt: LARM — 2.70 V (0.0 %) < tomt 2.8 V",
-   "    >>> Lågtemperaturalarm: kvitterad — 32.0 °C > nedre gräns 0.0 °C"
+   "    >>> Lågtemperaturalarm: återställt — 32.0 °C > nedre gräns 0.0 °C"
   ],
   "notifications": [
    {
@@ -997,7 +997,7 @@
    "2026-11-10 16:33:14 sensor3    watchdog >>> Ingen kontakt (watchdog): LARM — ingen uplink på 1 dag, 01:00:00",
    "2026-11-10 16:33:44 sensor3    RAK4631  fPort=2 fCnt=90031 rssi=-35 snr=13.2",
    "    temp=24.0 °C  batt=3.9 V (70.0 %, ok)",
-   "2026-11-10 16:34:14 sensor3    watchdog >>> Ingen kontakt (watchdog): kvitterad — uplink mottagen",
+   "2026-11-10 16:34:14 sensor3    watchdog >>> Ingen kontakt (watchdog): återställt — uplink mottagen",
    "2026-11-12 03:33:14 sensor3    watchdog >>> Ingen kontakt (watchdog): LARM — ingen uplink på 1 dag, 10:59:30"
   ],
   "notifications": [

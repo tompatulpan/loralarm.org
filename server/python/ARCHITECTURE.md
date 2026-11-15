@@ -243,7 +243,7 @@ round-trip.
   filtering by `kinds` / `severity` / `on` / `hours`.
 - **Renderer**: text comes from, in order: device/type template for the kind →
   detector's own `fire`/`clear` text → generic
-  `"{name}: {label} LARM|kvitterad — {detail}"`. Built-in emoji texts move from
+  `"{name}: {label} LARM|återställt — {detail}"`. Built-in emoji texts move from
   `notify.DEFAULT_TEXT` into the detector/type JSON that owns the kind.
   `Message = {title, body, severity, tags, event_id, dev_eui, kind, active}` —
   channel-neutral; channels map severity to their own priority.
@@ -465,7 +465,7 @@ phase 3 later turns it into a route filter without changing the behaviour.
   unaffected; only the notification is suppressed.
 - **Clears:** a clear is sent only if its fire was sent. A fire inside the
   window that clears outside it is still reported (no alarm left hanging); a
-  suppressed fire never produces an orphan "kvitterad".
+  suppressed fire never produces an orphan "återställt".
 - **Fail open:** a bad `alarm_window` (wrong format, start = end, unknown
   timezone) is logged as an error once per device and treated as *no window* —
   a typo must never silence alarms.

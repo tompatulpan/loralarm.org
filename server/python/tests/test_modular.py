@@ -78,13 +78,13 @@ class CustomRuleTest(unittest.TestCase):
         _, fired = evaluate(cfg, make_uplink(obj=sensor_obj(humidity=91)), self.reg)
         self.assertEqual([(t.kind, t.detail) for t in fired], [("humidity", "91 % > 80 %")])
         self.assertEqual(clear_detail(AlarmKind("humidity"), cfg, evaluate(cfg, make_uplink(
-            obj=sensor_obj()), self.reg)[0], self.reg), "kvitterad")
+            obj=sensor_obj()), self.reg)[0], self.reg), "återställt")
 
 
 class GenericNotificationTest(unittest.TestCase):
     def test_unregistered_kind_gets_generic_text(self):
         self.assertEqual(message_text("whatever", "n", True, "d"), "n: whatever LARM — d")
-        self.assertEqual(message_text("whatever", "n", False, "d"), "n: whatever kvitterad — d")
+        self.assertEqual(message_text("whatever", "n", False, "d"), "n: whatever återställt — d")
 
 
 class DeviceKindTest(unittest.TestCase):
