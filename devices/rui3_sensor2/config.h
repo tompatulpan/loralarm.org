@@ -53,6 +53,15 @@
 // ---------------------------------------------------------------------------
 #define SW_INT_PIN WB_IO1
 
+// Switch / door contact input on SW_INT_PIN (interrupt on both edges, 50 ms debounce).
+// 1 = enabled: immediate uplink on every change (ch 11) and the state in every heartbeat.
+// 0 = disabled (default): no interrupt is attached and ch 11 is never sent.
+// POWER: INPUT_PULLUP draws ~75 uA extra in sleep while the switch is closed; see the note in
+// state.cpp for the external 1 MOhm pull-up that avoids it.
+#ifndef SWITCH_ENABLED
+#define SWITCH_ENABLED 0
+#endif
+
 // Accelerometer interrupt pin — property of the BASE BOARD slot, not the MCU module.
 // Both RAK3172 and RAK4631-R on RAK19003 Slot D use WB_IO5.
 // Change if your RAK1904 is in a different slot.
@@ -84,6 +93,8 @@
 // PRODUCTION (current): 24 ticks of 1 h = daily. TEST: 10 ticks of 1 min = every 10 min.
 #define LINK_CHECK_TICKS 24
 #define LINK_CHECK_RETRIES 3
+// The tick counters in lorawan.cpp are uint8_t
+static_assert(REJOIN_RETRY_TICKS < 256 && LINK_CHECK_TICKS < 256, "tick counters are uint8_t");
 // Link policy after a successful join (also applied when a cached session is restored).
 // Fixed full power, ADR off: the node may be moved closer to or further from the gateway
 // and must still reach it, and the network never tunes it down. Trade-offs: more TX
@@ -115,6 +126,7 @@
 const uint16_t SENSOR_WARMUP_TIME = 200;	  // 200ms: OPT3001 needs 100ms conversion + margin
 const uint8_t MAX_PAYLOAD_SIZE = 255;
 const uint8_t BATTERY_SEND_INTERVAL = 1;	  // Send battery status and digital outputs every N heartbeats
+#define INTERVAL_MAX_S 2147483UL			  // Largest AT+SENDINT / AT+MININT in seconds: x1000 must fit a uint32_t (ms)
 
 // ---------------------------------------------------------------------------
 // Cayenne LPP channel map — each sensor/measurement gets a unique channel.

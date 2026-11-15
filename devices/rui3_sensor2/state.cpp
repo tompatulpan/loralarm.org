@@ -28,7 +28,7 @@ bool battery_shutdown_latched = false;
 // because INPUT_PULLUP uses the internal ~35kohm pull-up (3.3V/35k ≈ 94uA).
 // To keep sleep current near ~25uA regardless of switch state, add an external 1Mohm
 // pull-up resistor between VCC and WB_IO1, then change INPUT_PULLUP to INPUT in init_gpio().
-bool gpioInterruptEnabled = false;
+bool gpioInterruptEnabled = (SWITCH_ENABLED != 0);
 volatile bool switch_state = false;
 uint8_t previous_switch_state = 0;
 

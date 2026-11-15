@@ -103,6 +103,13 @@ int interval_send_handler(SERIAL_PORT port, char *cmd, stParam *param)
 
 		uint32_t new_send_freq = strtoul(param->argv[0], NULL, 10);
 
+		// seconds -> ms is a uint32_t multiply: anything larger wraps (4294968 s -> 704 ms,
+		// a sub-second uplink loop with a flash write each time)
+		if (new_send_freq > INTERVAL_MAX_S)
+		{
+			return AT_PARAM_ERROR;
+		}
+
 		MYLOG("AT_CMD", "Requested interval %ld s", new_send_freq);
 
 		custom_parameters.send_interval = new_send_freq * 1000;
@@ -176,8 +183,12 @@ int interval_min_handler(SERIAL_PORT port, char *cmd, stParam *param)
 
 		uint32_t new_send_freq = strtoul(param->argv[0], NULL, 10);
 
-		// MYLOG("AT_CMD", "Requested interval %ld", new_send_freq);
-
+		// MININT is stored but nothing reads it: kept only so the AT command and the saved
+		// settings stay compatible with rui3_sensor v33.
+		if (new_send_freq > INTERVAL_MAX_S)
+		{
+			return AT_PARAM_ERROR;
+		}
 		if ((new_send_freq * 1000) >= custom_parameters.send_interval)
 		{
 			return AT_PARAM_ERROR;
@@ -303,7 +314,10 @@ int status_handler(SERIAL_PORT port, char *cmd, stParam *param)
 			AT_PRINTF("Network %s", api.lorawan.njs.get() ? "joined" : "not joined");
 			region_set = api.lorawan.band.get();
 			AT_PRINTF("Region: %d", region_set);
-			AT_PRINTF("Region: %s", regions_list[region_set]);
+			if (region_set >= 0 && region_set < (int)(sizeof(regions_list) / sizeof(regions_list[0])))
+			{
+				AT_PRINTF("Region: %s", regions_list[region_set]);
+			}
 			if (api.lorawan.njm.get())
 			{
 				AT_PRINTF("OTAA mode");

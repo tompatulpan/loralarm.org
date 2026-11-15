@@ -31,6 +31,16 @@ static ReportedConfig current_reported_config(void)
 	return {version_byte, interrupt_threshold, interrupt_duration, acc_frequency};
 }
 
+void append_supply_state(void)
+{
+	float battery_reading = platform_battery_get();
+	if (battery_reading > 0.0f)
+	{
+		g_solution_data.addVoltage(LPP_CHANNEL_BATT_1, battery_reading);
+	}
+	g_solution_data.addDigitalInput(LPP_CHANNEL_DIG_7, battery_shutdown_latched ? 1 : 0);
+}
+
 /** Battery voltage, firmware version, ACC config and latch state (ch 1, 7..10, 13). */
 static void append_battery_and_config(float battery_reading)
 {
@@ -61,7 +71,9 @@ static void append_switch_and_motion(void)
 		previous_switch_state = switch_state;
 	}
 
-	// Fallback: include motion alert if a previous immediate send failed (radio busy, not joined, etc.)
+	// Fallback: a motion event still flagged here was never picked up by send_acc_alert()
+	// (it clears the flag itself right before it transmits). A failed immediate send is NOT
+	// retried this way: while unjoined heartbeats are skipped, and a TX failure is lost.
 	if (motion_detected)
 	{
 		g_solution_data.addDigitalOutput(LPP_CHANNEL_DIG_6, 0x01);
@@ -74,7 +86,7 @@ static void append_switch_and_motion(void)
 // Heartbeat
 // ---------------------------------------------------------------------------
 
-void sensor_handler(void *unused)
+static void heartbeat_run(void)
 {
 	MYLOG("POWER", "sensor_handler triggered");
 	MYLOG("UPLINK", "Start");
@@ -100,9 +112,6 @@ void sensor_handler(void *unused)
 	}
 
 	apply_pending_acc_config();
-
-	// From here to the send, the heartbeat owns g_solution_data and the I2C bus
-	heartbeat_busy = true;
 
 	sensors_wakeup();
 
@@ -143,13 +152,28 @@ void sensor_handler(void *unused)
 	if (g_solution_data.getSize() > MAX_PAYLOAD_SIZE)
 	{
 		MYLOG("UPLINK", "Payload too large: %d bytes", g_solution_data.getSize());
-		heartbeat_busy = false;
 		return;
 	}
 
 	send_packet();
-	heartbeat_busy = false;
 	digitalWrite(LED_BLUE, LOW);
+}
+
+void sensor_handler(void *unused)
+{
+	// The heartbeat owns g_solution_data and the I2C bus from here to the send. Callers come
+	// from different contexts (RAK_TIMER_0, loop() after a battery recovery, the join
+	// callback), so a second one arriving mid-run is dropped instead of running in parallel.
+	// Alerts and switch events check the same flag and retry. The check-then-set is not
+	// atomic: it narrows the race, it does not close it completely.
+	if (heartbeat_busy)
+	{
+		MYLOG("UPLINK", "Heartbeat already running, skipping");
+		return;
+	}
+	heartbeat_busy = true;
+	heartbeat_run();
+	heartbeat_busy = false;
 }
 
 // ---------------------------------------------------------------------------

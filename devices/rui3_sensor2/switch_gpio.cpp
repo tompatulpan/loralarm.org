@@ -70,6 +70,14 @@ void handle_gpio(void* unused)
 {
     if (interrupt_triggered)
     {
+        // The heartbeat owns the shared payload buffer and the I2C bus right now:
+        // retry shortly instead of corrupting it (interrupt_triggered stays set).
+        if (heartbeat_busy)
+        {
+            MYLOG("GPIO", "Heartbeat in progress, retrying switch event");
+            api.system.timer.start(RAK_TIMER_3, 50, NULL);
+            return;
+        }
         interrupt_triggered = false;
       
       #if MY_DEBUG == 1
@@ -80,6 +88,8 @@ void handle_gpio(void* unused)
         // Clear payload and prepare new data
         g_solution_data.reset();
         g_solution_data.addDigitalOutput(LPP_CHANNEL_DIG_5, switch_state ? 0x01 : 0x00);
+        // Carry the supply state like a motion alert: a latched node must never look healthy
+        append_supply_state();
         previous_switch_state = switch_state;
         
         // Send the packet

@@ -29,8 +29,8 @@ void platform_init(void);
  *   The Vrefint path is the only analogRead() that leaves the ADC disabled on
  *   exit, preserving Stop 2 sleep entry.
  * nRF52840 (Mode B): SAADC + WB_A0 voltage divider -> true VBAT.
- *   SAADC is explicitly disabled after the read so it does not draw ~45 uA
- *   during System ON sleep.
+ *   The SAADC is left enabled-idle after the read; see platform_nrf52.cpp for why it is
+ *   not disabled by direct register writes (nrfx driver state corruption).
  *
  * @return Battery voltage in V, or 0.0 if ADC read failed / monitoring disabled.
  */
@@ -39,11 +39,9 @@ float platform_battery_get(void);
 /**
  * @brief Prepare for MCU sleep — call from loop() before api.system.sleep.all().
  *
- * nRF52840: sets NRF_SAADC->ENABLE = Disabled. The RUI3 LoRaWAN stack calls
- *           api.system.bat.get() internally (ADR bookkeeping), re-enabling the
- *           SAADC. Without this guard every sleep entry draws ~45 uA extra.
- *           The write is a no-op if SAADC is already disabled.
- * STM32WLE5: no-op.
+ * Currently a no-op on both MCUs. On nRF52840 it deliberately does NOT write
+ * NRF_SAADC->ENABLE: direct register writes are unsafe while the nrfx_saadc driver is
+ * initialised (see platform_nrf52.cpp). Kept as the single hook for per-MCU sleep prep.
  */
 void platform_pre_sleep(void);
 

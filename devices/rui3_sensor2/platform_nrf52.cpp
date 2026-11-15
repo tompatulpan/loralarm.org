@@ -13,9 +13,10 @@
  *
  * Power:
  *   analogRead() on nRF52840 leaves SAADC ENABLE=1. Unlike STM32WLE5, this
- *   does not block sleep entry, but an enabled-idle SAADC draws ~45 uA during
- *   System ON sleep. platform_battery_get() and platform_pre_sleep() both
- *   explicitly clear ENABLE so the device sleeps at ~25 uA.
+ *   does not block sleep entry, but an enabled-idle SAADC draws ~50 uA during
+ *   System ON sleep. Neither platform_battery_get() nor platform_pre_sleep() disables
+ *   it: direct register writes corrupt the nrfx_saadc driver state (see the NOTE
+ *   below), so that current is the floor given the RUI3 stack's own SAADC use.
  *
  * BLE:
  *   api.ble.advertise.start(30) is required to complete the nRF52840 SoftDevice

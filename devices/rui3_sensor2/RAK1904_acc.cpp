@@ -223,11 +223,13 @@ static void add_acc_xyz(void)
  */
 void send_acc_alert(void* unused)
 {
-	// The heartbeat is mid-read/send on the shared payload buffer and I2C bus:
-	// retry shortly instead of corrupting it (motion_detected stays set).
-	if (heartbeat_busy)
+	// The heartbeat is mid-read/send on the shared payload buffer and I2C bus, or setup()
+	// is still initialising the other sensors (the ISR is attached inside init_rak1904(),
+	// before the RAK1906 init): retry shortly instead of corrupting it (motion_detected
+	// stays set).
+	if (heartbeat_busy || !setup_complete)
 	{
-		MYLOG("ACC", "Heartbeat in progress, retrying alert");
+		MYLOG("ACC", "Heartbeat or setup in progress, retrying alert");
 		api.system.timer.start(RAK_TIMER_1, 50, NULL);
 		return;
 	}
@@ -239,19 +241,16 @@ void send_acc_alert(void* unused)
 	g_solution_data.addDigitalOutput(LPP_CHANNEL_DIG_6, 0x01);
 	// Motion frames keep flowing while a low-battery latch suppresses heartbeats, so they
 	// carry the supply state too: the server must never see a latched node as healthy.
-	float battery_reading = platform_battery_get();
-	if (battery_reading > 0.0f) {
-		g_solution_data.addVoltage(LPP_CHANNEL_BATT_1, battery_reading);
-	}
-	g_solution_data.addDigitalInput(LPP_CHANNEL_DIG_7, battery_shutdown_latched ? 1 : 0);
+	append_supply_state();
 	// Same live data as a heartbeat. Sampled after the trigger, so X/Y/Z shows
 	// the aftermath of the motion, not its peak.
 	add_acc_xyz();
 	// Quick temp/humidity-only readings from the sensor table (RAK1901, or the
 	// RAK1906 with its gas heater off); never the slow full BME680 reading.
 	sensors_read_for_alert();
-	// Reset flag unconditionally so ISR can arm the next event regardless of TX outcome.
-	// A missed alert due to TX failure is recoverable; a stuck flag silences all future alerts.
+	// Clear the flag before sending so the ISR can arm the next event whatever the TX outcome.
+	// A failed send (e.g. not joined) loses this alert: it is not retried or deferred to the
+	// heartbeat. Retrying after a join could report hours-old motion as new.
 	motion_detected = false;
 	send_packet();
 	clear_int_rak1904();
@@ -332,7 +331,7 @@ bool setup_rak1904() {
 
   // Warn if duration is unreasonably long (at 10Hz each count = 100ms)
   if (interrupt_duration > 10) {
-    MYLOG("ACC", "WARNING: interrupt_duration=%d → %.1fs at 10Hz — send 001 on port 6 to reset",
+    MYLOG("ACC", "WARNING: interrupt_duration=%d → %.1fs at 10Hz — send 001 on port 7 to reset",
           interrupt_duration, interrupt_duration * 0.1f);
   }
   rak1904_writeRegister(LIS3DH_REG_INT1DUR, interrupt_duration);

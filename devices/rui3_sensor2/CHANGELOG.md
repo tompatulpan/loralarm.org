@@ -41,6 +41,26 @@ downlink or server change; see README.md for the module map.
   series (255 attempts). Skipped while the low-battery latch is active; if `SENDINT` is 0 the
   check waits for the next uplink. Unverified assumption: a missing ACK reports a non-zero status.
   The serial log also prints the stack's own `+EVT:SEND_CONFIRMED_OK/FAILED(n)`.
+- Review fixes (code review of the first version):
+  - `sensor_handler()` is now a thin wrapper that owns `heartbeat_busy` for the whole run and drops a
+    second call that arrives mid-run (timer, `loop()` after a battery recovery, join callback).
+    `battery_loop_check()` also waits instead of calling it while busy.
+  - `handle_gpio()` (switch) now defers while a heartbeat is running and carries battery voltage
+    and the latch flag like a motion alert (`append_supply_state()`), so a latched node never sends
+    a healthy-looking switch frame.
+  - `send_acc_alert()` also waits until `setup_complete`: its ISR is attached in `init_rak1904()`
+    before the RAK1906 init, so an early motion event could touch I2C mid-init.
+  - `AT+SENDINT` / `AT+MININT` reject values above 2,147,483 s (`INTERVAL_MAX_S`); larger ones
+    wrapped the ms multiply (4294968 s -> 704 ms, a sub-second uplink loop with a flash write each).
+  - `AT+STATUS` no longer indexes `regions_list` out of range; log text in `setup_rak1904()` said
+    port 6 where the duration is port 7; compile-time check that the tick counts fit a `uint8_t`.
+  - Docs/comments: the stale nRF52 SAADC text in `platform.h` / `platform_nrf52.cpp`, the motion
+    comments (a failed immediate send is lost, not retried by the heartbeat) and the LORA-context
+    exception in `lorawan.cpp`.
+  - Switch input: `gpioInterruptEnabled` was never set anywhere, so the switch never ran. It now
+    follows the new `SWITCH_ENABLED` define in `config.h` (default 0 = off, same behaviour as
+    before; set 1 to enable, not yet tested on hardware).
+  - Not changed: `MININT` is stored but never read (v33 compatibility).
 - `version_byte` = 100 (new line; v33 stays the last of the old one).
 - Motion alerts also carry temp/humidity on RAK1906 nodes (found on a real node: the alert had none).
   `read_rak1906_fast()` runs one forced measurement with the gas heater off, then restores the

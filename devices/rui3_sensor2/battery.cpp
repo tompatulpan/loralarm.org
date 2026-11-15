@@ -126,6 +126,12 @@ void battery_loop_check(void)
 	float v = platform_battery_get();
 	if (battery_recovered(v))
 	{
+		// The latch also clears in the next heartbeat (battery_supervise), so just wait for
+		// the next wake if one is mid-run: loop() and the timers are different contexts.
+		if (heartbeat_busy)
+		{
+			return;
+		}
 		battery_shutdown_latched = false;
 		MYLOG("POWER", "Supply recovered (%.2fV) — resuming telemetry", v);
 		// Immediate heartbeat so the server sees the device without

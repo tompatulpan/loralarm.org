@@ -60,7 +60,7 @@ extern ReportedConfig g_last_reported;
 extern bool battery_shutdown_latched;
 
 // --- Switch input (RAK19003 WB_IO1) ----------------------------------------
-extern bool gpioInterruptEnabled;	  // set true if the switch is going to be used
+extern bool gpioInterruptEnabled;	  // from SWITCH_ENABLED in config.h
 extern volatile bool switch_state;	  // written ISR/TIMER
 extern uint8_t previous_switch_state; // TIMER
 

@@ -4,6 +4,11 @@
  *
  * Callbacks run in the LORA context: no I2C and no flash access in here. Work
  * that needs them is flagged (acc_config_pending) and done by sensor_handler().
+ *
+ * Known exception, inherited from rui3_sensor v33 and field-proven there: joinCallback
+ * calls uplink_start_after_join() -> sensor_handler(), which does I2C reads and
+ * api.lorawan.send() from this context. The heartbeat_busy guard keeps it from running
+ * in parallel with a timer-driven heartbeat.
  */
 #include "app.h"
 #include "downlink_parse.h"
