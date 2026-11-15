@@ -65,12 +65,25 @@
 #define JOIN_DR 3				// Join data rate: DR3=SF9@125kHz EU868; use DR0 for maximum range robustness
 #define JOIN_MAX_TXP 0			// LoRaWAN TXP index 0 = max EIRP for region (LoRaWAN std: 0=max, 7=min)
 #define JOIN_RETRY_SEC 255		// Seconds between auto-rejoin attempts (valid RUI3 range: 7-255 s)
-// After a successful join the device stays at JOIN_MAX_TXP (max EIRP) until the network
-// sends a LinkADRReq. In close-range deployments this saturates the gateway LNA, causing
-// wild RSSI swings and COLLISION_PACKET on the RX1 downlink. Starting at a moderate level
-// lets ADR adjust upward (if range demands it) or further downward.
+#define JOIN_MAX_ATTEMPTS 255	// 255 attempts x JOIN_RETRY_SEC (~18 h) before the stack gives up
+// Rejoin retry: if still unjoined after the initial series, start a short new series
+// every REJOIN_RETRY_HOURS. Must stay longer than the initial series (~18 h) so a series is
+// never restarted while one is still running. 5 x 255 s is ~21 min per series.
+#define REJOIN_RETRY_HOURS 24
+#define REJOIN_RETRY_ATTEMPTS 5
+#define REJOIN_CHECK_INTERVAL_MS 3600000UL // hourly tick (RAK_TIMER_4); counted up to REJOIN_RETRY_HOURS
+
+// Link policy after a successful join (also applied when a cached session is restored).
+// Fixed full power, ADR off: the node may be moved closer to or further from the gateway
+// and must still reach it, and the network never tunes it down. Trade-offs: more TX
+// energy per uplink than a tuned link, and no automatic DR change, so a node that ends up
+// far away must be fixed by hand (POST_JOIN_DR / AT+DR).
+// Alternative that was used before: POST_JOIN_ADR 1 and POST_JOIN_TXP 2. Close to a gateway
+// full power can saturate its LNA (wild RSSI swings, COLLISION_PACKET on the RX1 downlink).
 // EU868 TXP index: 0=+16 dBm, 1=+14, 2=+12, 3=+10, 4=+8, 5=+6 dBm EIRP.
-#define POST_JOIN_TXP 2			// ~12 dBm EIRP after join; ADR manages from here
+#define POST_JOIN_ADR 0			// 1 = network adapts DR/TXP (ADR), 0 = fixed
+#define POST_JOIN_TXP JOIN_MAX_TXP // TXP index kept after join (0 = max)
+#define POST_JOIN_DR JOIN_DR	// DR kept after join; only applied when POST_JOIN_ADR is 0
 
 // ---------------------------------------------------------------------------
 // Battery supervision

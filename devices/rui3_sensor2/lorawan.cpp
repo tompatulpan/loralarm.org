@@ -12,6 +12,23 @@
 // LoRaWAN callbacks
 // ---------------------------------------------------------------------------
 
+/**
+ * Link policy after a join (see POST_JOIN_* in config.h). Used for a fresh join
+ * and for a restored cached session, so a reboot never leaves the radio on
+ * whatever DR/TXP the stack happened to remember.
+ */
+static void apply_post_join_link_policy(void)
+{
+	api.lorawan.adr.set(POST_JOIN_ADR != 0);
+	api.lorawan.txp.set(POST_JOIN_TXP);
+#if POST_JOIN_ADR == 0
+	// ADR off: nobody else will set the DR, so pin it
+	api.lorawan.dr.set(POST_JOIN_DR);
+#endif
+	MYLOG("JOIN-CB", "Link policy: ADR=%s, TXP=%d (~%d dBm EIRP), DR=%d",
+		  POST_JOIN_ADR ? "on" : "off", POST_JOIN_TXP, 16 - POST_JOIN_TXP * 2, api.lorawan.dr.get());
+}
+
 /** Callback after join request cycle */
 static void joinCallback(int32_t status)
 {
@@ -23,15 +40,7 @@ static void joinCallback(int32_t status)
 
 	MYLOG("JOIN-CB", "LoRaWan OTAA - joined!\r\n");
 
-	// Enable ADR — network will now manage DR and TX power adaptively
-	api.lorawan.adr.set(true);
-	// Step down from join TX power to POST_JOIN_TXP. ADR will adjust from this
-	// baseline — it can go up or down. Staying at TXP=0 saturates a nearby
-	// gateway LNA → wild RSSI swings and COLLISION_PACKET on RX1 downlink.
-	api.lorawan.txp.set(POST_JOIN_TXP);
-	MYLOG("JOIN-CB", "ADR enabled. TXP set to %d (~%d dBm EIRP). DR=%d",
-		  POST_JOIN_TXP, 16 - POST_JOIN_TXP * 2, api.lorawan.dr.get());
-
+	apply_post_join_link_policy();
 	digitalWrite(LED_BLUE, LOW);
 
 	// Start normal application send timer now that we are joined.
@@ -186,9 +195,10 @@ static bool otaa_credentials_ok(void)
 	return ok;
 }
 
-static void start_otaa_join(void)
+static void start_otaa_join(uint8_t max_attempts)
 {
-	// Join profile: ADR off, max TX power, robust DR — best chance of first join
+	// Join profile: ADR off, max TX power, robust DR — best chance of a join whether the
+	// node is now closer to or further from the gateway than before
 	api.lorawan.adr.set(false);
 	MYLOG("SETUP", "ADR=off for join");
 
@@ -198,18 +208,51 @@ static void start_otaa_join(void)
 	api.lorawan.dr.set(JOIN_DR);
 	MYLOG("SETUP", "Join DR=%d", JOIN_DR);
 
-	// Start join; RUI3 valid interval range: 7-255 s. Count 255 = retry ~35 h before stopping.
+	// Start join; RUI3 valid interval range: 7-255 s. The initial series is
+	// JOIN_MAX_ATTEMPTS x 255 s (~18 h, plus the RX windows of each attempt) before the
+	// stack gives up; later daily series are short (see rejoin_tick).
 	// api.lorawan.join() returns false when a cached OTAA session is already being
 	// restored in the background — joinCallback will still fire with status=0.
 	// Check njs to distinguish "already joining" from a genuine failure.
-	if (!api.lorawan.join(1, 1, JOIN_RETRY_SEC, 255))
+	if (!api.lorawan.join(1, 1, JOIN_RETRY_SEC, max_attempts))
 	{
 		MYLOG("SETUP", "join() returned false — cached session restore in progress or stack busy. Waiting for joinCallback...");
 	}
 	else
 	{
-		MYLOG("SETUP", "Join started — retry every %d s, up to 255 attempts", JOIN_RETRY_SEC);
+		MYLOG("SETUP", "Join started — retry every %d s, up to %d attempts", JOIN_RETRY_SEC, max_attempts);
 	}
+}
+
+/**
+ * Hourly tick (RAK_TIMER_4). The stack gives up after the initial join series, so a node
+ * that was offline longer (gateway down, moved, power outage at the gateway) would stay
+ * unjoined until someone reboots it. Once REJOIN_RETRY_HOURS of being unjoined have
+ * passed, start another short series; repeat daily until a join succeeds.
+ */
+static void rejoin_tick(void *unused)
+{
+	static uint8_t unjoined_hours = 0;
+
+	if (api.lorawan.njs.get())
+	{
+		unjoined_hours = 0;
+		return;
+	}
+	if (++unjoined_hours < REJOIN_RETRY_HOURS)
+	{
+		return;
+	}
+	unjoined_hours = 0;
+
+	// Same rule as the heartbeat: no radio activity while the supply is critical
+	if (battery_shutdown_latched)
+	{
+		MYLOG("SETUP", "Rejoin retry skipped: low-battery latch active");
+		return;
+	}
+	MYLOG("SETUP", "Still not joined after %d h — starting a new join series", REJOIN_RETRY_HOURS);
+	start_otaa_join(REJOIN_RETRY_ATTEMPTS);
 }
 
 void lorawan_setup(void)
@@ -255,6 +298,9 @@ void lorawan_setup(void)
 	}
 	MYLOG("SETUP", "OTAA credentials verified");
 
+	// Hourly tick that restarts the join if the node stays unjoined (see rejoin_tick)
+	api.system.timer.create(RAK_TIMER_4, rejoin_tick, RAK_TIMER_PERIODIC);
+	api.system.timer.start(RAK_TIMER_4, REJOIN_CHECK_INTERVAL_MS, NULL);
 	if (api.lorawan.njs.get())
 	{
 		// Already joined via cached session (joinCallback fired before this point).
@@ -265,7 +311,7 @@ void lorawan_setup(void)
 		return;
 	}
 
-	start_otaa_join();
+	start_otaa_join(JOIN_MAX_ATTEMPTS);
 }
 
 void lorawan_log_tx_settings(void)
@@ -289,11 +335,7 @@ void lorawan_resume_cached_join(void)
 	if (api.lorawan.nwm.get() == 1 && api.lorawan.njs.get() && !timer_started)
 	{
 		MYLOG("SETUP", "Already joined — starting send timer and triggering first transmission");
-		if (custom_parameters.send_interval != 0)
-		{
-			api.lorawan.adr.set(true);
-			api.lorawan.txp.set(POST_JOIN_TXP); // same moderate baseline as joinCallback path
-		}
+		apply_post_join_link_policy();
 		uplink_start_after_join();
 	}
 }
