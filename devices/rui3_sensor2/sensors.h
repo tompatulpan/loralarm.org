@@ -38,9 +38,10 @@ void sensors_shutdown(void);
 void sensors_read_all(void);
 
 /**
- * Append only the fast sensors to g_solution_data (motion alert extras:
- * temp/humidity). Slow sensors (BME680 gas heater) are left out on purpose.
- * The accelerometer is added by send_acc_alert() itself.
+ * Append each present sensor's quick reading (temp/humidity) to g_solution_data
+ * for a motion alert. Sensors without an alert reading are left out on purpose
+ * (a full BME680 reading takes ~390 ms; the RAK1906 uses a heater-off quick
+ * read instead). The accelerometer is added by send_acc_alert() itself.
  */
 void sensors_read_for_alert(void);
 
@@ -64,6 +65,7 @@ void shutdown_rak1903(void);
 
 bool init_rak1906(void);
 void read_rak1906(void);
+void read_rak1906_fast(void); // temperature + humidity only, no gas heater (motion alerts)
 void startup_rak1906(void);
 void shutdown_rak1906(void);
 

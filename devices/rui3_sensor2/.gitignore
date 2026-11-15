@@ -2,3 +2,5 @@
 *.log
 build/
 tests/host/test_policies
+.vscode/settings.json
+.vscode/c_cpp_properties.json

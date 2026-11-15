@@ -13,7 +13,7 @@ struct SensorDesc
 	void (*read)(void);
 	void (*shutdown)(void);
 	bool sleep_after_init;	 // call shutdown() straight after a successful init
-	bool read_in_alert;		 // fast enough to read inside a motion alert
+	void (*read_alert)(void); // quick temp/humidity-only reading for motion alerts, nullptr = none
 	int8_t suppressed_by;	 // SensorId whose presence makes read() redundant (same LPP channels), -1 = never
 	bool present;
 };
@@ -21,18 +21,20 @@ struct SensorDesc
 // Table order = init, wake-up, read and shutdown order (matches rui3_sensor v33).
 // RAK1906 writes the same LPP channels as RAK1901 (T/H) and RAK1902 (pressure),
 // so those two are not read while a RAK1906 is present: a second value on the
-// same channel would overwrite/duplicate it in the payload.
+// same channel would overwrite/duplicate it in the payload. The same rule applies
+// to the alert readings: the RAK1906 supplies T/H there (heater-off quick read).
 static SensorDesc sensors[SENSOR_COUNT] = {
 	// SENSOR_RAK1901
-	{"RAK1901 (Temp/Humidity)", "+EVT:RAK1901", init_rak1901, startup_rak1901, read_rak1901, shutdown_rak1901, true, true, SENSOR_RAK1906, false},
+	{"RAK1901 (Temp/Humidity)", "+EVT:RAK1901", init_rak1901, startup_rak1901, read_rak1901, shutdown_rak1901, true, read_rak1901, SENSOR_RAK1906, false},
 	// SENSOR_RAK1902
-	{"RAK1902 (Pressure)", "+EVT:RAK1902", init_rak1902, startup_rak1902, read_rak1902, shutdown_rak1902, true, false, SENSOR_RAK1906, false},
+	{"RAK1902 (Pressure)", "+EVT:RAK1902", init_rak1902, startup_rak1902, read_rak1902, shutdown_rak1902, true, nullptr, SENSOR_RAK1906, false},
 	// SENSOR_RAK1903
-	{"RAK1903 (Light)", "+EVT:RAK1903", init_rak1903, startup_rak1903, read_rak1903, shutdown_rak1903, true, false, -1, false},
+	{"RAK1903 (Light)", "+EVT:RAK1903", init_rak1903, startup_rak1903, read_rak1903, shutdown_rak1903, true, nullptr, -1, false},
 	// SENSOR_RAK1904: keeps its configured ODR running during sleep, so no sleep after init
-	{"RAK1904 (Accelerometer)", "+EVT:RAK1904", init_rak1904, startup_rak1904, read_rak1904, shutdown_rak1904, false, false, -1, false},
+	// (its X/Y/Z is added by send_acc_alert() itself)
+	{"RAK1904 (Accelerometer)", "+EVT:RAK1904", init_rak1904, startup_rak1904, read_rak1904, shutdown_rak1904, false, nullptr, -1, false},
 	// SENSOR_RAK1906: forced mode, sleeps on its own after each reading
-	{"RAK1906 (Environmental)", "+EVT:RAK1906", init_rak1906, startup_rak1906, read_rak1906, shutdown_rak1906, false, false, -1, false},
+	{"RAK1906 (Environmental)", "+EVT:RAK1906", init_rak1906, startup_rak1906, read_rak1906, shutdown_rak1906, false, read_rak1906_fast, -1, false},
 };
 
 bool sensor_present(SensorId id)
@@ -118,13 +120,18 @@ void sensors_read_all(void)
 
 void sensors_read_for_alert(void)
 {
+	uint8_t read_count = 0;
 	for (uint8_t i = 0; i < SENSOR_COUNT; i++)
 	{
-		if (sensors[i].present && sensors[i].read_in_alert && !is_suppressed(sensors[i]))
+		const SensorDesc &s = sensors[i];
+		if (s.read_alert == nullptr || !s.present || is_suppressed(s))
 		{
-			sensors[i].read();
+			continue;
 		}
+		s.read_alert();
+		read_count++;
 	}
+	MYLOG("ALERT", "%d sensor(s) added to the alert", read_count);
 }
 
 /** Known I2C addresses -> human label (diagnostics only). */

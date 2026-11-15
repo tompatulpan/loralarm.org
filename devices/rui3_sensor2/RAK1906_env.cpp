@@ -20,6 +20,10 @@
 /** Sensor instance */
 Adafruit_BME680 bme;
 
+/** BME680 gas heater profile used for the full (heartbeat) reading */
+static const uint16_t GAS_HEATER_TEMP_C = 320;
+static const uint16_t GAS_HEATER_TIME_MS = 150;
+
 /**
  * @brief Initialize the BME680 environmental sensor
  *
@@ -39,7 +43,7 @@ bool init_rak1906(void)
 	bme.setHumidityOversampling(BME680_OS_2X);
 	bme.setPressureOversampling(BME680_OS_4X);
 	bme.setIIRFilterSize(BME680_FILTER_SIZE_3);
-	bme.setGasHeater(320, 150); // 320 °C for 150 ms
+	bme.setGasHeater(GAS_HEATER_TEMP_C, GAS_HEATER_TIME_MS);
 
 	MYLOG("ENV", "BME680 environmental sensor initialized successfully");
 	return true;
@@ -78,6 +82,29 @@ void read_rak1906(void)
 	g_solution_data.addRelativeHumidity(LPP_CHANNEL_HUMID_1, humid_f);
 	g_solution_data.addBarometricPressure(LPP_CHANNEL_PRESS_1, press_f);
 	g_solution_data.addVoc_index(LPP_CHANNEL_GAS_1, gas_kohm);
+}
+
+/**
+ * @brief Quick temperature + humidity reading for motion alerts (ch 2/3 only).
+ *
+ * The full reading in read_rak1906() spends ~390 ms, mostly in the gas heater.
+ * Here the heater is switched off for one forced measurement, then restored, so
+ * the alert is delayed by tens of ms instead.
+ */
+void read_rak1906_fast(void)
+{
+	bme.setGasHeater(0, 0);
+	bool ok = bme.performReading();
+	bme.setGasHeater(GAS_HEATER_TEMP_C, GAS_HEATER_TIME_MS);
+	if (!ok)
+	{
+		MYLOG("ENV", "BME680 fast reading failed");
+		return;
+	}
+
+	MYLOG("ENV", "Fast T: %.2f H: %.2f", bme.temperature, bme.humidity);
+	g_solution_data.addTemperature(LPP_CHANNEL_TEMP_1, bme.temperature);
+	g_solution_data.addRelativeHumidity(LPP_CHANNEL_HUMID_1, bme.humidity);
 }
 
 /**

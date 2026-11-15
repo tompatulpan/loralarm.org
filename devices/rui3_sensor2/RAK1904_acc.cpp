@@ -247,8 +247,8 @@ void send_acc_alert(void* unused)
 	// Same live data as a heartbeat. Sampled after the trigger, so X/Y/Z shows
 	// the aftermath of the motion, not its peak.
 	add_acc_xyz();
-	// Fast sensors only (temp/humidity); the sensor table skips slow ones such as
-	// the BME680 gas heater, and sensors superseded by a RAK1906.
+	// Quick temp/humidity-only readings from the sensor table (RAK1901, or the
+	// RAK1906 with its gas heater off); never the slow full BME680 reading.
 	sensors_read_for_alert();
 	// Reset flag unconditionally so ISR can arm the next event regardless of TX outcome.
 	// A missed alert due to TX failure is recoverable; a stuck flag silences all future alerts.
