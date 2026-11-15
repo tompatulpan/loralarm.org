@@ -29,6 +29,25 @@ static void apply_post_join_link_policy(void)
 		  POST_JOIN_ADR ? "on" : "off", POST_JOIN_TXP, 16 - POST_JOIN_TXP * 2, api.lorawan.dr.get());
 }
 
+void lorawan_enforce_link_policy(void)
+{
+	const bool adr_ok = api.lorawan.adr.get() == (POST_JOIN_ADR != 0);
+	const bool txp_ok = api.lorawan.txp.get() == POST_JOIN_TXP;
+#if POST_JOIN_ADR == 0
+	const bool dr_ok = api.lorawan.dr.get() == POST_JOIN_DR;
+#else
+	const bool dr_ok = true; // ADR owns the DR
+#endif
+	if (adr_ok && txp_ok && dr_ok)
+	{
+		return;
+	}
+	// Something (the network via LinkADRReq, or the stack) changed the radio settings
+	MYLOG("JOIN-CB", "Link drift: ADR=%d TXP=%d DR=%d — restoring the configured policy",
+		  api.lorawan.adr.get(), api.lorawan.txp.get(), api.lorawan.dr.get());
+	apply_post_join_link_policy();
+}
+
 /** Callback after join request cycle */
 static void joinCallback(int32_t status)
 {
@@ -225,25 +244,26 @@ static void start_otaa_join(uint8_t max_attempts)
 }
 
 /**
- * Hourly tick (RAK_TIMER_4). The stack gives up after the initial join series, so a node
- * that was offline longer (gateway down, moved, power outage at the gateway) would stay
- * unjoined until someone reboots it. Once REJOIN_RETRY_HOURS of being unjoined have
- * passed, start another short series; repeat daily until a join succeeds.
+ * Periodic tick (RAK_TIMER_4, REJOIN_CHECK_INTERVAL_MS). The stack gives up after the
+ * initial join series, so a node that was offline longer (gateway down, moved, power
+ * outage at the gateway) would stay unjoined until someone reboots it. Once
+ * REJOIN_RETRY_TICKS ticks of being unjoined have passed, start another short series;
+ * repeat until a join succeeds.
  */
 static void rejoin_tick(void *unused)
 {
-	static uint8_t unjoined_hours = 0;
+	static uint8_t unjoined_ticks = 0;
 
 	if (api.lorawan.njs.get())
 	{
-		unjoined_hours = 0;
+		unjoined_ticks = 0;
 		return;
 	}
-	if (++unjoined_hours < REJOIN_RETRY_HOURS)
+	if (++unjoined_ticks < REJOIN_RETRY_TICKS)
 	{
 		return;
 	}
-	unjoined_hours = 0;
+	unjoined_ticks = 0;
 
 	// Same rule as the heartbeat: no radio activity while the supply is critical
 	if (battery_shutdown_latched)
@@ -251,7 +271,8 @@ static void rejoin_tick(void *unused)
 		MYLOG("SETUP", "Rejoin retry skipped: low-battery latch active");
 		return;
 	}
-	MYLOG("SETUP", "Still not joined after %d h — starting a new join series", REJOIN_RETRY_HOURS);
+	MYLOG("SETUP", "Still not joined after %lu min — starting a new join series",
+		  (unsigned long)REJOIN_RETRY_TICKS * REJOIN_CHECK_INTERVAL_MS / 60000UL);
 	start_otaa_join(REJOIN_RETRY_ATTEMPTS);
 }
 
@@ -298,7 +319,7 @@ void lorawan_setup(void)
 	}
 	MYLOG("SETUP", "OTAA credentials verified");
 
-	// Hourly tick that restarts the join if the node stays unjoined (see rejoin_tick)
+	// Periodic tick that restarts the join if the node stays unjoined (see rejoin_tick)
 	api.system.timer.create(RAK_TIMER_4, rejoin_tick, RAK_TIMER_PERIODIC);
 	api.system.timer.start(RAK_TIMER_4, REJOIN_CHECK_INTERVAL_MS, NULL);
 	if (api.lorawan.njs.get())

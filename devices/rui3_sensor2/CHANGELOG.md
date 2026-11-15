@@ -21,14 +21,17 @@ downlink or server change; see README.md for the module map.
   moved closer to or further from the gateway and must still reach it. Applied the same way after a
   fresh join and after a restored cached session (previously the cached path only did it when
   `SENDINT` != 0 and always switched ADR on). Trade-offs are documented at the defines; set
-  `POST_JOIN_ADR 1` / `POST_JOIN_TXP 2` for the old behaviour.
+  `POST_JOIN_ADR 1` / `POST_JOIN_TXP 2` for the old behaviour. `lorawan_enforce_link_policy()` runs
+  before every LoRaWAN uplink; if ADR/TXP/DR have drifted from the policy (e.g. a LinkADRReq
+  from the network) it logs `Link drift: ...` and restores them. Each uplink logs its DR/TXP/ADR.
 - Fixed the join comment: 255 attempts x 255 s is ~18 h, not ~35 h (`JOIN_MAX_ATTEMPTS`).
 - Rejoin retry: the stack gives up after the initial ~18 h join series, which left a node that was
-  offline longer (gateway down, moved) unjoined until a reboot. An hourly tick (`RAK_TIMER_4`)
-  now starts a new short series (`REJOIN_RETRY_ATTEMPTS` = 5, ~21 min) after every
-  `REJOIN_RETRY_HOURS` = 24 h of being unjoined, at max power and DR3, until a join succeeds. It does
-  nothing while joined and is skipped while the low-battery latch is active. Not yet tested against a
-  real outage.
+  offline longer (gateway down, moved) unjoined until a reboot. A periodic tick (`RAK_TIMER_4`,
+  `REJOIN_CHECK_INTERVAL_MS`) now starts a new short series (`REJOIN_RETRY_ATTEMPTS` = 5, ~21 min)
+  after every `REJOIN_RETRY_TICKS` ticks of being unjoined, at max power and DR3, until a join
+  succeeds. Production values are 1 h x 24 (daily); **currently set to the test values 1 min x 10
+  (every 10 min)**, see `config.h`. It does nothing while joined and is skipped while the
+  low-battery latch is active. Not yet tested against a real outage.
 - `version_byte` = 100 (new line; v33 stays the last of the old one).
 - Motion alerts also carry temp/humidity on RAK1906 nodes (found on a real node: the alert had none).
   `read_rak1906_fast()` runs one forced measurement with the gas heater off, then restores the

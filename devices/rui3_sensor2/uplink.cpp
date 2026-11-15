@@ -217,7 +217,9 @@ bool send_packet(void)
 			return false;
 		}
 
-		MYLOG("UPLINK", "Sending packet over LoRaWAN");
+		lorawan_enforce_link_policy();
+		MYLOG("UPLINK", "Sending packet over LoRaWAN (DR=%d TXP=%d ADR=%s)",
+			  api.lorawan.dr.get(), api.lorawan.txp.get(), api.lorawan.adr.get() ? "on" : "off");
 
 		// Note: RUI3 API may return false even when transmission succeeds
 		if (api.lorawan.send(g_solution_data.getSize(), g_solution_data.getBuffer(), set_fPort, g_confirmed_mode, g_confirmed_retry))

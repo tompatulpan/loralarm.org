@@ -19,5 +19,11 @@ void lorawan_setup(void);
  */
 void lorawan_resume_cached_join(void);
 
+/**
+ * Call before every LoRaWAN uplink: if the ADR flag, TX power or DR no longer match the
+ * POST_JOIN_* policy (e.g. the network sent a LinkADRReq), log it and restore them.
+ */
+void lorawan_enforce_link_policy(void);
+
 /** Log the confirmed/retry TX settings (LoRaWAN only). */
 void lorawan_log_tx_settings(void);

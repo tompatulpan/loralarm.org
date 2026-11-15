@@ -66,12 +66,16 @@
 #define JOIN_MAX_TXP 0			// LoRaWAN TXP index 0 = max EIRP for region (LoRaWAN std: 0=max, 7=min)
 #define JOIN_RETRY_SEC 255		// Seconds between auto-rejoin attempts (valid RUI3 range: 7-255 s)
 #define JOIN_MAX_ATTEMPTS 255	// 255 attempts x JOIN_RETRY_SEC (~18 h) before the stack gives up
-// Rejoin retry: if still unjoined after the initial series, start a short new series
-// every REJOIN_RETRY_HOURS. Must stay longer than the initial series (~18 h) so a series is
-// never restarted while one is still running. 5 x 255 s is ~21 min per series.
-#define REJOIN_RETRY_HOURS 24
+// Rejoin retry: if still unjoined after the initial series, start a short new series every
+// REJOIN_RETRY_TICKS ticks of REJOIN_CHECK_INTERVAL_MS (RAK_TIMER_4).
+// PRODUCTION: 3600000UL (1 h) x 24 ticks = daily; the period must stay longer than the
+// initial series (~18 h) so a series is never restarted while one is still running.
+// TEST (current): 60000UL (1 min) x 10 ticks = every 10 min. In this mode the retry also
+// interrupts the initial series; that is fine for bench tests, not for deployment.
+// 5 x 255 s is ~21 min per series.
+#define REJOIN_CHECK_INTERVAL_MS 60000UL
+#define REJOIN_RETRY_TICKS 10
 #define REJOIN_RETRY_ATTEMPTS 5
-#define REJOIN_CHECK_INTERVAL_MS 3600000UL // hourly tick (RAK_TIMER_4); counted up to REJOIN_RETRY_HOURS
 
 // Link policy after a successful join (also applied when a cached session is restored).
 // Fixed full power, ADR off: the node may be moved closer to or further from the gateway
