@@ -28,9 +28,10 @@ bool acc_config_pending = false;  // Set in receiveCallback, applied safely in s
 bool setup_complete = false;      // Set true at end of setup(); guards joinCallback TX
 bool timer_started = false;       // Set true when timer+first TX have been armed; prevents double-start
 bool battery_shutdown_latched = false; // Low-battery shutdown latch; clears when the supply recovers (see enterLowBatteryShutdown)
+volatile bool heartbeat_busy = false; // True while sensor_handler owns g_solution_data and the I2C bus; send_acc_alert() defers
 
 /** version byte */
-uint8_t version_byte = 32;  // Version byte for the device firmware
+uint8_t version_byte = 33;  // Version byte for the device firmware (33: motion alert frames carry X/Y/Z + temp/humidity like heartbeats)
 
 /** Packet is confirmed/unconfirmed (Set with AT commands) */
 bool g_confirmed_mode = false;
@@ -896,6 +897,9 @@ void sensor_handler(void* unused)
 			  interrupt_threshold, interrupt_duration, acc_frequency);
 	}
 
+	// From here to the send, the heartbeat owns g_solution_data and the I2C bus
+	heartbeat_busy = true;
+
 	// Wakeup sensors
 	manageSensors(true);
 
@@ -991,11 +995,13 @@ void sensor_handler(void* unused)
 	// Validate payload size before sending
 	if (g_solution_data.getSize() > MAX_PAYLOAD_SIZE) {
 		MYLOG("UPLINK", "Payload too large: %d bytes", g_solution_data.getSize());
+		heartbeat_busy = false;
 		return;
 	}
 
 	// Send the packet
 	send_packet();
+	heartbeat_busy = false;
 	digitalWrite(LED_BLUE, LOW);
 }
 

@@ -16,6 +16,9 @@ extern volatile bool switch_state;
 extern uint8_t previous_switch_state;
 extern volatile bool motion_detected;
 extern bool battery_shutdown_latched;
+extern bool has_rak1901;
+extern bool has_rak1906;
+extern volatile bool heartbeat_busy;
 
 extern uint8_t rx_data_0;
 extern uint8_t rx_data_1;

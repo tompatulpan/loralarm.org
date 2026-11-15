@@ -218,11 +218,41 @@ void clear_int_rak1904(void)
 }
 
 /**
+ * @brief Read the LIS3DH and append X/Y/Z (in g) to the current payload
+ *
+ * Shared by send_acc_alert() (immediate motion frames) and read_rak1904()
+ * (periodic heartbeats) so both frame types carry the same accelerometer data.
+ * Does not touch the interrupt latch — callers decide when to rearm detection.
+ */
+static void add_acc_xyz(void)
+{
+	sensors_event_t event;
+	acc_sensor.getEvent(&event);
+
+	// Adafruit getEvent() returns m/s²; addAccelerometer() expects G — divide by standard gravity
+	float x = event.acceleration.x / SENSORS_GRAVITY_STANDARD;
+	float y = event.acceleration.y / SENSORS_GRAVITY_STANDARD;
+	float z = event.acceleration.z / SENSORS_GRAVITY_STANDARD;
+
+	MYLOG("ACC", "X: %f, Y: %f, Z: %f", x, y, z);
+
+	g_solution_data.addAccelerometer(LPP_CHANNEL_ACC_1, x, y, z);
+}
+
+/**
  * @brief Deferred motion alert handler — called by RAK_TIMER_1 after ISR
  *
  */
 void send_acc_alert(void* unused)
 {
+	// The heartbeat is mid-read/send on the shared payload buffer and I2C bus:
+	// retry shortly instead of corrupting it (motion_detected stays set).
+	if (heartbeat_busy)
+	{
+		MYLOG("ACC", "Heartbeat in progress, retrying alert");
+		api.system.timer.start(RAK_TIMER_1, 50, NULL);
+		return;
+	}
 #if MY_DEBUG == 1
 	digitalWrite(LED_BLUE, HIGH);
 #endif
@@ -236,6 +266,15 @@ void send_acc_alert(void* unused)
 		g_solution_data.addVoltage(LPP_CHANNEL_BATT_1, battery_reading);
 	}
 	g_solution_data.addDigitalInput(LPP_CHANNEL_DIG_7, battery_shutdown_latched ? 1 : 0);
+	// Same live data as a heartbeat. Sampled after the trigger, so X/Y/Z shows
+	// the aftermath of the motion, not its peak.
+	add_acc_xyz();
+	// Mirror the heartbeat: a RAK1906 owns channels 2/3, but its forced-mode
+	// reading (gas heater, hundreds of ms) is too slow for the alert path.
+	if (has_rak1901 && !has_rak1906)
+	{
+		read_rak1901(); // ~15-30 ms one-shot read
+	}
 	// Reset flag unconditionally so ISR can arm the next event regardless of TX outcome.
 	// A missed alert due to TX failure is recoverable; a stuck flag silences all future alerts.
 	motion_detected = false;
@@ -244,32 +283,13 @@ void send_acc_alert(void* unused)
 }
 
 /**
- * @brief Read accelerometer data from the RAK1904 sensor and add it to the solution data
- * 
-  // Get the latest sensor event
-  acc_sensor.getEvent(&event);
- * logs the values, adds them to the Cayenne LPP formatted solution data, and clears the interrupt register.
+ * @brief Add the current accelerometer reading to the heartbeat payload and rearm motion detection
+ *
+ * Appends X/Y/Z (in g) via add_acc_xyz(), then clears the interrupt latch.
  */
 void read_rak1904(void)
 {
-  sensors_event_t event;
-  acc_sensor.getEvent(&event);
-
-  // Adafruit getEvent() returns m/s²; addAccelerometer() expects G — divide by standard gravity
-  float x = event.acceleration.x / SENSORS_GRAVITY_STANDARD;
-  float y = event.acceleration.y / SENSORS_GRAVITY_STANDARD;
-  float z = event.acceleration.z / SENSORS_GRAVITY_STANDARD;
-
-  MYLOG("ACC", "X: %f, Y: %f, Z: %f", x, y, z);
-
-  // Add data to Cayenne LPP format
-  //	if (x != previous_x || y != previous_y || z != previous_z) {
-	//	g_solution_data.addAccelerometer(LPP_CHANNEL_ACC_1, x, y, z);
-	//	previous_x = x;
-  //  previous_x = y;
-  //  previous_x = z;
-	// } 
-  g_solution_data.addAccelerometer(LPP_CHANNEL_ACC_1, x, y, z);
+  add_acc_xyz();
 
   // Read temperature
   // uint8_t temp_l = rak1904_readRegister(LIS3DH_REG_TEMP_OUT_L);

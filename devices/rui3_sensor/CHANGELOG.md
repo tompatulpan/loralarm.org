@@ -1,5 +1,32 @@
 # Changelog
 
+## [v33] — Motion alert frames carry live sensor data
+
+Motion frames used to be detection-info only (motion flag + battery + latch bit), while heartbeats
+carried temp/humidity and X/Y/Z — two frame shapes for the same device. A motion alert now also
+includes the live accelerometer reading (ch 6) and, if a RAK1901 is present, temp/humidity
+(ch 2/3), so alarm frames are a subset of the heartbeat shape and `last_values` on the server
+updates on every motion event.
+
+- New shared `add_acc_xyz()` helper (`RAK1904_acc.cpp`): reads the LIS3DH, appends X/Y/Z in g to
+  the payload. Used by both `send_acc_alert()` (immediate motion frames) and `read_rak1904()`
+  (heartbeats), and never touches the interrupt latch — rearm order is unchanged.
+- `send_acc_alert()` calls `add_acc_xyz()` + `read_rak1901()` before sending. The guard mirrors
+  the heartbeat (`has_rak1901 && !has_rak1906`; both now extern in `app.h`). The SHTC3 stays
+  powered on the bus during sleep; the one-shot read adds ~15–30 ms to the alert path.
+  RAK1906-only nodes get X/Y/Z but no temp/humidity in alerts: the BME680 forced reading (gas
+  heater) is too slow for the alert path.
+- Race guard: new `heartbeat_busy` flag (set in `sensor_handler()` from sensor wake-up until the
+  send). If a motion timer fires meanwhile, `send_acc_alert()` re-arms RAK_TIMER_1 for 50 ms
+  instead of resetting the shared payload buffer / using I2C concurrently. `motion_detected`
+  stays set, so nothing is lost.
+- Sample semantics: X/Y/Z is taken at alert time, after the interrupt latched (ODR 10 Hz,
+  100 ms duration window) — it documents the aftermath of the disturbance, not its peak.
+- No codec/JSON/server change: `payload_codec_rui3.js` already decodes ch 6 (accelerometer),
+  ch 2/3 (temp/humidity); the tilt detector and temperature rules consume these fields as-is.
+  BEWARE: one physical event can now fire both `motion` and `tilt` notifications.
+- `version_byte` 32 → 33.
+
 ## [v32] — Battery supervision: fewer false latches, visible state
 
 Field report (sensor16, RAK3172): heartbeats stopped, the server showed a low battery while a
