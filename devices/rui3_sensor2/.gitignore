@@ -1,0 +1,4 @@
+*.txt
+*.log
+build/
+tests/host/test_policies
