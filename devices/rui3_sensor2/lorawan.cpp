@@ -12,6 +12,11 @@
 // LoRaWAN callbacks
 // ---------------------------------------------------------------------------
 
+// Link check state (see LINK_CHECK_* in config.h). Written by the tick (TIMER), the send
+// callback (LORA) and send_packet (TIMER/LOOP); single-byte flags, set-then-act.
+static volatile bool link_check_pending = false;	// next uplink should be confirmed
+static volatile bool link_check_in_flight = false;	// a confirmed check uplink is on its way
+static volatile bool rejoin_requested = false;		// check failed; loop() starts a fresh join
 /**
  * Link policy after a join (see POST_JOIN_* in config.h). Used for a fresh join
  * and for a restored cached session, so a reboot never leaves the radio on
@@ -142,6 +147,25 @@ static void sendCallback(int32_t status)
 	{
 		MYLOG("TX-CB", "Transmission failed with status %d", status);
 	}
+
+	// Result of a confirmed link-check uplink. For a confirmed uplink the stack only calls
+	// back after its retries are used up: status 0 means the network answered (an ACK or any
+	// valid downlink, so the session is alive); anything else means no answer at all.
+	// No join() from inside this callback: loop() starts it (lorawan_loop_check).
+	if (link_check_in_flight)
+	{
+		link_check_in_flight = false;
+		if (status == 0)
+		{
+			MYLOG("LINK", "Link check OK: network answered");
+		}
+		else
+		{
+			MYLOG("LINK", "Link check FAILED (status %d): no answer from the network — rejoin requested", status);
+			rejoin_requested = true;
+		}
+	}
+
 	digitalWrite(LED_BLUE, LOW);
 	// RUI3 nRF52840 restarts BLE advertising without a timeout after each TX.
 	// Re-arm with a 1 s auto-stop to prevent the ~425 uA stuck-advertise state.
@@ -244,21 +268,34 @@ static void start_otaa_join(uint8_t max_attempts)
 }
 
 /**
- * Periodic tick (RAK_TIMER_4, REJOIN_CHECK_INTERVAL_MS). The stack gives up after the
- * initial join series, so a node that was offline longer (gateway down, moved, power
- * outage at the gateway) would stay unjoined until someone reboots it. Once
- * REJOIN_RETRY_TICKS ticks of being unjoined have passed, start another short series;
- * repeat until a join succeeds.
+ * Periodic tick (RAK_TIMER_4, REJOIN_CHECK_INTERVAL_MS), two jobs:
+ *
+ * Unjoined: the stack gives up after the initial join series, so a node that was offline
+ * longer (gateway down, moved, power outage at the gateway) would stay unjoined until
+ * someone reboots it. Once REJOIN_RETRY_TICKS ticks of being unjoined have passed, start
+ * another short series; repeat until a join succeeds.
+ *
+ * Joined: "joined" only means the node holds a session, not that the network still accepts
+ * it (device deleted in the server, server reset, counters out of step, gateway gone).
+ * Every LINK_CHECK_TICKS ticks the next uplink is sent confirmed; see sendCallback.
  */
 static void rejoin_tick(void *unused)
 {
 	static uint8_t unjoined_ticks = 0;
+	static uint8_t joined_ticks = 0;
 
 	if (api.lorawan.njs.get())
 	{
 		unjoined_ticks = 0;
+		if (++joined_ticks >= LINK_CHECK_TICKS)
+		{
+			joined_ticks = 0;
+			link_check_pending = true;
+			MYLOG("LINK", "Link check due: next uplink goes out confirmed");
+		}
 		return;
 	}
+	joined_ticks = 0;
 	if (++unjoined_ticks < REJOIN_RETRY_TICKS)
 	{
 		return;
@@ -274,6 +311,42 @@ static void rejoin_tick(void *unused)
 	MYLOG("SETUP", "Still not joined after %lu min — starting a new join series",
 		  (unsigned long)REJOIN_RETRY_TICKS * REJOIN_CHECK_INTERVAL_MS / 60000UL);
 	start_otaa_join(REJOIN_RETRY_ATTEMPTS);
+}
+
+bool lorawan_take_link_check(void)
+{
+	if (!link_check_pending)
+	{
+		return false;
+	}
+	link_check_pending = false;
+	link_check_in_flight = true;
+	return true;
+}
+
+void lorawan_link_check_send_failed(void)
+{
+	// The stack refused the uplink, so no callback will report on it: try again next time
+	link_check_in_flight = false;
+	link_check_pending = true;
+}
+
+void lorawan_loop_check(void)
+{
+	if (!rejoin_requested)
+	{
+		return;
+	}
+	rejoin_requested = false;
+
+	// Same rule as the heartbeat: no radio activity while the supply is critical
+	if (battery_shutdown_latched)
+	{
+		MYLOG("LINK", "Forced rejoin skipped: low-battery latch active");
+		return;
+	}
+	MYLOG("LINK", "Forcing a fresh join (up to %d attempts)", JOIN_MAX_ATTEMPTS);
+	start_otaa_join(JOIN_MAX_ATTEMPTS);
 }
 
 void lorawan_setup(void)

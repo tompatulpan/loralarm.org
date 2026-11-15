@@ -29,9 +29,18 @@ downlink or server change; see README.md for the module map.
   offline longer (gateway down, moved) unjoined until a reboot. A periodic tick (`RAK_TIMER_4`,
   `REJOIN_CHECK_INTERVAL_MS`) now starts a new short series (`REJOIN_RETRY_ATTEMPTS` = 5, ~21 min)
   after every `REJOIN_RETRY_TICKS` ticks of being unjoined, at max power and DR3, until a join
-  succeeds. Production values are 1 h x 24 (daily); **currently set to the test values 1 min x 10
-  (every 10 min)**, see `config.h`. It does nothing while joined and is skipped while the
-  low-battery latch is active. Not yet tested against a real outage.
+  succeeds. Production values are 1 h x 24 (daily), which are the current settings; the bench test
+  values (1 min x 10) are in the `config.h` comments. It does nothing while joined and is skipped
+  while the low-battery latch is active. Verified on a node: out of range, retry at 10 min, rejoin.
+- Link check: "joined" only means the node holds a session, so a node whose device was deleted
+  or reset in the network server kept sending into the void and never rejoined. Every
+  `LINK_CHECK_TICKS` ticks (production: 24 x 1 h = daily, the current setting)
+  the next uplink is sent **confirmed** with `LINK_CHECK_RETRIES` = 3 retries. The stack calls the
+  send callback only after its retries: status 0 = the network answered (`Link check OK`), anything
+  else = no answer, `Link check FAILED (status n)`, and `loop()` forces a fresh join with the long
+  series (255 attempts). Skipped while the low-battery latch is active; if `SENDINT` is 0 the
+  check waits for the next uplink. Unverified assumption: a missing ACK reports a non-zero status.
+  The serial log also prints the stack's own `+EVT:SEND_CONFIRMED_OK/FAILED(n)`.
 - `version_byte` = 100 (new line; v33 stays the last of the old one).
 - Motion alerts also carry temp/humidity on RAK1906 nodes (found on a real node: the alert had none).
   `read_rak1906_fast()` runs one forced measurement with the gas heater off, then restores the

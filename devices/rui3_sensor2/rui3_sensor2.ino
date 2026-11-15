@@ -108,6 +108,7 @@ void setup()
 void loop()
 {
 	battery_loop_check();
+	lorawan_loop_check();
 
 	// Disable ADC/peripherals before sleep (no-op on STM32WLE5).
 	// See platform_pre_sleep() in platform_nrf52.cpp for details.

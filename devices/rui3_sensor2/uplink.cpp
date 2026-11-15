@@ -218,16 +218,24 @@ bool send_packet(void)
 		}
 
 		lorawan_enforce_link_policy();
-		MYLOG("UPLINK", "Sending packet over LoRaWAN (DR=%d TXP=%d ADR=%s)",
-			  api.lorawan.dr.get(), api.lorawan.txp.get(), api.lorawan.adr.get() ? "on" : "off");
+		const bool link_check = lorawan_take_link_check();
+		const bool confirm = g_confirmed_mode || link_check;
+		const uint8_t retry = link_check ? LINK_CHECK_RETRIES : g_confirmed_retry;
+		MYLOG("UPLINK", "Sending packet over LoRaWAN (DR=%d TXP=%d ADR=%s%s)",
+			  api.lorawan.dr.get(), api.lorawan.txp.get(), api.lorawan.adr.get() ? "on" : "off",
+			  link_check ? ", confirmed link check" : "");
 
 		// Note: RUI3 API may return false even when transmission succeeds
-		if (api.lorawan.send(g_solution_data.getSize(), g_solution_data.getBuffer(), set_fPort, g_confirmed_mode, g_confirmed_retry))
+		if (api.lorawan.send(g_solution_data.getSize(), g_solution_data.getBuffer(), set_fPort, confirm, retry))
 		{
 			MYLOG("UPLINK", "Packet enqueued successfully, size %d", g_solution_data.getSize());
 			return true;
 		}
 		MYLOG("UPLINK", "Enqueue returned false (check TX callback for actual result)");
+		if (link_check)
+		{
+			lorawan_link_check_send_failed();
+		}
 		return false;
 	}
 

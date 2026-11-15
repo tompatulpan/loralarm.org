@@ -68,15 +68,22 @@
 #define JOIN_MAX_ATTEMPTS 255	// 255 attempts x JOIN_RETRY_SEC (~18 h) before the stack gives up
 // Rejoin retry: if still unjoined after the initial series, start a short new series every
 // REJOIN_RETRY_TICKS ticks of REJOIN_CHECK_INTERVAL_MS (RAK_TIMER_4).
-// PRODUCTION: 3600000UL (1 h) x 24 ticks = daily; the period must stay longer than the
-// initial series (~18 h) so a series is never restarted while one is still running.
-// TEST (current): 60000UL (1 min) x 10 ticks = every 10 min. In this mode the retry also
-// interrupts the initial series; that is fine for bench tests, not for deployment.
+// PRODUCTION (current): 3600000UL (1 h) x 24 ticks = daily; the period must stay longer than
+// the initial series (~18 h) so a series is never restarted while one is still running.
+// TEST: 60000UL (1 min) x 10 ticks = every 10 min. In that mode the retry also interrupts the
+// initial series and writes 2 KB of flash per series, so never deploy it.
 // 5 x 255 s is ~21 min per series.
-#define REJOIN_CHECK_INTERVAL_MS 60000UL
-#define REJOIN_RETRY_TICKS 10
+#define REJOIN_CHECK_INTERVAL_MS 3600000UL
+#define REJOIN_RETRY_TICKS 24
 #define REJOIN_RETRY_ATTEMPTS 5
 
+// Link check (joined nodes): every LINK_CHECK_TICKS ticks of REJOIN_CHECK_INTERVAL_MS the next
+// uplink is sent as CONFIRMED with LINK_CHECK_RETRIES retries. If the network answers nothing,
+// the session is dead (device deleted/reset in the network server, frame counters out of
+// step, gateway gone) and the node forces a fresh join with the long series (JOIN_MAX_ATTEMPTS).
+// PRODUCTION (current): 24 ticks of 1 h = daily. TEST: 10 ticks of 1 min = every 10 min.
+#define LINK_CHECK_TICKS 24
+#define LINK_CHECK_RETRIES 3
 // Link policy after a successful join (also applied when a cached session is restored).
 // Fixed full power, ADR off: the node may be moved closer to or further from the gateway
 // and must still reach it, and the network never tunes it down. Trade-offs: more TX

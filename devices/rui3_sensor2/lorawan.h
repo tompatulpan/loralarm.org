@@ -27,3 +27,15 @@ void lorawan_enforce_link_policy(void);
 
 /** Log the confirmed/retry TX settings (LoRaWAN only). */
 void lorawan_log_tx_settings(void);
+
+/**
+ * Link check (see LINK_CHECK_* in config.h). send_packet() asks whether this uplink must be
+ * confirmed; true means "send confirmed with LINK_CHECK_RETRIES retries" and arms the result
+ * handling in the send callback. If the stack then refuses the send, call
+ * lorawan_link_check_send_failed() so the check is tried again with the next uplink.
+ */
+bool lorawan_take_link_check(void);
+void lorawan_link_check_send_failed(void);
+
+/** Call from loop() on every wake: starts the fresh join after a failed link check. */
+void lorawan_loop_check(void);

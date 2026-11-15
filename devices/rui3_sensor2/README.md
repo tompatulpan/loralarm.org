@@ -50,6 +50,57 @@ No change is needed in `sensor_handler`, `setup()` or the alert path.
 - Everything else — join/ADR/TXP handling, battery latch and hysteresis, boot guard, caching of the
   session, BLE re-arm on nRF52 — is a straight port.
 
+## Connection supervision
+
+Radio settings are fixed after every join: +16 dBm (TXP 0), ADR off, DR3 (`POST_JOIN_*` in `config.h`;
+`lorawan_enforce_link_policy()` restores them before each uplink if anything changed them). Two jobs run
+on one periodic tick (`RAK_TIMER_4`, `REJOIN_CHECK_INTERVAL_MS`; production 1 h, test 1 min):
+
+```mermaid
+flowchart TD
+    B[Boot] --> G[battery boot guard] --> S["lorawan_setup:<br/>OTAA, EU868, class A,<br/>credentials check, start tick"]
+    S --> J{Stack joined?}
+    J -- no --> I["Initial join series<br/>TXP 0, ADR off, DR3<br/>255 attempts x 255 s, ~18 h"]
+    J -- yes --> OK
+    I -- JOINED --> OK["JOINED: link policy applied,<br/>heartbeat timer + first uplink"]
+    I -- gives up --> UJ
+
+    OK --> T1{{"tick, joined"}}
+    T1 --> C1{"LINK_CHECK_TICKS<br/>reached? (prod 24 = daily)"}
+    C1 -- no --> OK
+    C1 -- yes --> C2["next uplink is CONFIRMED<br/>LINK_CHECK_RETRIES = 3"]
+    C2 --> C3{"send callback status"}
+    C3 -- "0: network answered" --> OK
+    C3 -- "non-zero: no answer" --> F["rejoin_requested"]
+    F --> L{"low-battery<br/>latch?"}
+    L -- yes --> OK
+    L -- no --> FJ["loop(): fresh join, long series<br/>255 attempts"]
+    FJ -- JOINED --> OK
+    FJ -- fails --> UJ
+
+    UJ["Not joined: heartbeats skipped,<br/>motion alerts dropped"] --> T2{{"tick, not joined"}}
+    T2 --> U1{"REJOIN_RETRY_TICKS<br/>reached? (prod 24 = daily)"}
+    U1 -- no --> UJ
+    U1 -- yes --> U2{"low-battery latch?"}
+    U2 -- yes --> UJ
+    U2 -- no --> U3["short join series<br/>5 attempts x 255 s, ~21 min"]
+    U3 -- JOINED --> OK
+    U3 -- fails --> UJ
+```
+
+| Scenario | What happens |
+|---|---|
+| Normal start, in range | Joins, applies the link policy, sends a first heartbeat immediately, then every `SENDINT`. |
+| Battery swap, out of range | Starts unjoined, retries every 255 s for ~18 h, then once a day (5 attempts). Joins on the next attempt after it is back in range. |
+| Gateway down for hours, node joined | The node keeps sending; at the next link check the confirmed uplink gets no answer, so it forces a fresh join (255 attempts) and recovers when the gateway returns. |
+| Device deleted/reset in the network server | Same as above: the link check fails, the node rejoins and succeeds once the device exists again with the same keys. |
+| Session valid, network fine | The check logs `Link check OK` and nothing else changes. |
+| Low battery latched | No join, rejoin or link-check traffic until the supply recovers (same rule as the heartbeat). |
+
+`config.h` is set to the production values: a 1 h tick with `REJOIN_RETRY_TICKS` and `LINK_CHECK_TICKS` = 24.
+For bench tests use a 1 min tick and 10 ticks (see the comments there). Each join series writes 2 KB of
+flash, so never deploy the test values.
+
 ## Build
 
 Arduino CLI / IDE with the RUI3 BSP (tested with `rak_rui` 4.3.0):
