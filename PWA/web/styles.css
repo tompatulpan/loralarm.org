@@ -33,6 +33,13 @@ input.pin{
 input.pin:focus{outline:none;border-color:#1f6feb}
 .err{color:#f85149;font-size:.75rem;min-height:1em}
 .foot{font-size:.6rem;color:#484f58;text-align:center}
+.install-help{
+  background:#161b22;border:1px solid #21262d;border-radius:10px;
+  padding:10px 12px;text-align:left;
+}
+.install-help p{font-size:.7rem;color:#c9d1d9;line-height:1.45}
+.install-help ol{font-size:.7rem;color:#c9d1d9;line-height:1.55;padding-left:16px;margin-top:2px}
+.ih-title{font-size:.64rem;font-weight:700;color:#58a6ff;margin-top:8px}
 
 /* app chrome */
 .appbar{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 10px}

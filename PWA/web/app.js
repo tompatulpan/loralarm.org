@@ -28,6 +28,7 @@ let LAST_OK = 0;          // ms timestamp of the last successful refresh
 let FAILS = 0;            // consecutive failed refreshes
 let SNOOZE_OPEN = null;   // devEUI whose snooze picker is open (survives re-renders)
 let TICKING = false;
+let DEFERRED_INSTALL = null;   // beforeinstallprompt event (Chrome/Android et al.)
 const POLL_MS = 15000;
 const STALE_AFTER_MS = 2.5 * POLL_MS;   // ~2 missed polls
 const EUI_RE = /^[0-9a-f]{16}$/;
@@ -103,6 +104,13 @@ function hhmm(ms) {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
+// running as an installed app (home-screen icon), not in a browser tab
+function runningStandalone() {
+  return window.matchMedia('(display-mode: standalone)').matches
+    || window.matchMedia('(display-mode: fullscreen)').matches
+    || navigator.standalone === true;
+}
+
 let WAS_STALE = false;
 
 function renderConn() {
@@ -129,6 +137,7 @@ function showLogin() {
   $('#view-login').classList.remove('hidden');
   $('#view-app').classList.add('hidden');
   $('#login-token').focus();
+  renderInstall();
 }
 
 function showApp() {
@@ -344,8 +353,7 @@ async function pushSubscription() {
 async function renderSettings() {
   $('#me-name').textContent = ME ? `Inloggad som ${ME.name}${ME.role === 'admin' ? ' (admin)' : ''}` : '';
   const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
-  const standalone = window.matchMedia('(display-mode: standalone)').matches
-    || navigator.standalone === true;
+  const standalone = runningStandalone();
   $('#ios-hint').classList.toggle('hidden', !(isIOS && !standalone));
 
   const sub = await pushSubscription();
@@ -480,6 +488,35 @@ async function tick() {
   }
 }
 
+// ---------- install (PWA) ----------
+
+function renderInstall() {
+  const installed = runningStandalone();
+  $('#install-btn').classList.toggle('hidden', installed);
+  $('#install-help').classList.add('hidden');
+  $('#install-native').classList.toggle('hidden', !DEFERRED_INSTALL);
+}
+
+function toggleInstallHelp() {
+  const help = $('#install-help');
+  const opening = help.classList.contains('hidden');
+  help.classList.toggle('hidden', !opening);
+  if (opening) $('#install-native').classList.toggle('hidden', !DEFERRED_INSTALL);
+}
+
+async function nativeInstall() {
+  if (!DEFERRED_INSTALL) return;
+  const prompt = DEFERRED_INSTALL;
+  prompt.prompt();
+  const { outcome } = await prompt.userChoice;
+  DEFERRED_INSTALL = null;          // the browser fires it only once
+  $('#install-native').classList.add('hidden');
+  if (outcome === 'accepted') {
+    $('#install-help').classList.add('hidden');
+    toast('Installerar appen…');
+  }
+}
+
 // ---------- boot ----------
 
 async function boot() {
@@ -493,6 +530,17 @@ async function boot() {
   $('#push-enable').addEventListener('click', enablePush);
   $('#push-test').addEventListener('click', sendTestPush);
   $('#logout-btn').addEventListener('click', logout);
+  $('#install-btn').addEventListener('click', toggleInstallHelp);
+  $('#install-native').addEventListener('click', nativeInstall);
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();        // we show the login-card button instead of the mini Infobar
+    DEFERRED_INSTALL = e;
+    $('#install-native').classList.remove('hidden');
+  });
+  window.addEventListener('appinstalled', () => {
+    DEFERRED_INSTALL = null;
+    renderInstall();           // installed: drop button and panel from the login view
+  });
   window.addEventListener('hashchange', route);
   // phones suspend timers: refresh as soon as the app is visible / back online
   document.addEventListener('visibilitychange', () => { if (!document.hidden) tick(); });
