@@ -104,6 +104,11 @@ function hhmm(ms) {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
+// iPadOS 13+ reports a desktop Mac user agent
+const IS_IOS = /iPhone|iPad|iPod/.test(navigator.userAgent)
+  || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+const IS_ANDROID = /Android/.test(navigator.userAgent);
+
 // running as an installed app (home-screen icon), not in a browser tab
 function runningStandalone() {
   return window.matchMedia('(display-mode: standalone)').matches
@@ -352,9 +357,8 @@ async function pushSubscription() {
 
 async function renderSettings() {
   $('#me-name').textContent = ME ? `Inloggad som ${ME.name}${ME.role === 'admin' ? ' (admin)' : ''}` : '';
-  const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
-  const standalone = runningStandalone();
-  $('#ios-hint').classList.toggle('hidden', !(isIOS && !standalone));
+  $('#ios-hint').classList.toggle('hidden', !(IS_IOS && !runningStandalone()));
+  renderInstall();
 
   const sub = await pushSubscription();
   const state = $('#push-state'), meta = $('#push-meta');
@@ -490,18 +494,41 @@ async function tick() {
 
 // ---------- install (PWA) ----------
 
-function renderInstall() {
-  const installed = runningStandalone();
-  $('#install-btn').classList.toggle('hidden', installed);
-  $('#install-help').classList.add('hidden');
-  $('#install-native').classList.toggle('hidden', !DEFERRED_INSTALL);
+// the same instructions (#install-tpl) are shown on the login view and in settings
+const INSTALL_UI = [
+  { btn: '#install-btn', help: '#install-help' },
+  { btn: '#install-btn-settings', help: '#install-help-settings' },
+];
+
+function setInstallHelp({ btn, help }, open) {
+  $(help).classList.toggle('hidden', !open);
+  $(btn).setAttribute('aria-expanded', String(open));
 }
 
-function toggleInstallHelp() {
-  const help = $('#install-help');
-  const opening = help.classList.contains('hidden');
-  help.classList.toggle('hidden', !opening);
-  if (opening) $('#install-native').classList.toggle('hidden', !DEFERRED_INSTALL);
+function setupInstall() {
+  const tpl = $('#install-tpl');
+  for (const ui of INSTALL_UI) {
+    const box = $(ui.help);
+    box.append(tpl.content.cloneNode(true));
+    box.querySelectorAll('[data-platform]').forEach((el) => {
+      const p = el.dataset.platform;
+      el.classList.toggle('hidden', (IS_IOS && p !== 'ios') || (IS_ANDROID && p !== 'android'));
+    });
+    box.querySelector('.install-native').addEventListener('click', nativeInstall);
+    $(ui.btn).addEventListener('click', () => setInstallHelp(ui, box.classList.contains('hidden')));
+  }
+  if (IS_IOS) setInstallHelp(INSTALL_UI[1], true);   // iOS needs the install before push works
+}
+
+// state only: leaves open/closed panels as the user left them
+function renderInstall() {
+  const installed = runningStandalone();
+  for (const ui of INSTALL_UI) {
+    $(ui.btn).classList.toggle('hidden', installed);
+    if (installed) setInstallHelp(ui, false);
+    $(ui.help).querySelectorAll('.install-native')
+      .forEach((b) => b.classList.toggle('hidden', !DEFERRED_INSTALL));
+  }
 }
 
 async function nativeInstall() {
@@ -510,11 +537,10 @@ async function nativeInstall() {
   prompt.prompt();
   const { outcome } = await prompt.userChoice;
   DEFERRED_INSTALL = null;          // the browser fires it only once
-  $('#install-native').classList.add('hidden');
-  if (outcome === 'accepted') {
-    $('#install-help').classList.add('hidden');
-    toast('Installerar appen…');
-  }
+  renderInstall();
+  toast(outcome === 'accepted'
+    ? 'Installerar appen…'
+    : 'Installationen avbröts – du kan även använda webbläsarens meny');
 }
 
 // ---------- boot ----------
@@ -530,16 +556,15 @@ async function boot() {
   $('#push-enable').addEventListener('click', enablePush);
   $('#push-test').addEventListener('click', sendTestPush);
   $('#logout-btn').addEventListener('click', logout);
-  $('#install-btn').addEventListener('click', toggleInstallHelp);
-  $('#install-native').addEventListener('click', nativeInstall);
+  setupInstall();
   window.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault();        // we show the login-card button instead of the mini Infobar
+    e.preventDefault();        // we show our own "Installera nu" button instead of the mini Infobar
     DEFERRED_INSTALL = e;
-    $('#install-native').classList.remove('hidden');
+    renderInstall();
   });
   window.addEventListener('appinstalled', () => {
     DEFERRED_INSTALL = null;
-    renderInstall();           // installed: drop button and panel from the login view
+    renderInstall();           // installed: drop buttons and panels
   });
   window.addEventListener('hashchange', route);
   // phones suspend timers: refresh as soon as the app is visible / back online

@@ -24,25 +24,32 @@
       <button id="login-btn" class="btn">Logga in</button>
       <div id="login-err" class="err"></div>
     </div>
-    <button id="install-btn" class="btn ghost">Installera som app</button>
-    <div id="install-help" class="install-help hidden">
-      <p>Så får du loralarm som egen app med ikon på startskärmen:</p>
-      <div class="ih-title">iPhone/iPad — Safari</div>
-      <ol>
-        <li>Öppna loralarm i webbläsaren Safari.</li>
-        <li>Tryck på Dela-knappen — kvadraten med pilen uppåt, längst ned.</li>
-        <li>Rulla nedåt och tryck på ”Lägg till på hemskärmen”.</li>
-      </ol>
-      <div class="ih-title">Android — Chrome</div>
-      <ol>
-        <li>Tryck på menyn med tre punkter uppe till höger.</li>
-        <li>Tryck på ”Installera app” eller ”Lägg till på startskärmen”.</li>
-      </ol>
-      <button id="install-native" class="btn ghost hidden">Installera nu</button>
-    </div>
+    <button id="install-btn" class="btn ghost" aria-expanded="false" aria-controls="install-help">Installera som app</button>
+    <div id="install-help" class="install-help hidden"></div>
     <div class="foot">loralarm PWA</div>
   </div>
 </section>
+
+<!-- shared install instructions, cloned into #install-help and #install-help-settings -->
+<template id="install-tpl">
+  <p>Så får du loralarm som egen app med ikon på startskärmen:</p>
+  <div data-platform="ios">
+    <div class="ih-title">iPhone/iPad — Safari</div>
+    <ol>
+      <li>Öppna loralarm i webbläsaren Safari.</li>
+      <li>Öppna Dela-menyn (kvadraten med pilen uppåt) — den finns längst ned, eller bakom ••• i nyare iOS.</li>
+      <li>Välj ”Lägg till på hemskärmen”.</li>
+    </ol>
+  </div>
+  <div data-platform="android">
+    <div class="ih-title">Android — Chrome, Samsung Internet, Firefox</div>
+    <ol>
+      <li>Öppna webbläsarens meny (tre punkter eller ☰).</li>
+      <li>Välj ”Installera app” eller ”Lägg till på startskärmen”.</li>
+    </ol>
+  </div>
+  <button class="btn ghost install-native hidden">Installera nu</button>
+</template>
 
 <!-- ============ APP SHELL ============ -->
 <section id="view-app" class="view hidden">
@@ -109,6 +116,8 @@
         📱 iPhone/iPad: lägg till på hemskärmen (Dela → ”Lägg till på hemskärmen”)
         innan du kan ta emot push-notiser.
       </div>
+      <button id="install-btn-settings" class="btn ghost" aria-expanded="false" aria-controls="install-help-settings">Installera som app</button>
+      <div id="install-help-settings" class="install-help hidden"></div>
       <div class="sect">Välj enheter</div>
       <div id="mute-list"></div>
       <div class="sect">Konto</div>

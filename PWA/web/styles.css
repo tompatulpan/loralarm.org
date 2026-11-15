@@ -39,6 +39,8 @@ input.pin:focus{outline:none;border-color:#1f6feb}
 }
 .install-help p{font-size:.7rem;color:#c9d1d9;line-height:1.45}
 .install-help ol{font-size:.7rem;color:#c9d1d9;line-height:1.55;padding-left:16px;margin-top:2px}
+#install-btn-settings,#install-help-settings{margin-top:8px}
+.install-help .install-native{margin-top:10px}
 .ih-title{font-size:.64rem;font-weight:700;color:#58a6ff;margin-top:8px}
 
 /* app chrome */
