@@ -37,6 +37,10 @@ downlink or server change; see README.md for the module map.
   `read_rak1906_fast()` runs one forced measurement with the gas heater off, then restores the
   heater profile; the full reading takes ~390 ms, the quick one should be tens of ms (to be measured
   on hardware). The sensor table's `read_alert` hook replaces the old `read_in_alert` flag.
+- BME680 IIR filter switched off (`BME680_FILTER_SIZE_0`, was size 3). With one forced reading per
+  heartbeat each reading only moved part of the way to the real value (T decayed over several
+  heartbeats on a real node after it was handled), delaying temperature alarms. Readings are now
+  slightly noisier but follow changes at once. Hardware check pending.
 - `[ALERT]` log line reports how many sensors were added to each motion frame.
 - Verified: builds for RAK3172 (RUI3 BSP 4.3.0) at 172,256 B flash / 32,504 B RAM versus 172,648 B /
   32,360 B for `rui3_sensor` v33, and for RAK4631 (`WisCoreRAK4631Board`) at 327,892 B / 75,488 B versus

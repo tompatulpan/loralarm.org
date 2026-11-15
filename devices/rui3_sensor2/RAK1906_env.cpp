@@ -42,7 +42,10 @@ bool init_rak1906(void)
 	bme.setTemperatureOversampling(BME680_OS_8X);
 	bme.setHumidityOversampling(BME680_OS_2X);
 	bme.setPressureOversampling(BME680_OS_4X);
-	bme.setIIRFilterSize(BME680_FILTER_SIZE_3);
+	// IIR filter off: with one forced reading every few minutes the filter gains nothing
+	// but makes each reading only partly follow the real value (seen as a slow decay of
+	// T over several heartbeats), which delays temperature alarms.
+	bme.setIIRFilterSize(BME680_FILTER_SIZE_0);
 	bme.setGasHeater(GAS_HEATER_TEMP_C, GAS_HEATER_TIME_MS);
 
 	MYLOG("ENV", "BME680 environmental sensor initialized successfully");
