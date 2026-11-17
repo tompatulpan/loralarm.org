@@ -37,12 +37,11 @@ void setup()
 	pinMode(LED_BLUE, OUTPUT);
 	digitalWrite(LED_BLUE, HIGH);
 
-	api.system.firmwareVersion.set("RUI3-Kit1-V1.0.1");
+	api.system.firmwareVersion.set(FW_VERSION_STR);
 
-	Serial.println("LoraLarm.org RAKwireless RUI3 Node");
 	Serial.println("------------------------------------------------------");
-	Serial.println("Setup the device with WisToolBox or AT commands before using it");
-	Serial.printf("Version %s\n", api.system.firmwareVersion.get().c_str());
+	Serial.printf("          Welcome to LoraLarm.org !!");
+	Serial.println("Setup the device with AT commands before using it");
 	Serial.println("------------------------------------------------------");
 
 	// Initialize module

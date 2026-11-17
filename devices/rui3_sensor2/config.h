@@ -48,6 +48,10 @@
 // rui3_sensor v33) starts at 100 so it can never be mistaken for the old 3x series.
 #define FW_VERSION_BYTE 100
 
+// Version string reported by the RUI3 stack (AT+VER / api.system.firmwareVersion).
+// Must track FW_VERSION_BYTE: it is the only way to identify the firmware without a join.
+#define FW_VERSION_STR "rui3_sensor2-v100"
+
 // ---------------------------------------------------------------------------
 // Pins
 // ---------------------------------------------------------------------------
