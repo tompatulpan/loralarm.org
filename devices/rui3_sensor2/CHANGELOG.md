@@ -39,8 +39,22 @@ downlink or server change; see README.md for the module map.
   send callback only after its retries: status 0 = the network answered (`Link check OK`), anything
   else = no answer, `Link check FAILED (status n)`, and `loop()` forces a fresh join with the long
   series (255 attempts). Skipped while the low-battery latch is active; if `SENDINT` is 0 the
-  check waits for the next uplink. Unverified assumption: a missing ACK reports a non-zero status.
-  The serial log also prints the stack's own `+EVT:SEND_CONFIRMED_OK/FAILED(n)`.
+  check waits for the next uplink. Verified on hardware (Stage A bench, 2026-11-16, `tests/bench`):
+  a confirmed uplink with no answer reports status 4 (+EVT:SEND_CONFIRMED_FAILED(4)), the forced
+  rejoin runs while the stack still reports joined, and the node recovered ~3 min after the
+  gateway returned (incl. gateway boot). The serial log also prints the stack's own
+  `+EVT:SEND_CONFIRMED_OK/FAILED(n)`.
+- Stage B bench (2026-11-16, `tests/bench`, production values, RAK3172 EVB): the RUI3 session
+  cache does **not** survive a reset on this BSP. Every reboot reads `njs=0`, `join()` returns
+  false ("restore in progress or stack busy"), and the stack silently re-joins over the air
+  seconds later (fCnt reset observed 3 -> 0 via MQTT; B1.5). With no coverage it prints
+  `join fail! Next retry in 255 s (auto-rejoin active)` — the stack retries on its own every
+  255 s, heartbeats skip (`Not joined, skip sending`), and the node rejoins within one
+  interval after coverage returns (recovery incl. gateway boot <= ~6 min; B2). So plan
+  outcome "U (boots unjoined)" for both soft reset and power cycle; a cached-session boot
+  (outcome C) has never been observed on this board. Bench harness notes: Rui3's
+  background join, the MQTT probe (ChirpStack v3 REST is gone) and the third boot outcome
+  are all driven/validated by `tests/bench/bench.py` (see its README).
 - Review fixes (code review of the first version):
   - `sensor_handler()` is now a thin wrapper that owns `heartbeat_busy` for the whole run and drops a
     second call that arrives mid-run (timer, `loop()` after a battery recovery, join callback).
@@ -50,7 +64,7 @@ downlink or server change; see README.md for the module map.
     a healthy-looking switch frame.
   - `send_acc_alert()` also waits until `setup_complete`: its ISR is attached in `init_rak1904()`
     before the RAK1906 init, so an early motion event could touch I2C mid-init.
-  - `AT+SENDINT` / `AT+MININT` reject values above 2,147,483 s (`INTERVAL_MAX_S`); larger ones
+  - `ATC+SENDINT` / `ATC+MININT` reject values above 2,147,483 s (`INTERVAL_MAX_S`); larger ones
     wrapped the ms multiply (4294968 s -> 704 ms, a sub-second uplink loop with a flash write each).
   - `AT+STATUS` no longer indexes `regions_list` out of range; log text in `setup_rak1904()` said
     port 6 where the duration is port 7; compile-time check that the tick counts fit a `uint8_t`.

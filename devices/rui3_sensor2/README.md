@@ -12,6 +12,8 @@ decision logic is pure and unit-tested on the host, and adding a sensor is one t
 For the payload channel table, hardware list, battery-sensing modes, power notes and AT commands see
 the [`rui3_sensor` README](../rui3_sensor/README.md); everything there still applies.
 
+ToFo: A list with needed AT-commnds, such as ATC+SENDINT=300, devEUI, joinEUI, appKey, etc.
+
 ## Module map
 
 | File | Responsibility |

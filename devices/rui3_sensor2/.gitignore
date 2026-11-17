@@ -1,6 +1,12 @@
 *.txt
+!tests/bench/requirements.txt
 *.log
 build/
 tests/host/test_policies
+tests/bench/bench_config.json
+tests/bench/logs/
+tests/bench/.venv/
+.venv/
+__pycache__/
 .vscode/settings.json
 .vscode/c_cpp_properties.json

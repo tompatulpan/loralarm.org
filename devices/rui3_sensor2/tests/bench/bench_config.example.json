@@ -1,0 +1,47 @@
+{
+  "_comment": "copy to bench_config.json and edit. Anything null/empty degrades gracefully: no chirpstack -> WARN instead of server assertions; no gateway cmds -> interactive prompts (stage-c refuses to run unattended without them).",
+
+  "serial_port": "/dev/ttyACM0",
+  "baud": 115200,
+
+  "dev_eui": "ac1f09fffe120123",
+
+  "log_dir": "logs",
+  "_factor": "1.0 = real time. Smaller scales the SHORT timeouts only (harness debugging, never for results). stage-c always real time.",
+  "factor": 1.0,
+
+  "gateway": {
+    "_comment": "How the harness takes the node's network path down/up. type: 'tasmota' (mains switch on the LAN powering the GATEWAY ONLY — server must stay up; set ip and optional password), 'shell' (off_cmd/on_cmd, e.g. ssh stop/start of the packet forwarder or chirpstack-gateway-bridge), 'manual' (interactive prompt; fine for stages A/B, stage-c refuses unattended). A failed tasmota call or missing switch is FATAL, never silently ignored. on_wait_s: after ON, wait for the gateway to boot (default 90 s for tasmota, 0 for shell) so recovery times compare fairly.",
+
+    "type": "manual",
+    "ip": null,
+    "password": null,
+
+    "off_cmd": null,
+    "on_cmd": null,
+    "on_wait_s": 90,
+    "off_wait_s": 5
+  },
+
+  "chirpstack": {
+    "_comment": "ChirpStack v4 internal REST API (login session: gives lastSeenAt + FCntUp). ONLY for ChirpStack v4 deployments — v3 has no usable REST API, use the mqtt block there. null/empty = the mqtt/db probes are used instead (serial-only pass/fail if neither exists).",
+    "base_url": null,
+    "email": null,
+    "password": null
+  },
+
+  "mqtt": {
+    "_comment": "ChirpStack MQTT integration (broker that the ChirpStack v3/v4 service publishes to). Preferred server probe for v3: subscribe-only, topic application/+/device/<dev_eui>/event/up, gives arrival time + exact fCnt (B1.5 continuity). Requires paho-mqtt (pip install paho-mqtt). null host = probe off.",
+    "host": null,
+    "port": 1883,
+    "user": null,
+    "password": null
+  },
+
+  "loralarm_db": null,
+
+  "arduino": {
+    "_comment": "for `flash`: config.h is backed up, the three defines are switched, arduino-cli compiles+uploads, config.h is restored. fqbn from devices/rui3_sensor2/sketch.yaml:",
+    "fqbn": "rak_rui:stm32:WisDuoRAK3172EvaluationBoard:debug=l0,supportat=1,supportlora=1,supportAS923=2,supportAU915=2,supportCN470=2,supportCN779=2,supportEU433=2,supportEU868=1,supportKR920=2,supportIN865=2,supportUS915=2,supportRU864=2,supportLA915=2"
+  }
+}
