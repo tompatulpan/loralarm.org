@@ -1,0 +1,20 @@
+{
+  "name": "RAK4631rui",
+  "description": "RAK4631-R (nRF52840) running the RUI3 Cayenne firmware (rui3_sensor / rui3_sensor2): LiPo, WisBlock sensors with real temperature, ODR index 1-7 on fPort 6, level-mode circuit — same wire format as RAK3172",
+  "aliases": ["rak4631-r", "rui3-4631"],
+  "frequency": {
+    "label": "index",
+    "table": {"1": 1, "2": 10, "3": 25, "4": 50, "5": 100, "6": 200, "7": 400}
+  },
+  "fields": {
+    "low_battery_shutdown": {"from": "low_battery_shutdown"}
+  },
+  "defaults": {
+    "tk_correction_c": 0.0,
+    "temp_alarm_min_c": 0.0,
+    "batt_full_v": 4.2,
+    "batt_warn_v": 3.5,
+    "batt_empty_v": 3.2,
+    "circuit_mode": "level"
+  }
+}

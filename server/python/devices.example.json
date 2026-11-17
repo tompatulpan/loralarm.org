@@ -138,14 +138,33 @@
 
       "notify_fire": {"motion": "🚨 RÖRELSE på {name}: {detail}"}
     },
-    "ac1f09fffe120202": {
+    "ac1f09fffe1341aa": {
       "name": "sensor2",
+      "family": "RAK4631rui",
+      "group": "villa",
+      "application_id": "${LORALARM_CS_APP_LARM}",
+      "pushover_user": "${LORALARM_PUSHOVER_USER}",
+      "pushover_token": "${LORALARM_PUSHOVER_TOKEN}",
+      "ntfy_topic": "sensor2",
+      "watchdog_hours": 0.5,
+      "temp_alarm_max_c": 25.0,
+      "temp_alarm_min_c": -20.0,
+      "motion_min_detections": 3,
+      "circuit_mode": "event",
+      "threshold": 8,
+      "frequency": 10,
+      "duration": 1,
+
+      "notify_fire": {"motion": "🚨 RÖRELSE på {name}: {detail}"}
+    },
+    "ac1f09fffe120202": {
+      "name": "sensor3",
       "family": "RAK3172",
       "group": "garage",
       "application_id": "${LORALARM_CS_APP_SUBLARM}",
       "pushover_user": "${LORALARM_PUSHOVER_USER}",
       "pushover_token": "${LORALARM_PUSHOVER_TOKEN}",
-      "ntfy_topic": "sensor2",
+      "ntfy_topic": "sensor3",
       "watchdog_hours": 0.5
     },
     "a84041a5d759d001": {
