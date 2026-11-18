@@ -5,7 +5,10 @@
  * Compiled only for STM32WLE5 targets. All MCU-specific code for this
  * platform lives here; the rest of the application is device-agnostic.
  *
- * Battery sensing — Mode A (VBAT == VDDA, no LDO between cell and MCU):
+ * Battery sensing — RAK3172 ships in two supply layouts; the mode is a
+ * per-device setting (ATC+BATMODE, flash-backed, default = Mode A):
+ *
+ *   Mode A (0, default) — VBAT == VDDA, no LDO between cell and MCU:
  *   The STM32WLE5 internal Vrefint bandgap (~1.212 V) measured at pin 254
  *   (UDRV_ADC_CHANNEL_VREFINT) against the factory calibration word at
  *   0x1FFF75AA gives true VDDA. VDDA equals the battery voltage directly.
@@ -17,9 +20,22 @@
  *     Pin 254 = UDRV_ADC_CHANNEL_VREFINT IS handled; HAL_ADC_ConfigChannel
  *     auto-enables ADC_CCR_VREFEN. Factory cal is 12-bit, so we read at 12-bit.
  *
- *   Power: the Vrefint path is the ONLY analogRead() that clears ADC ADEN on
- *   exit. Any GPIO pin analogRead() leaves ADEN=1, blocking Stop 2 entry
- *   (~45 uA). Do NOT add GPIO ADC reads here.
+ *   Mode B (1) — battery behind an LDO. VDDA is then the regulator output and
+ *   says nothing about the cell, so Mode A cannot see a dying battery. An
+ *   external high-impedance divider from the cell (>= 10 MOhm total, 100 nF
+ *   at the pin for S&H settling; ~0.4 uA drain at 4 V) feeds BATT_SENSE_PIN
+ *   (config.h). The ADC full scale is VDDA, so Mode B measures VDDA via
+ *   Vrefint first, then the divider pin:
+ *     VBAT = raw/4095 * VDDA * BATT_SENSE_DIVIDER
+ *   BATT_SENSE_DIVIDER lumps the resistor ratio and pin tolerances; calibrate
+ *   as for BATT_CAL_GAIN: new = current * (multimeter_V / code_V). An
+ *   uncalibrated 1.0 reads LOW with a real divider -> fails safe (early
+ *   shutdown alarm, never a missed low battery).
+ *
+ *   Power: the Vrefint path is the only analogRead() that clears ADC ADEN on
+ *   exit. The Mode B GPIO read leaves ADEN=1; platform_pre_sleep() clears it
+ *   with ADC_CR_ADDIS before Stop 2 entry. The ~45 uA penalty applies only
+ *   between a Mode B read and the next sleep, not during sleep.
  */
 
 // Guard on the CMSIS device define set by the RUI3 STM32 board package.
@@ -51,6 +67,13 @@ static const uint16_t BATT_CRITICAL_MV = 2500;
 // Vrefint samples per reading; the median rejects a single wake-up outlier.
 static const uint8_t BATT_SAMPLES = 5;
 
+// Mode B: lumped divider ratio for the external cell divider on BATT_SENSE_PIN
+// (LDO boards, ATC+BATMODE=1). Absorbs the resistor ratio and pin tolerances.
+// Calibration: new_divider = current_divider * (multimeter_V / code_V).
+// Default 1.0 = UNCALIBRATED: with a real divider it reads LOW, which fails
+// safe (early shutdown alarm, never a missed low battery).
+static const float BATT_SENSE_DIVIDER = 1.0f;
+
 // ── API implementation ────────────────────────────────────────────────────────
 
 void platform_init(void)
@@ -62,7 +85,15 @@ void platform_init(void)
     // No WB_IO2 (sensor power rail not present on RAK3172 eval / RAK19009).
 }
 
-float platform_battery_get(void)
+/**
+ * @brief Median VDDA in volts from the internal Vrefint reference.
+ *
+ * Raw factory-formula value, no board gain/offset correction. Mode A treats the
+ * median as the battery; Mode B uses it as the ADC full-scale voltage.
+ *
+ * @return Median VDDA in V, or 0.0 if no valid sample was taken.
+ */
+static float vdda_read_v(void)
 {
     uint16_t vrefint_cal = *VREFINT_CAL_ADDR_PTR;
     analogReadResolution(12);
@@ -94,12 +125,79 @@ float platform_battery_get(void)
         return 0.0f;  // 0.0 V skips boot guard (>0.5f) and runtime check
     }
 
-    float vdda_raw  = vdda[n / 2];
+    MYLOG("BATT", "Vrefint %u/%u samples, median raw=%.3fV (min %.3f max %.3f)",
+          n, BATT_SAMPLES, vdda[n / 2], vdda[0], vdda[n - 1]);
+    return vdda[n / 2];
+}
+
+/**
+ * @brief Mode B battery read: external divider on BATT_SENSE_PIN (ATC+BATMODE=1).
+ *
+ * The ADC full scale is VDDA (the regulator output on an LDO board), not a
+ * fixed reference, so the scale comes from the same Vrefint method Mode A uses.
+ *
+ * @return Battery voltage in V, or 0.0 if no valid sample was taken.
+ */
+static float battery_read_divider_v(void)
+{
+    float vdda = vdda_read_v();
+    if (vdda <= 0.0f) {
+        return 0.0f;  // reason logged by vdda_read_v
+    }
+
+    analogReadResolution(12);
+    analogRead(BATT_SENSE_PIN);  // warm-up: charge S&H capacitor
+
+    float samples[BATT_SAMPLES];
+    uint8_t n = 0;
+    for (uint8_t i = 0; i < BATT_SAMPLES; i++) {
+        delay(2);  // allow S&H capacitor to fully recharge between samples
+        uint16_t raw = (uint16_t)analogRead(BATT_SENSE_PIN);
+        // 0 / full-scale = floating pin (no divider wired) or shorted divider
+        if (raw == 0 || raw > 4095) {
+            continue;
+        }
+        float v = (raw / 4095.0f) * vdda * BATT_SENSE_DIVIDER;
+        uint8_t j = n++;
+        while (j > 0 && samples[j - 1] > v) {
+            samples[j] = samples[j - 1];
+            j--;
+        }
+        samples[j] = v;
+    }
+    analogReadResolution(10);                     // restore RUI3 default
+
+    if (n == 0) {
+        MYLOG("BATT", "Divider OOB — monitoring disabled");
+        return 0.0f;  // 0.0 V skips boot guard (>0.5f) and runtime check
+    }
+
+    float median = samples[n / 2];
+    MYLOG("BATT", "STM32 Mode B: %u/%u samples, VDDA=%.3fV div=%.3f -> %.3fV",
+          n, BATT_SAMPLES, vdda, BATT_SENSE_DIVIDER, median);
+    return median;
+}
+
+float platform_battery_get(void)
+{
+    // Mode is a per-device setting: both supply layouts ship with the same binary.
+    // battery_boot_guard() may run before get_at_setting() loads the mode from
+    // flash; it then measures Mode A, which is harmless — behind an LDO the
+    // regulated VDDA passes the guard, and the runtime latch uses the saved mode.
+    if (custom_parameters.batt_sense_mode == 1)
+    {
+        return battery_read_divider_v();
+    }
+
+    float vdda_raw  = vdda_read_v();
+    if (vdda_raw <= 0.0f)
+    {
+        return 0.0f;
+    }
+
     float vdda_corr = (vdda_raw * BATT_CAL_GAIN) + BATT_CAL_OFFSET;
-
-    MYLOG("BATT", "STM32: %u/%u samples, median raw=%.3fV (min %.3f max %.3f) gain=%.3f off=%.3f -> %.3fV",
-          n, BATT_SAMPLES, vdda_raw, vdda[0], vdda[n - 1], BATT_CAL_GAIN, BATT_CAL_OFFSET, vdda_corr);
-
+    MYLOG("BATT", "STM32 Mode A: gain=%.3f off=%.3f -> %.3fV",
+          BATT_CAL_GAIN, BATT_CAL_OFFSET, vdda_corr);
     return vdda_corr;
 }
 
@@ -107,8 +205,9 @@ void platform_pre_sleep(void)
 {
     // Force ADC off before Stop 2 entry. The Vrefint read path clears ADEN,
     // but the RUI3 LoRaWAN stack may call api.system.bat.get() for ADR
-    // battery level reporting, re-enabling ADC (ADEN=1) after our read.
-    // Stop 2 is blocked while ADEN=1 (RM0461 §21.3.1).
+    // battery level reporting, re-enabling ADC (ADEN=1) after our read — and
+    // the Mode B divider read does the same. Stop 2 is blocked while ADEN=1
+    // (RM0461 §21.3.1).
     // ADC_CR_ADDIS (bit 1) requests disable; hardware clears ADEN (bit 0).
     if (ADC->CR & ADC_CR_ADEN) {
         ADC->CR |= ADC_CR_ADDIS;

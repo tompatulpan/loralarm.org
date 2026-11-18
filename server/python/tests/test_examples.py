@@ -200,7 +200,7 @@ class FullTemplateTest(unittest.TestCase):
             self.conf()
         data = json.loads(self.TEMPLATE.read_text(encoding="utf-8"))
         self.assertEqual({"profiles", "defaults", "families", "devices"} <= set(data), True)
-        self.assertEqual(len(data["devices"]), 7)
+        self.assertEqual(len(data["devices"]), 8)
 
     def test_pushover_credentials_reach_every_device(self):
         conf = self.conf()

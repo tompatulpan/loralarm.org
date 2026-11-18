@@ -49,6 +49,10 @@ void at_register_all(void)
 	{
 		MYLOG("SETUP", "Add custom AT command Batt Critical fail");
 	}
+	if (!init_batt_mode_at())
+	{
+		MYLOG("SETUP", "Add custom AT command Batt Mode fail");
+	}
 }
 
 // Forward declarations
@@ -56,6 +60,7 @@ int interval_send_handler(SERIAL_PORT port, char *cmd, stParam *param);
 int status_handler(SERIAL_PORT port, char *cmd, stParam *param);
 int interval_min_handler(SERIAL_PORT port, char *cmd, stParam *param);
 int batt_crit_handler(SERIAL_PORT port, char *cmd, stParam *param);
+int batt_mode_handler(SERIAL_PORT port, char *cmd, stParam *param);
 
 /**
  * @brief Add send interval AT command
@@ -262,6 +267,61 @@ int batt_crit_handler(SERIAL_PORT port, char *cmd, stParam *param)
 }
 
 /**
+ * @brief Add battery sense mode AT command
+ *
+ * @return true if success
+ * @return false if failed
+ */
+bool init_batt_mode_at(void)
+{
+	return api.system.atMode.add((char *)"BATMODE",
+					  (char *)"RAK3172 only: Set/Get battery sensing mode. 0 = VDDA via internal reference (cell feeds VDD directly, default), 1 = external divider on BATT_SENSE_PIN (cell behind an LDO; must be wired and calibrated)",
+					  (char *)"BATMODE", batt_mode_handler,
+					  RAK_ATCMD_PERM_WRITE | RAK_ATCMD_PERM_READ);
+}
+
+/**
+ * @brief Handler for battery sense mode AT command
+ *
+ * @param port Serial port used
+ * @param cmd char array with the received AT command
+ * @param param char array with the received AT command parameters
+ * @return int result of command parsing
+ * 		AT_OK AT command & parameters valid
+ * 		AT_PARAM_ERROR command or parameters invalid
+ */
+int batt_mode_handler(SERIAL_PORT port, char *cmd, stParam *param)
+{
+	if (param->argc == 1 && !strcmp(param->argv[0], "?"))
+	{
+		AT_PRINTF("%s=%d", cmd, custom_parameters.batt_sense_mode);
+	}
+	else if (param->argc == 1)
+	{
+		for (int i = 0; i < strlen(param->argv[0]); i++)
+		{
+			if (!isdigit(*(param->argv[0] + i)))
+			{
+				return AT_PARAM_ERROR;
+			}
+		}
+		uint32_t new_mode = strtoul(param->argv[0], NULL, 10);
+		if (new_mode > 1)
+		{
+			return AT_PARAM_ERROR;
+		}
+		custom_parameters.batt_sense_mode = (uint8_t)new_mode;
+		MYLOG("AT_CMD", "New batt sense mode: %d", custom_parameters.batt_sense_mode);
+		save_at_setting();
+	}
+	else
+	{
+		return AT_PARAM_ERROR;
+	}
+	return AT_OK;
+}
+
+/**
  * @brief Add custom Status AT commands
  *
  * @return true AT commands were added
@@ -306,6 +366,7 @@ int status_handler(SERIAL_PORT port, char *cmd, stParam *param)
 		AT_PRINTF("Version: %s", api.system.firmwareVer.get().c_str());
 		AT_PRINTF("Send time: %d s", custom_parameters.send_interval / 1000);
 		AT_PRINTF("Batt critical: %d mV", custom_parameters.batt_critical_mv);
+		AT_PRINTF("Batt sense mode: %d", custom_parameters.batt_sense_mode);
 		/// \todo
 		nw_mode = api.lorawan.nwm.get();
 		AT_PRINTF("Network mode %s", nwm_list[nw_mode]);
@@ -405,6 +466,7 @@ bool get_at_setting(void)
 		custom_parameters.valid_flag = 0xAA;
 		custom_parameters.send_interval = 0;
 		custom_parameters.batt_critical_mv = platform_batt_critical_default_mv();
+		custom_parameters.batt_sense_mode = 0;
 		save_at_setting();
 		return false;
 	}
@@ -434,6 +496,13 @@ bool get_at_setting(void)
 		      BATT_LEGACY_DEFAULT_MV, custom_parameters.batt_critical_mv);
 	}
 	MYLOG("AT_CMD", "Batt critical restored: %d mV", custom_parameters.batt_critical_mv);
+
+	// Restore battery sense mode (RAK3172 only). The field sits in struct padding that
+	// old records wrote as zero (the pre-field global was zero-initialised), so they
+	// migrate to Mode A on their own; anything but 0/1 is rejected outright.
+	custom_parameters.batt_sense_mode = (temp_params.batt_sense_mode <= 1)
+		? temp_params.batt_sense_mode : 0;
+	MYLOG("AT_CMD", "Batt sense mode restored: %d", custom_parameters.batt_sense_mode);
 
 	// Apply to the global variables used by setup_rak1904()
 	interrupt_threshold = custom_parameters.interrupt_threshold;

@@ -24,9 +24,10 @@ bool init_status_at(void);
 bool init_interval_at(void);
 bool init_min_interval_at(void);
 bool init_batt_crit_at(void);
+bool init_batt_mode_at(void);
 bool get_at_setting(void);
 bool save_at_setting(void);
-/** Register all custom AT commands (STATUS, SENDINT, MININT, BATCRIT). */
+/** Register all custom AT commands (STATUS, SENDINT, MININT, BATCRIT, BATMODE). */
 void at_register_all(void);
 
 // Circuit switch (switch_gpio.cpp)

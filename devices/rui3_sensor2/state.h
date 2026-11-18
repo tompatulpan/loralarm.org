@@ -25,6 +25,8 @@ struct custom_param_s
 	uint8_t interrupt_duration = 0x01;
 	uint8_t acc_frequency = 2;
 	uint16_t batt_critical_mv = 2500; // Shutdown threshold in millivolts (ATC+BATCRIT); 0 = disabled. get_at_setting() applies the platform default
+	uint8_t batt_sense_mode = 0;	   // RAK3172 only (ATC+BATMODE): 0 = Mode A VDDA via Vrefint (cell feeds VDD directly), 1 = Mode B external
+									   // divider on BATT_SENSE_PIN (cell behind an LDO). Ignored on RAK4631, which always reads the WB_A0 divider.
 };
 
 /** Custom flash parameters. Written by: AT handlers, get_at_setting() (LOOP/TIMER). */

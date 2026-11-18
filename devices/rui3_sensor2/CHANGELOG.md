@@ -1,5 +1,28 @@
 # Changelog
 
+## [v101] — RAK3172 battery sensing mode (ATC+BATMODE)
+
+RAK3172 ships in two supply layouts: the cell feeds VDD directly (no regulator), or the cell
+sits behind an LDO on the carrier board. The old Vrefint/VDDA sensing can only measure the
+first — behind an LDO it reports the regulator output and low-battery supervision silently
+stops working (the boot guard and latch can never trip until the cell collapses).
+
+- New flash-backed `ATC+BATMODE` (RAK3172 only): `0` = Mode A (default) — VDDA via the internal
+  Vrefint reference, for cells on VDD. `1` = Mode B — external high-impedance divider
+  (>= 10 MOhm total, 100 nF at the pin; ~0.4 uA at 4 V) from the cell to `BATT_SENSE_PIN`
+  (`config.h`, default `WB_A0`, set to match carrier wiring), with the ADC scale taken from
+  Vrefint so LDO tolerance cancels. Calibrate the ratio as `BATT_SENSE_DIVIDER` in
+  `platform_stm32.cpp`: `new = current * multimeter_V / code_V`; uncalibrated it reads low,
+  which fails safe. Ignored on RAK4631, which always reads its fixed `WB_A0` divider.
+- The new flash field sits in the parameter struct's always-zero padding, so existing devices
+  keep their stored settings and start in Mode A. `ATC+STATUS` reports the mode.
+- `battery_boot_guard()` still runs before settings load and measures the default mode: on LDO
+  devices the boot guard sees the regulated VDDA (passes); the runtime latch in `loop()` then
+  supervises the cell with the saved mode. No change for direct-battery devices.
+- RAK3172 sleep current is unchanged: the Mode B GPIO read leaves ADC ADEN set, which
+  `platform_pre_sleep()` already clears with `ADC_CR_ADDIS` before Stop 2 entry.
+- Version byte 101 (`FW_VERSION_BYTE` / `FW_VERSION_STR`); payload unchanged.
+
 ## [v100] — Modular rewrite (wire-compatible with rui3_sensor v33)
 
 New firmware line, `devices/rui3_sensor2`, ported from `rui3_sensor` v33. No payload, AT-command,

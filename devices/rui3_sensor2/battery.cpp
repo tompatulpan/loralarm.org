@@ -10,6 +10,10 @@ void battery_boot_guard(void)
 	// Check the supply before the AT window, LoRa stack configuration, join TX,
 	// or any flash access. At low voltage those operations can brown out and
 	// leave persistent RUI3/application state corrupt.
+	// Runs before get_at_setting(), so the RAK3172 measures its default mode
+	// (VDDA) here: on an LDO device the regulated VDDA passes the guard even
+	// with a dead cell; the runtime latch then sees the cell once the saved
+	// ATC+BATMODE is loaded.
 	float boot_voltage = platform_battery_get();
 	MYLOG("SETUP", "Boot battery: %.2fV", boot_voltage);
 

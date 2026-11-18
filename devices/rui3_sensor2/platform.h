@@ -25,10 +25,14 @@ void platform_init(void);
 /**
  * @brief Read battery voltage in volts.
  *
- * STM32WLE5 (Mode A): Vrefint factory calibration at pin 254 -> true VDDA/VBAT.
- *   The Vrefint path is the only analogRead() that leaves the ADC disabled on
- *   exit, preserving Stop 2 sleep entry.
- * nRF52840 (Mode B): SAADC + WB_A0 voltage divider -> true VBAT.
+ * STM32WLE5: layout is a per-device setting (ATC+BATMODE, stored in flash).
+ *   Mode A (default): Vrefint factory calibration at pin 254 -> true VDDA/VBAT;
+ *   correct when the cell feeds VDD directly. The Vrefint path is the only
+ *   analogRead() that leaves the ADC disabled on exit.
+ *   Mode B: external divider on BATT_SENSE_PIN, ADC scale from Vrefint; for
+ *   boards where an LDO sits between the cell and the module. The GPIO read
+ *   leaves ADC ADEN set; platform_pre_sleep() clears it before sleep entry.
+ * nRF52840 (always divider): SAADC + WB_A0 voltage divider -> true VBAT.
  *   The SAADC is left enabled-idle after the read; see platform_nrf52.cpp for why it is
  *   not disabled by direct register writes (nrfx driver state corruption).
  *

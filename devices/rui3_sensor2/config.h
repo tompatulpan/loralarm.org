@@ -46,11 +46,11 @@
 // ---------------------------------------------------------------------------
 // Reported on ch 7 in heartbeats. This line (modular rewrite, wire-compatible with
 // rui3_sensor v33) starts at 100 so it can never be mistaken for the old 3x series.
-#define FW_VERSION_BYTE 100
+#define FW_VERSION_BYTE 101
 
 // Version string reported by the RUI3 stack (AT+VER / api.system.firmwareVersion).
 // Must track FW_VERSION_BYTE: it is the only way to identify the firmware without a join.
-#define FW_VERSION_STR "rui3_sensor2-v100"
+#define FW_VERSION_STR "rui3_sensor2-v101"
 
 // ---------------------------------------------------------------------------
 // Pins
@@ -70,6 +70,14 @@
 // Both RAK3172 and RAK4631-R on RAK19003 Slot D use WB_IO5.
 // Change if your RAK1904 is in a different slot.
 #define ACC_INT_PIN WB_IO5 // Slot D on RAK19003
+
+// Battery sense divider input for LDO boards (RAK3172 only; active when ATC+BATMODE=1).
+// The carrier board feeds the cell through a high-impedance divider to this ADC-capable pin;
+// the ratio is calibrated with BATT_SENSE_DIVIDER in platform_stm32.cpp.
+// Ignored on RAK4631, which always reads the fixed WB_A0 divider. Set to match carrier wiring.
+#ifndef BATT_SENSE_PIN
+#define BATT_SENSE_PIN WB_A0
+#endif
 
 // ---------------------------------------------------------------------------
 // LoRaWAN join policy (set in code, not by AT commands)

@@ -26,7 +26,7 @@ ToFo: A list with needed AT-commnds, such as ATC+SENDINT=300, devEUI, joinEUI, a
 | `battery.h` / `battery.cpp` | Boot guard, confirmed-critical check, shutdown latch, per-tick supervision |
 | `uplink.h` / `uplink.cpp` | Heartbeat (`sensor_handler`), packet send, send timer |
 | `lorawan.h` / `lorawan.cpp` | Join policy, callbacks, downlink handling, P2P callbacks |
-| `custom_at.cpp` | Flash settings and the custom AT commands (`SENDINT`, `MININT`, `BATCRIT`, `STATUS`) |
+| `custom_at.cpp` | Flash settings and the custom AT commands (`SENDINT`, `MININT`, `BATCRIT`, `BATMODE`, `STATUS`) |
 | `switch_gpio.cpp` | Debounced switch input |
 | `platform*.{h,cpp}` | MCU differences (battery ADC, BLE, power rail) — no `#ifdef` for the MCU elsewhere |
 | `battery_policy.h`, `send_policy.h`, `downlink_parse.h` | **Pure** decision rules, no Arduino includes, host-tested |
@@ -119,7 +119,18 @@ arduino-cli compile --fqbn <fqbn> devices/rui3_sensor2
 Libraries: CayenneLPP, RAKwireless RAK1901 SHTC3, LPS35HW, ClosedCube OPT3001, Adafruit LIS3DH,
 Adafruit BME680 (+ BusIO, Unified Sensor).
 
-Verify `ACC_INT_PIN` and the battery sensing mode (see `platform_*.cpp`) match your hardware.
+Verify `ACC_INT_PIN` matches your base board slot.
+
+**Battery sensing.** RAK4631 always measures the cell through the `WB_A0` divider.
+RAK3172 ships in two layouts, selected per device with `ATC+BATMODE`:
+
+- `ATC+BATMODE=0` (default): cell feeds VDD directly — VDDA via the internal Vrefint reference.
+- `ATC+BATMODE=1`: cell behind an LDO — wire a high-impedance divider (>= 10 MOhm total,
+  100 nF at the pin) from the cell to `BATT_SENSE_PIN` (`config.h`, default `WB_A0`, set to
+  match the carrier wiring) and calibrate `BATT_SENSE_DIVIDER` (`platform_stm32.cpp`) against
+  a multimeter: `new = current * multimeter_V / code_V`. An uncalibrated ratio reads low and
+  fails safe. Never run a battery-powered LDO board on Mode 0: it would report the regulator
+  output until the cell dies.
 
 **Only enable the region you use.** With every LoRaWAN region compiled in (the BSP default), the
 RAK3172 image overflows flash by about 19 KB (`region 'ROM' overflowed`). Both `sketch.yaml` and
