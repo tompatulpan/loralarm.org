@@ -139,6 +139,7 @@ class Engine:
         self._dl_sent: dict[tuple[str, int], _DlSent] = {}
         # devices already warned about for missing from the config (once each)
         self._warned_unconfigured: set[str] = set()
+        self._warned_family_mismatch: set[str] = set()
         # (devEUI, alarm_window, timezone) already reported as invalid (once each)
         self._warned_windows: set[tuple[str, str, str]] = set()
         # dev_eui -> (monotonic fetch time, armed); in-process the cache is also
@@ -163,6 +164,20 @@ class Engine:
                     "add it under \"devices\" in the config to set its topic/pushover/limits",
                     cfg.name, cfg.dev_eui, cfg.ntfy_topic,
                     "on" if cfg.pushover_user and cfg.pushover_token else "off")
+
+    def _warn_if_family_mismatch(self, cfg: DeviceConfig, profile_name: str) -> None:
+        """The config entry wins over the ChirpStack device-profile name; if the
+        two disagree, the profile most likely carries the wrong codec — say so
+        once per device instead of decoding to nothing."""
+        if (not profile_name or not cfg.family
+                or profile_name.lower() == cfg.family.lower()
+                or cfg.dev_eui in self._warned_family_mismatch):
+            return
+        self._warned_family_mismatch.add(cfg.dev_eui)
+        log.warning("device %s (%s): configured family %r differs from the ChirpStack "
+                    "device-profile name %r; the config wins — check that the profile "
+                    "carries the codec of family %r",
+                    cfg.name, cfg.dev_eui, cfg.family, profile_name, cfg.family)
 
     def _maybe_reload_config(self) -> None:
         """Reload the config file if it changed on disk (call with the lock held)."""
@@ -242,6 +257,7 @@ class Engine:
             self._maybe_reload_config()
             cfg = self.config.for_event(up.dev_eui, up.device_name, up.device_profile_name)
             self._warn_if_unconfigured(cfg)
+            self._warn_if_family_mismatch(cfg, up.device_profile_name)
             _, state = self.devices.setdefault(up.dev_eui, (cfg, AlarmState()))
             self.devices[up.dev_eui] = (cfg, state)
             if up.application_id:

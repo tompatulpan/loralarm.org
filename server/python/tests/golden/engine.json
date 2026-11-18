@@ -357,14 +357,14 @@
  },
  "rak3172_circuit_level": {
   "console": [
-   "2026-11-09 15:33:14 sensor16   RAK3172  fPort=2 fCnt=1 rssi=-35 snr=13.2",
+   "2026-11-09 15:33:14 sensor16   RAK3172-BAT fPort=2 fCnt=1 rssi=-35 snr=13.2",
    "    temp=32.0 °C  batt=3.9 V (100.0 %, ok)",
-   "2026-11-09 15:33:24 sensor16   RAK3172  fPort=2 fCnt=11 rssi=-35 snr=13.2",
+   "2026-11-09 15:33:24 sensor16   RAK3172-BAT fPort=2 fCnt=11 rssi=-35 snr=13.2",
    "    temp=32.0 °C  batt=3.9 V (100.0 %, ok)",
    "    >>> Kretsalarm: LARM — krets öppen",
-   "2026-11-09 15:33:34 sensor16   RAK3172  fPort=2 fCnt=21 rssi=-35 snr=13.2",
+   "2026-11-09 15:33:34 sensor16   RAK3172-BAT fPort=2 fCnt=21 rssi=-35 snr=13.2",
    "    temp=32.0 °C  batt=3.9 V (100.0 %, ok)",
-   "2026-11-09 15:33:44 sensor16   RAK3172  fPort=2 fCnt=31 rssi=-35 snr=13.2",
+   "2026-11-09 15:33:44 sensor16   RAK3172-BAT fPort=2 fCnt=31 rssi=-35 snr=13.2",
    "    temp=32.0 °C  batt=3.9 V (100.0 %, ok)",
    "    >>> Kretsalarm: återställt — krets sluten"
   ],
@@ -835,10 +835,10 @@
  },
  "real_fixtures": {
   "console": [
-   "2026-11-09 15:31:48 sensor16   RAK3172  fPort=2 fCnt=1793 rssi=-41 snr=8.8",
+   "2026-11-09 15:31:48 sensor16   RAK3172-BAT fPort=2 fCnt=1793 rssi=-41 snr=8.8",
    "    temp=None °C  batt=None V (None %, unknown)",
    "    >>> Rörelselarm: LARM — rörelse upptäckt — 1 detektering inom 30 s",
-   "2026-11-09 15:31:21 sensor16   RAK3172  fPort=2 fCnt=1792 rssi=-38 snr=11.5",
+   "2026-11-09 15:31:21 sensor16   RAK3172-BAT fPort=2 fCnt=1792 rssi=-38 snr=11.5",
    "    temp=23.1 °C  batt=2.98 V (80.0 %, ok)",
    "2026-11-09 15:33:14 sensor3    RAK4631  fPort=2 fCnt=1493 rssi=-35 snr=13.2",
    "    temp=24.0 °C  batt=3.578095238095238 V (37.8 %, ok)",
@@ -948,7 +948,7 @@
  },
  "unconfigured_device": {
   "console": [
-   "2026-11-09 15:33:14 newbie     RAK3172  fPort=2 fCnt=1 rssi=-35 snr=13.2",
+   "2026-11-09 15:33:14 newbie     RAK3172-BAT fPort=2 fCnt=1 rssi=-35 snr=13.2",
    "    temp=-3.0 °C  batt=2.85 V (58.3 %, ok)",
    "    >>> Lågtemperaturalarm: LARM — -3.0 °C ≤ nedre gräns 0.0 °C",
    "2026-11-09 15:33:24 newbie              fPort=2 fCnt=1 rssi=-35 snr=13.2",

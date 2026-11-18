@@ -40,7 +40,7 @@ def base_config(**defaults: Any) -> dict:
         "defaults": {"watchdog_hours": 24, **defaults},
         "devices": {
             DEV_EUI: {"name": "sensor3", "family": "RAK4631", "ntfy_topic": "sensor3", **PUSH},
-            OTHER_EUI: {"name": "sensor16", "family": "RAK3172", "ntfy_topic": "sensor16"},
+            OTHER_EUI: {"name": "sensor16", "family": "RAK3172-BAT", "ntfy_topic": "sensor16"},
             DOOR_EUI: {"name": "Door1", "family": LDS02, "ntfy_topic": "door1", **PUSH},
         },
     }
@@ -72,7 +72,7 @@ def sensor(seconds: float, **obj: Any) -> Uplink:
 
 
 def rui(seconds: float, **obj: Any) -> Uplink:
-    return make_uplink(dev_eui=OTHER_EUI, device_name="sensor16", profile="RAK3172",
+    return make_uplink(dev_eui=OTHER_EUI, device_name="sensor16", profile="RAK3172-BAT",
                        obj=sensor_obj(**obj), time=at(seconds), f_cnt=int(seconds) + 1)
 
 
@@ -165,7 +165,7 @@ def scenarios() -> dict[str, tuple[dict, list[Any]]]:
     ])
 
     s["unconfigured_device"] = (base_config(), [
-        make_uplink(dev_eui=BARE_EUI, device_name="newbie", profile="RAK3172",
+        make_uplink(dev_eui=BARE_EUI, device_name="newbie", profile="RAK3172-BAT",
                     obj=sensor_obj(temperature=-3.0, battery_voltage=2.85), time=at(0)),
         make_uplink(dev_eui=BARE_EUI, device_name="newbie", profile="",
                     obj=sensor_obj(battery_voltage=2.7), time=at(10)),

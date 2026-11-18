@@ -88,7 +88,7 @@
     }
   },
   "families": {
-    "RAK3172": {
+    "RAK3172-BAT": {
       "batt_full_v": 3.3,
       "batt_warn_v": 2.8,
       "batt_empty_v": 2.5
@@ -140,7 +140,7 @@
     },
     "ac1f09fffe1341aa": {
       "name": "sensor2",
-      "family": "RAK4631rui",
+      "family": "RAK4631-R",
       "group": "villa",
       "application_id": "${LORALARM_CS_APP_LARM}",
       "pushover_user": "${LORALARM_PUSHOVER_USER}",
@@ -159,7 +159,7 @@
     },
     "ac1f09fffe120202": {
       "name": "sensor3",
-      "family": "RAK3172",
+      "family": "RAK3172-BAT",
       "group": "garage",
       "application_id": "${LORALARM_CS_APP_SUBLARM}",
       "pushover_user": "${LORALARM_PUSHOVER_USER}",

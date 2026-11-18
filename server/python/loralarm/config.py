@@ -50,7 +50,9 @@ def _expand(value: Any, where: str) -> Any:
 class DeviceConfig:
     dev_eui: str
     name: str = ""
-    family: str = ""                    # ChirpStack device-profile name, e.g. RAK3172 / RAK4631
+    family: str = ""                    # family option from the device entry (e.g. RAK4631 / RAK3172-BAT);
+                                        # on uplinks the config wins over the ChirpStack profile name,
+                                        # which only routes devices missing from the config
     kind: str = "sensor"                # sensor | door | water | any kind an alarm rule names;
                                         # selects which alarm rules and auto-downlink settings apply
     tk_correction_c: float = 0.0        # subtracted from raw temperature
@@ -230,6 +232,11 @@ class Config:
     def for_event(self, dev_eui: str, device_name: str = "", family: str = "") -> DeviceConfig:
         dev_eui = dev_eui.lower()
         entry = self.devices.get(dev_eui) or self.devices.get(device_name.lower()) or {}
+        # The devEUI-keyed entry owns the family: the caller's string (the
+        # ChirpStack device-profile name on the uplink path) only routes
+        # devices that are not in the config — those are warned about anyway.
+        if isinstance(entry.get("family"), str) and entry["family"]:
+            family = entry["family"]
         merged: dict[str, Any] = {}
         for layer in (self.defaults, self.families.get(family, {}), entry):
             for k, v in layer.items():

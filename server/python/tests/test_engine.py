@@ -86,12 +86,12 @@ class SeedTest(unittest.TestCase):
     def test_seed_restores_name_and_family_of_unconfigured_device(self):
         log = EventLog(None)
         engine = Engine(make_config(), event_log=log, notifier=RecordingNotifier())
-        engine.on_uplink(make_uplink(dev_eui=OTHER_EUI, device_name="Door1", profile="RAK3172",
+        engine.on_uplink(make_uplink(dev_eui=OTHER_EUI, device_name="Door1", profile="RAK3172-BAT",
                                      obj=sensor_obj(), time=utc_now() - timedelta(hours=30)))
         restarted = Engine(make_config(), event_log=log, notifier=RecordingNotifier())
         restarted.seed()
         cfg, _ = restarted.devices[OTHER_EUI]
-        self.assertEqual((cfg.name, cfg.family), ("Door1", "RAK3172"))
+        self.assertEqual((cfg.name, cfg.family), ("Door1", "RAK3172-BAT"))
         self.assertEqual(restarted.watchdog_tick(), [OTHER_EUI])
 
     def test_seed_falls_back_to_name_from_event_history(self):
@@ -192,6 +192,32 @@ class CorruptSnapshotTest(unittest.TestCase):
         _, state = engine.devices[DEV_EUI]
         self.assertEqual(state.active, set())
         self.assertIsNotNone(state.last_seen)
+
+
+class FamilySourceTest(unittest.TestCase):
+    """The devEUI entry in the config owns the family; the ChirpStack
+    device-profile name on the event is only the fallback."""
+
+    def test_configured_family_wins_and_mismatch_warns_once(self):
+        cfg = make_config(devices={DEV_EUI: {"name": "sensor3", "family": "RAK3172-BAT"}})
+        engine = Engine(cfg)
+        up = make_uplink(device_name="sensor3", profile="RAK3172")  # old profile name
+        with self.assertLogs("loralarm.service", level="WARNING") as cm:
+            engine.on_uplink(up)
+            engine.on_uplink(up)
+        mismatches = [line for line in cm.output if "differs from the ChirpStack" in line]
+        self.assertEqual(len(mismatches), 1)                       # once per device
+        self.assertEqual(engine.devices[DEV_EUI][0].family, "RAK3172-BAT")  # config wins
+
+    def test_matching_profile_name_warns_nothing(self):
+        cfg = make_config(devices={DEV_EUI: {"name": "sensor3", "family": "RAK4631"}})
+        engine = Engine(cfg)
+        try:
+            with self.assertRaises(AssertionError):
+                with self.assertLogs("loralarm.service", level="WARNING"):
+                    engine.on_uplink(make_uplink(device_name="sensor3", profile="RAK4631"))
+        except AssertionError:
+            self.fail("expected no warning when the names agree")
 
 
 if __name__ == "__main__":

@@ -3,7 +3,7 @@
     "EXAMPLE: RAK3172 (RUI3 / Cayenne) sensor. Not read by the service; copy from here.",
     "1. Copy the block under \"devices\" into the \"devices\" object of server/python/devices.json.",
     "2. Replace the devEUI key (lowercase, 16 hex chars) with your sensor's, and change name and ntfy_topic.",
-    "3. \"family\" must be the ChirpStack device-profile name: RAK3172 (aliases rui3, cayenne also work).",
+    "3. \"family\" must be the ChirpStack device-profile name: RAK3172-BAT (aliases rui3, cayenne also work).",
     "4. application_id is the ChirpStack application UUID, needed only for downlinks; the service also",
     "   learns it from the first uplink. Secrets stay as ${ENV_VAR} placeholders.",
     "5. Save devices.json: it is hot-reloaded, no restart. The settings below are pushed on the next uplink.",
@@ -24,7 +24,7 @@
     "pushover_token": "${LORALARM_PUSHOVER_TOKEN}"
   },
   "families": {
-    "RAK3172": {
+    "RAK3172-BAT": {
       "temp_alarm_min_c": 2.0,
       "batt_warn_v": 2.9,
       "batt_empty_v": 2.8,
@@ -43,14 +43,14 @@
   "devices": {
     "ac1f09fffe12da63": {
       "name": "sensor16",
-      "family": "RAK3172",
+      "family": "RAK3172-BAT",
       "application_id": "${LORALARM_CS_APP_SUBLARM}",
       "ntfy_topic": "sensor16",
       "watchdog_hours": 0.5
     },
     "ac1f09fffe12da64": {
       "name": "sensor17",
-      "family": "RAK3172",
+      "family": "RAK3172-BAT",
       "application_id": "${LORALARM_CS_APP_SUBLARM}",
       "ntfy_topic": "sensor17",
       "temp_alarm_min_c": 5.0,

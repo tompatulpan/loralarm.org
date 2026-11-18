@@ -396,7 +396,7 @@ Device-side protocol, both families (3-digit zero-padded ASCII decimal, 0–255)
 Frequency translation (spec §7.4): 31/47/63/79/95 = 1/10/25/50/100 Hz ↔ RUI3
 index 1–5. Accepts Hz, register codes, RUI3 indices, or explicit
 `hz:`/`code:`/`index:` prefixes; translated per the device's family
-(`--family` / `family` in config / profile learned from uplinks). RUI3-only
+(`--family` / the device's `family` in devices.json). RUI3-only
 rates 200/400 Hz (index 6/7) have no RAK4631 code and are rejected.
 
 ### 1. Desired settings in `devices.json` (recommended, automatic)
@@ -424,10 +424,10 @@ registered with other `SettingSpec`s defines its own keys. `command` (port 4) is
 one-shot only — not from the config. Devices whose `kind` is not in the
 profile's `settings_kinds` (e.g. `door`) are never auto-pushed. Unknown
 keys (e.g. a `threshol` typo) are ignored with a warning at load. Keys can also
-go in `defaults` / `families` to apply fleet-wide. Set `family` (device profile
-name, e.g. `RAK4631`/`RAK3172`) on the device entry so the CLI can translate
-`frequency` without `--family`; the live service takes the family from each
-uplink's device profile instead.
+go in `defaults` / `families` to apply fleet-wide. Set `family` (the family
+option, e.g. `RAK4631`/`RAK3172-BAT`) on the device entry — that entry is the
+single source of truth for the service; the ChirpStack device-profile name only
+routes devices missing from the config (a differing name logs one warning).
 
 Console status on each sensor uplink (integers without `.0`, frequency in Hz
 with the wire code/index in parens):

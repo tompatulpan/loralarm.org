@@ -41,7 +41,7 @@ class ExamplesLoadTest(unittest.TestCase):
 class Rak3172ExampleTest(unittest.TestCase):
     def test_resolved_config_and_settings(self):
         conf = load("rak3172.example.json")
-        cfg = conf.for_event("ac1f09fffe12da63", "", "RAK3172")
+        cfg = conf.for_event("ac1f09fffe12da63", "", "RAK3172-BAT")
         self.assertEqual((cfg.name, cfg.application_id, cfg.pushover_user),
                          ("sensor16", "app-sublarm", "u"))
         self.assertEqual((cfg.tk_correction_c, cfg.temp_alarm_min_c, cfg.circuit_mode),
@@ -54,7 +54,7 @@ class Rak3172ExampleTest(unittest.TestCase):
         notifier = RecordingNotifier()
         engine = Engine(load("rak3172.example.json"), notifier=notifier)
         engine.on_uplink(make_uplink(dev_eui="ac1f09fffe12da63", device_name="sensor16",
-                                     profile="RAK3172", obj=sensor_obj(temperature=1.5)))
+                                     profile="RAK3172-BAT", obj=sensor_obj(temperature=1.5)))
         self.assertEqual([(c[1], c[2]) for c in notifier.calls], [("temp_low", True)])
 
 
@@ -108,8 +108,8 @@ class SharedFamilySettingsTest(unittest.TestCase):
 
     def test_rak3172_second_device_inherits_and_overrides(self):
         conf = load("rak3172.example.json")
-        first, first_frames = self.frames(conf, "ac1f09fffe12da63", "RAK3172")
-        second, second_frames = self.frames(conf, "ac1f09fffe12da64", "RAK3172")
+        first, first_frames = self.frames(conf, "ac1f09fffe12da63", "RAK3172-BAT")
+        second, second_frames = self.frames(conf, "ac1f09fffe12da64", "RAK3172-BAT")
         self.assertEqual((first.name, second.name), ("sensor16", "sensor17"))
         self.assertEqual((first.temp_alarm_min_c, second.temp_alarm_min_c), (2.0, 5.0))
         self.assertEqual((first.watchdog_hours, second.watchdog_hours), (0.5, 24))
@@ -224,7 +224,7 @@ class FullTemplateTest(unittest.TestCase):
         self.assertEqual((door1.alarm_window, door2.alarm_window), ("", "21:00-09:00"))
         self.assertEqual(door1.timezone, "Europe/Stockholm")      # set once in defaults
         self.assertEqual(door1.kind, "door")                     # the type's own default
-        self.assertEqual(conf.for_event("ac1f09fffe120202", "", "RAK3172").temp_alarm_min_c, 0.0)  # type default
+        self.assertEqual(conf.for_event("ac1f09fffe120202", "", "RAK3172-BAT").temp_alarm_min_c, 0.0)  # type default
         water = conf.for_event("e8e1e100010a7001", "", "Browan Water sensor")
         self.assertEqual((water.kind, water.watchdog_hours, water.batt_empty_v), ("water", 3, 3.1))
 

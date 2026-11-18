@@ -35,8 +35,24 @@ class LayeringTest(unittest.TestCase):
 
     def test_family_defaults_builtin(self):
         cfg = make_config()
-        dc = cfg.for_event(OTHER_EUI, "sensor16", "RAK3172")
+        dc = cfg.for_event(OTHER_EUI, "sensor16", "RAK3172-BAT")
         self.assertEqual(dc.batt_full_v, 3.1)  # built-in FAMILY_DEFAULTS, not from JSON
+
+    def test_configured_family_wins_over_the_event_string(self):
+        # the devEUI entry is the source of truth: a ChirpStack device-profile
+        # name on the event (renamed profile, wrong profile on the device)
+        # must not override the configured family
+        cfg = make_config(devices={DEV_EUI: {"name": "sensor3", "family": "RAK4631"}})
+        dc = cfg.for_event(DEV_EUI, "sensor3", "RAK3172-BAT")
+        self.assertEqual(dc.family, "RAK4631")
+        self.assertEqual(dc.circuit_mode, "event")  # RAK4631 semantics, not RUI3
+
+    def test_family_falls_back_to_the_event_string_when_unset(self):
+        # an entry without "family" (or no entry at all) still routes by the
+        # string the caller carries — the profile name on the uplink path
+        cfg = make_config(devices={DEV_EUI: {"name": "sensor3"}})
+        self.assertEqual(cfg.for_event(DEV_EUI, "sensor3", "RAK3172-BAT").family,
+                         "RAK3172-BAT")
 
     def test_unknown_key_warns(self):
         with self.assertLogs("loralarm.config", level="WARNING") as cm:
@@ -70,7 +86,7 @@ class LayeringTest(unittest.TestCase):
         self.assertEqual(rak.circuit_mode, "event")
         self.assertEqual(rak.batt_warn_v, 3.6)
         self.assertEqual(rak.tk_correction_c, 8.0)  # built-in family key survives
-        self.assertEqual(cfg.for_event(DEV_EUI, "s", "RAK3172").circuit_mode, "level")
+        self.assertEqual(cfg.for_event(DEV_EUI, "s", "RAK3172-BAT").circuit_mode, "level")
 
     def test_device_can_override_circuit_mode(self):
         cfg = make_config(devices={DEV_EUI: {"circuit_mode": "level"}})

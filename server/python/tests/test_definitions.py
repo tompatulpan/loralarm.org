@@ -46,15 +46,15 @@ class BuiltinFamiliesTest(unittest.TestCase):
         self.assertEqual((rak.name, rak.freq_label, rak.defaults["circuit_mode"]),
                          ("RAK4631", "code", "event"))
         self.assertEqual(parse_frequency(50, "RAK4631"), 79)
-        self.assertEqual(parse_frequency(50, "RAK3172"), 4)
-        self.assertEqual(get_profile("RUI3").name, "RAK3172")
+        self.assertEqual(parse_frequency(50, "RAK3172-BAT"), 4)
+        self.assertEqual(get_profile("RUI3").name, "RAK3172-BAT")
         self.assertEqual(get_profile("lds02").data_ports, frozenset({10}))
         self.assertIsNotNone(rule_for("door"))
 
 
 class UserProfilesTest(unittest.TestCase):
-    def _config(self, profiles=None) -> Config:
-        data = {"defaults": {}, "devices": {NEW_EUI: {"name": "fukt1", "family": "HUM-1",
+    def _config(self, profiles=None, family: str = "HUM-1") -> Config:
+        data = {"defaults": {}, "devices": {NEW_EUI: {"name": "fukt1", "family": family,
                                                       "params": {"humidity_max": 70}}}}
         if profiles is not None:
             data["profiles"] = profiles
@@ -95,12 +95,13 @@ class UserProfilesTest(unittest.TestCase):
 
     def test_user_definition_overrides_builtin_only_in_its_config(self):
         override = {"data_ports": [2, 10], "defaults": {"batt_warn_v": 2.0}, "settings": []}
-        conf = self._config({"Dragino Switch LDS02": override})
+        conf = self._config({"Dragino Switch LDS02": override}, family="Dragino Switch LDS02")
         cfg = conf.for_event(NEW_EUI, "x", "Dragino Switch LDS02")
         self.assertEqual(conf.registry.get_profile("Dragino Switch LDS02").data_ports, frozenset({2, 10}))
         self.assertEqual(cfg.batt_warn_v, 2.0)
         self.assertEqual(REG.get_profile("Dragino Switch LDS02").data_ports, frozenset({10}))
-        self.assertEqual(self._config().for_event(NEW_EUI, "x", "Dragino Switch LDS02").batt_warn_v, 2.5)
+        fresh = self._config(family="Dragino Switch LDS02")
+        self.assertEqual(fresh.for_event(NEW_EUI, "x", "Dragino Switch LDS02").batt_warn_v, 2.5)
 
     def test_user_rule_replacing_builtin_rule_stays_in_its_config(self):
         door = {"rules": [{"kind": "door", "label": "Port", "field": "x", "when": "truthy"}]}

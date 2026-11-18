@@ -48,21 +48,21 @@ class Ascii3Test(unittest.TestCase):
 class FrequencyTranslationTest(unittest.TestCase):
     def test_hz_to_family_wire_value(self):
         self.assertEqual(parse_frequency(50, "RAK4631"), 79)      # register code
-        self.assertEqual(parse_frequency(50, "RAK3172"), 4)       # RUI3 ODR index
+        self.assertEqual(parse_frequency(50, "RAK3172-BAT"), 4)       # RUI3 ODR index
         self.assertEqual(parse_frequency("hz:100", "RAK4631"), 95)
-        self.assertEqual(parse_frequency(200, "RAK3172"), 6)      # RUI3-only rate
+        self.assertEqual(parse_frequency(200, "RAK3172-BAT"), 6)      # RUI3-only rate
         with self.assertRaises(ValueError):                        # no RAK4631 code for 200 Hz
             parse_frequency(200, "RAK4631")
 
     def test_register_code_translation(self):
-        self.assertEqual(parse_frequency(31, "RAK3172"), 1)
-        self.assertEqual(parse_frequency(95, "RAK3172"), 5)
-        self.assertEqual(parse_frequency("code:63", "RAK3172"), 3)
+        self.assertEqual(parse_frequency(31, "RAK3172-BAT"), 1)
+        self.assertEqual(parse_frequency(95, "RAK3172-BAT"), 5)
+        self.assertEqual(parse_frequency("code:63", "RAK3172-BAT"), 3)
         self.assertEqual(parse_frequency("code:63", "RAK4631"), 63)  # passthrough
 
     def test_index_translation(self):
         self.assertEqual(parse_frequency("index:3", "RAK4631"), 63)
-        self.assertEqual(parse_frequency(2, "RAK3172"), 2)
+        self.assertEqual(parse_frequency(2, "RAK3172-BAT"), 2)
         with self.assertRaises(ValueError):                        # index 7 = 400 Hz, no code
             parse_frequency("index:7", "RAK4631")
 
@@ -75,7 +75,7 @@ class FrequencyTranslationTest(unittest.TestCase):
     def test_garbage_rejected(self):
         for bad in (999, "abc", "code:12", "index:0", "index:8", "hz:3"):
             with self.assertRaises(ValueError, msg=repr(bad)):
-                parse_frequency(bad, "RAK3172")
+                parse_frequency(bad, "RAK3172-BAT")
 
 
 class SettingsFrameTest(unittest.TestCase):
@@ -86,7 +86,7 @@ class SettingsFrameTest(unittest.TestCase):
         self.assertEqual((f.f_port, f.data), (PORT_DURATION, b"000"))
         f = settings_frame("command", 255)
         self.assertEqual((f.f_port, f.data), (PORT_COMMAND, b"255"))
-        f = settings_frame("frequency", 10, family="RAK3172")
+        f = settings_frame("frequency", 10, family="RAK3172-BAT")
         self.assertEqual((f.f_port, f.data), (PORT_FREQUENCY, b"002"))
 
     def test_ranges_enforced(self):
@@ -305,8 +305,8 @@ class WireToHzTest(unittest.TestCase):
     def test_codes_and_indices(self):
         self.assertEqual(wire_to_hz(95, "RAK4631"), 100.0)
         self.assertEqual(wire_to_hz(31, "RAK4631"), 1.0)
-        self.assertEqual(wire_to_hz(2, "RAK3172"), 10.0)
-        self.assertEqual(wire_to_hz(7, "RAK3172"), 400.0)
+        self.assertEqual(wire_to_hz(2, "RAK3172-BAT"), 10.0)
+        self.assertEqual(wire_to_hz(7, "RAK3172-BAT"), 400.0)
         self.assertEqual(wire_to_hz(95.0, ""), 100.0)     # float from JSON, unknown family
         self.assertIsNone(wire_to_hz(99, "RAK4631"))
         self.assertIsNone(wire_to_hz("abc", "RAK4631"))
@@ -349,7 +349,7 @@ class StatusLineFormatTest(unittest.TestCase):
 
     def test_rui3_frequency_shown_as_index(self):
         out, _ = self._run({"name": "sensor16", "frequency": 10},
-                           sensor_obj(acc_frequency=5.0), profile="RAK3172")
+                           sensor_obj(acc_frequency=5.0), profile="RAK3172-BAT")
         line = next(l for l in out.splitlines() if "acc settings:" in l)
         self.assertIn("frequency=100 Hz (index 5) want 10 Hz (index 2) -> sending", line)
 
@@ -363,7 +363,7 @@ class StatusLineFormatTest(unittest.TestCase):
 
 class CliTest(unittest.TestCase):
     def test_dry_run_resolves_name_and_translates_frequency(self):
-        rc = dl_main(["--dev", "sensor2", "--app-id", "test-app", "--family", "RAK3172",
+        rc = dl_main(["--dev", "sensor2", "--app-id", "test-app", "--family", "RAK3172-BAT",
                       "--set", "frequency=50", "--set", "threshold=16",
                       "--config", "devices.example.json", "--dry-run"])
         self.assertEqual(rc, 0)
@@ -398,7 +398,7 @@ class DesiredFramesTest(unittest.TestCase):
         self.assertEqual([(f.f_port, f.data) for f in frames],
                          [(PORT_THRESHOLD, b"008"), (PORT_FREQUENCY, b"047"),
                           (PORT_DURATION, b"001")])
-        cfg = make_cfg(threshold=8, frequency=10, duration=1, family="RAK3172")
+        cfg = make_cfg(threshold=8, frequency=10, duration=1, family="RAK3172-BAT")
         self.assertEqual([(f.f_port, f.data) for f in desired_frames(cfg)],
                          [(PORT_THRESHOLD, b"008"), (PORT_FREQUENCY, b"002"),
                           (PORT_DURATION, b"001")])  # 10 Hz = RUI3 ODR index 2
@@ -520,7 +520,7 @@ class AutoEnforceTest(unittest.TestCase):
         config = make_config(devices={OTHER_EUI: {"name": "sensor16", "frequency": 10}})
         engine = Engine(config, EventLog(None), downlink_sender=FakeSender(),
                         dl_topic="loralarm/down/+")
-        up = make_uplink(dev_eui=OTHER_EUI, device_name="sensor16", profile="RAK3172",
+        up = make_uplink(dev_eui=OTHER_EUI, device_name="sensor16", profile="RAK3172-BAT",
                          obj=sensor_obj(acc_frequency=5), time=utc_now())
         up.application_id = APP_ID
         engine.on_uplink(up)

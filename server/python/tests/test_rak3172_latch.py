@@ -16,14 +16,14 @@ KIND = AlarmKind("battery_shutdown")
 
 
 def rak3172(obj: dict, seconds: int = 0):
-    return make_uplink(dev_eui=EUI, device_name="sensor16", profile="RAK3172",
+    return make_uplink(dev_eui=EUI, device_name="sensor16", profile="RAK3172-BAT",
                        obj=obj, time=T0 + timedelta(seconds=seconds))
 
 
 class LatchFlagTest(unittest.TestCase):
     def setUp(self):
         self.notifier = RecordingNotifier()
-        self.engine = Engine(make_config(devices={EUI: {"name": "sensor16", "family": "RAK3172"}}),
+        self.engine = Engine(make_config(devices={EUI: {"name": "sensor16", "family": "RAK3172-BAT"}}),
                              notifier=self.notifier)
 
     def test_latched_motion_frame_fires_and_next_heartbeat_clears(self):

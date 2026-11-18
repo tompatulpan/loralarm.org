@@ -122,12 +122,12 @@ class ProfileRegistryTest(unittest.TestCase):
     def test_builtin_lookup_is_case_insensitive_with_aliases(self):
         self.assertEqual(get_profile("rak4631").name, "RAK4631")
         self.assertEqual(get_profile("Android").name, "RAK4631")
-        self.assertEqual(get_profile("RUI3").name, "RAK3172")
+        self.assertEqual(get_profile("RUI3").name, "RAK3172-BAT")
         self.assertEqual(get_profile("").name, "")
         self.assertEqual(get_profile("nope").name, "")
 
     def test_family_defaults_come_from_profiles(self):
-        dc = make_config().for_event(DEV_EUI, "x", "RAK3172")
+        dc = make_config().for_event(DEV_EUI, "x", "RAK3172-BAT")
         self.assertEqual((dc.tk_correction_c, dc.batt_full_v, dc.circuit_mode), (0.0, 3.1, "level"))
 
     def test_new_profile_without_settings_and_own_defaults(self):
@@ -162,11 +162,11 @@ class ProfileRegistryTest(unittest.TestCase):
 
     def test_existing_frequency_translation_matrix(self):
         for family, value, wire in [("RAK4631", 50, 79), ("RAK4631", "index:3", 63),
-                                    ("RAK3172", 50, 4), ("RAK3172", "code:47", 2),
-                                    ("RAK3172", 400, 7), ("RAK3172", 4, 4),
+                                    ("RAK3172-BAT", 50, 4), ("RAK3172-BAT", "code:47", 2),
+                                    ("RAK3172-BAT", 400, 7), ("RAK3172-BAT", 4, 4),
                                     ("RAK4631", 95, 95), ("", "code:31", 31), ("", 2, 2)]:
             self.assertEqual(parse_frequency(value, family), wire, (family, value))
-        for family, value in [("RAK4631", 200), ("RAK4631", "index:7"), ("", 50), ("RAK3172", "hz:3")]:
+        for family, value in [("RAK4631", 200), ("RAK4631", "index:7"), ("", 50), ("RAK3172-BAT", "hz:3")]:
             with self.assertRaises(ValueError, msg=(family, value)):
                 parse_frequency(value, family)
 

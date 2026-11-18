@@ -7,7 +7,7 @@
         "applicationId": "1d7d3417-e6bf-4e85-ab60-fb422fecdf90",
         "applicationName": "Larm",
         "deviceProfileId": "3ff3e0de-c136-40ec-84fe-b42918bca9eb",
-        "deviceProfileName": "RAK3172",
+        "deviceProfileName": "RAK3172-BAT",
         "deviceName": "sensor16",
         "devEui": "ac1f09fffe12da63",
         "deviceClassEnabled": "CLASS_A",

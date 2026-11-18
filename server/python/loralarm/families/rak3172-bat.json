@@ -1,7 +1,7 @@
 {
-  "name": "RAK3172",
-  "description": "RAK3172 / RUI3 Cayenne sensors: 3 V cell, ODR index 1-7 on fPort 6, level-mode circuit (migration spec §4)",
-  "aliases": ["rak3172", "rui3", "cayenne"],
+  "name": "RAK3172-BAT",
+  "description": "RAK3172-BAT: RUI3 Cayenne sensors, 3 V battery direct to VDD, no LDO (ATC+BATMODE=0); ODR index 1-7 on fPort 6, level-mode circuit (migration spec §4). Generic doc/reference name: RAK3172.",
+  "aliases": ["rui3", "cayenne"],
   "frequency": {
     "label": "index",
     "table": {"1": 1, "2": 10, "3": 25, "4": 50, "5": 100, "6": 200, "7": 400}
