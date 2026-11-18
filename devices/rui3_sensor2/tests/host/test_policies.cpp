@@ -32,6 +32,9 @@ static int test_battery()
 	CHECK(valid(0.51f));
 	CHECK(!is_critical(0.0f, crit));
 	CHECK(!recovered(0.0f, crit, margin));
+	// Mode B sense-fault voltage (BATT_SENSE_FAULT_V = 0.6 in platform_stm32.cpp) must
+	// count as a valid, critical reading and never as recovered.
+	CHECK(valid(0.6f) && is_critical(0.6f, crit) && !recovered(0.6f, crit, margin));
 
 	// critical at or below the threshold only
 	CHECK(is_critical(2.5f, crit));

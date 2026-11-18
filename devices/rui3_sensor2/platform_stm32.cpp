@@ -29,8 +29,10 @@
  *     VBAT = raw/4095 * VDDA * BATT_SENSE_DIVIDER
  *   BATT_SENSE_DIVIDER lumps the resistor ratio and pin tolerances; calibrate
  *   as for BATT_CAL_GAIN: new = current * (multimeter_V / code_V). An
- *   uncalibrated 1.0 reads LOW with a real divider -> fails safe (early
- *   shutdown alarm, never a missed low battery).
+ *   uncalibrated 1.0 reads LOW with a real divider -> the low-battery latch
+ *   trips and TX stays suppressed until a calibrated value is compiled in
+ *   (no alarm uplink is sent). An unwired/shorted/saturated pin reports
+ *   BATT_SENSE_FAULT_V so it latches too, never silently disabling supervision.
  *
  *   Power: the Vrefint path is the only analogRead() that clears ADC ADEN on
  *   exit. The Mode B GPIO read leaves ADEN=1; platform_pre_sleep() clears it
@@ -70,9 +72,16 @@ static const uint8_t BATT_SAMPLES = 5;
 // Mode B: lumped divider ratio for the external cell divider on BATT_SENSE_PIN
 // (LDO boards, ATC+BATMODE=1). Absorbs the resistor ratio and pin tolerances.
 // Calibration: new_divider = current_divider * (multimeter_V / code_V).
-// Default 1.0 = UNCALIBRATED: with a real divider it reads LOW, which fails
-// safe (early shutdown alarm, never a missed low battery).
+// Default 1.0 = UNCALIBRATED: with a real divider it reads LOW, so the low-battery
+// latch trips and TX is suppressed (device goes quiet; no alarm uplink is sent)
+// until a calibrated value is compiled in. Never a missed low battery.
 static const float BATT_SENSE_DIVIDER = 1.0f;
+
+// Mode B: voltage reported when the divider pin gives no valid sample (unwired,
+// shorted or saturated). Must be above the policy's invalid threshold (0.5 V) and
+// below any allowed critical threshold so the latch trips instead of silently
+// disabling supervision.
+static const float BATT_SENSE_FAULT_V = 0.6f;
 
 // ── API implementation ────────────────────────────────────────────────────────
 
@@ -83,6 +92,15 @@ void platform_init(void)
     // it without a subsequent read could leave the ADC in an unexpected state.
     // No Serial6 (no BLE/AT UART on STM32WLE5).
     // No WB_IO2 (sensor power rail not present on RAK3172 eval / RAK19009).
+
+    // Park interrupt-capable WisBlock lines that no module drives. An
+    // unpopulated slot leaves them floating: a floating STM32WLE5 input buffer
+    // near mid-rail draws current and can oscillate (bench: 350 uA bursts at
+    // ~2 Hz with the RAK1904 absent, clean ~25 uA with it present).
+    // A present module overrides the parking: init_rak1904() reconfigures
+    // ACC_INT_PIN and init_gpio() reconfigures SW_INT_PIN after this runs.
+    pinMode(ACC_INT_PIN, INPUT_PULLDOWN); // WB_IO5: RAK1904 INT1 (Slot D)
+    pinMode(SW_INT_PIN, INPUT_PULLDOWN);  // WB_IO1: switch input (SWITCH_ENABLED=0)
 }
 
 /**
@@ -136,7 +154,8 @@ static float vdda_read_v(void)
  * The ADC full scale is VDDA (the regulator output on an LDO board), not a
  * fixed reference, so the scale comes from the same Vrefint method Mode A uses.
  *
- * @return Battery voltage in V, or 0.0 if no valid sample was taken.
+ * @return Battery voltage in V; 0.0 if the Vrefint scale could not be read, or
+ *         BATT_SENSE_FAULT_V if the divider pin gave no valid sample.
  */
 static float battery_read_divider_v(void)
 {
@@ -154,7 +173,7 @@ static float battery_read_divider_v(void)
         delay(2);  // allow S&H capacitor to fully recharge between samples
         uint16_t raw = (uint16_t)analogRead(BATT_SENSE_PIN);
         // 0 / full-scale = floating pin (no divider wired) or shorted divider
-        if (raw == 0 || raw > 4095) {
+        if (raw == 0 || raw >= 4095) {
             continue;
         }
         float v = (raw / 4095.0f) * vdda * BATT_SENSE_DIVIDER;
@@ -168,8 +187,11 @@ static float battery_read_divider_v(void)
     analogReadResolution(10);                     // restore RUI3 default
 
     if (n == 0) {
-        MYLOG("BATT", "Divider OOB — monitoring disabled");
-        return 0.0f;  // 0.0 V skips boot guard (>0.5f) and runtime check
+        // Unlike Mode A's Vrefint failure, do NOT return 0.0 here: that would silently disable
+        // supervision on a board with no/broken divider. Report a valid-but-critical voltage
+        // so the latch trips and the fault is visible.
+        MYLOG("BATT", "Divider OOB — reporting %.2fV (sense fault)", BATT_SENSE_FAULT_V);
+        return BATT_SENSE_FAULT_V;
     }
 
     float median = samples[n / 2];
@@ -180,7 +202,7 @@ static float battery_read_divider_v(void)
 
 float platform_battery_get(void)
 {
-    // Mode is a per-device setting: both supply layouts ship with the same binary.
+    // Mode is a per-device setting (ATC+BATMODE); the Mode B divider ratio is not.
     // battery_boot_guard() may run before get_at_setting() loads the mode from
     // flash; it then measures Mode A, which is harmless — behind an LDO the
     // regulated VDDA passes the guard, and the runtime latch uses the saved mode.

@@ -12,16 +12,27 @@ stops working (the boot guard and latch can never trip until the cell collapses)
   (>= 10 MOhm total, 100 nF at the pin; ~0.4 uA at 4 V) from the cell to `BATT_SENSE_PIN`
   (`config.h`, default `WB_A0`, set to match carrier wiring), with the ADC scale taken from
   Vrefint so LDO tolerance cancels. Calibrate the ratio as `BATT_SENSE_DIVIDER` in
-  `platform_stm32.cpp`: `new = current * multimeter_V / code_V`; uncalibrated it reads low,
-  which fails safe. Ignored on RAK4631, which always reads its fixed `WB_A0` divider.
+  `platform_stm32.cpp`: `new = current * multimeter_V / code_V`. `BATT_SENSE_DIVIDER` is
+  compile-time, not per device. Uncalibrated it reads low, so the latch trips and TX is
+  suppressed (no alarm uplink) until a calibrated build is flashed. A pin with no valid sample
+  (unwired, shorted, saturated) reports a 0.6 V fault value so it latches too instead of
+  disabling supervision. Ignored on RAK4631, which always reads its fixed `WB_A0` divider.
 - The new flash field sits in the parameter struct's always-zero padding, so existing devices
   keep their stored settings and start in Mode A. `ATC+STATUS` reports the mode.
 - `battery_boot_guard()` still runs before settings load and measures the default mode: on LDO
   devices the boot guard sees the regulated VDDA (passes); the runtime latch in `loop()` then
-  supervises the cell with the saved mode. No change for direct-battery devices.
+  supervises the cell with the saved mode. No change for direct-battery devices. Known
+  limitation: a dead cell behind an LDO still passes the boot guard, so startup and the cached
+  join TX run before the first heartbeat can latch (flash must not be read at low voltage to
+  learn the mode earlier).
 - RAK3172 sleep current is unchanged: the Mode B GPIO read leaves ADC ADEN set, which
   `platform_pre_sleep()` already clears with `ADC_CR_ADDIS` before Stop 2 entry.
 - Version byte 101 (`FW_VERSION_BYTE` / `FW_VERSION_STR`); payload unchanged.
+- Sleep current with no RAK1904 fitted: the unused `ACC_INT_PIN` (and `SW_INT_PIN` while the
+  switch is disabled) were floating inputs, which on the STM32WLE5 drew ~350 uA bursts at ~2 Hz
+  (bench: ~50 uA average vs ~25 uA with the module present). `platform_init()` now parks both
+  with `INPUT_PULLDOWN`, and `init_rak1904()` re-parks `ACC_INT_PIN` when no sensor answers.
+  With a RAK1904 present nothing changes.
 
 ## [v100] — Modular rewrite (wire-compatible with rui3_sensor v33)
 

@@ -128,8 +128,11 @@ RAK3172 ships in two layouts, selected per device with `ATC+BATMODE`:
 - `ATC+BATMODE=1`: cell behind an LDO — wire a high-impedance divider (>= 10 MOhm total,
   100 nF at the pin) from the cell to `BATT_SENSE_PIN` (`config.h`, default `WB_A0`, set to
   match the carrier wiring) and calibrate `BATT_SENSE_DIVIDER` (`platform_stm32.cpp`) against
-  a multimeter: `new = current * multimeter_V / code_V`. An uncalibrated ratio reads low and
-  fails safe. Never run a battery-powered LDO board on Mode 0: it would report the regulator
+  a multimeter: `new = current * multimeter_V / code_V`. The ratio is compile-time, so an
+  uncalibrated build reads low: the low-battery latch trips and TX is suppressed (no alarm
+  uplink) until you flash a calibrated build. An unwired or shorted pin latches too. The boot
+  guard always measures Mode 0, so a dead cell on an LDO board is only caught by the first
+  heartbeat. Never run a battery-powered LDO board on Mode 0: it would report the regulator
   output until the cell dies.
 
 **Only enable the region you use.** With every LoRaWAN region compiled in (the BSP default), the

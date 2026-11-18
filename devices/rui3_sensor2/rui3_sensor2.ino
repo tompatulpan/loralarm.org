@@ -40,8 +40,8 @@ void setup()
 	api.system.firmwareVersion.set(FW_VERSION_STR);
 
 	Serial.println("------------------------------------------------------");
-	Serial.printf("          Welcome to LoraLarm.org !!");
-	Serial.println("Setup the device with AT commands before using it");
+	Serial.printf("          Welcome to LoraLarm.org !!\n");
+	Serial.println("  Setup the device with AT commands before using it");
 	Serial.println("------------------------------------------------------");
 
 	// Initialize module

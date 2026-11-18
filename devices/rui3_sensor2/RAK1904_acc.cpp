@@ -99,6 +99,9 @@ bool init_rak1904(void)
 	if (!acc_sensor.begin())
 	{
 		MYLOG("ACC", "ACC sensor initialization failed");
+		// No module drives the INT line: re-park it (platform_init() did, but the INPUT above
+		// released it). A floating input draws current and can oscillate in sleep.
+		pinMode(acc_int_pin, INPUT_PULLDOWN);
 		return false;
 	}
 
