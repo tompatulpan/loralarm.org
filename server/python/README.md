@@ -275,6 +275,92 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt   # paho-mqtt
 Expected replay output: the two `* alarm` logs each raise one `Rörelselarm`
 (motion_alert=1); sensor3 shows `temp=24.0 °C` (raw 32 − Tk 8) and battery 37.8 %.
 
+## Deploy and update (production)
+
+The live service runs in an LXC as user `loralarm`, from a **git checkout**
+(not the rsync layout in `server/deploy/`, which still documents where this is heading):
+
+```
+/opt/loralarm/loralarm.org            git checkout, owned by loralarm (git runs as loralarm)
+└── server/python/
+    ├── .venv/                        virtualenv (paho-mqtt; + requirements-web.txt for --web)
+    ├── devices.json                  THE live config — gitignored, deployed copy, never edit it
+    └── loralarm.db                   SQLite (sessions, events, users) if no --db: keep backups!
+~/devices.json                        the MASTER config — the only file you ever edit
+/etc/systemd/system/loralarm.service hand-edited unit (repo reference: server/deploy/loralarm.service,
+                                     incl. hardening and --db /var/lib/loralarm/loralarm.db)
+```
+
+### Deploy from scratch
+
+```bash
+sudo useradd -r -s /usr/sbin/nologin loralarm
+sudo git clone https://github.com/tompatulpan/loralarm.org.git /opt/loralarm/loralarm.org
+sudo chown -R loralarm:loralarm /opt/loralarm/loralarm.org
+sudo -u loralarm git config --global --add safe.directory /opt/loralarm/loralarm.org
+cd /opt/loralarm/loralarm.org/server/python
+sudo -u loralarm python3 -m venv .venv
+sudo -u loralarm .venv/bin/pip install -r requirements.txt -r requirements-web.txt
+# config: maintain ~/devices.json, then (validate + install, see below)
+# unit: cp server/deploy/loralarm.service /etc/systemd/system/ (adjust paths), then:
+sudo systemctl daemon-reload && sudo systemctl enable --now loralarm
+sudo journalctl -u loralarm -n 30 --no-pager         # expect a clean start, no warnings
+```
+
+### Update the code
+
+```bash
+cd /opt/loralarm/loralarm.org
+sudo -u loralarm git status --short                  # tracked files must be clean
+sudo -u loralarm git fetch
+sudo -u loralarm git log --oneline HEAD..origin/main # review what is coming
+sudo -u loralarm git diff --stat HEAD origin/main
+sudo -u loralarm git pull --ff-only
+# pip only when requirements changed (check the diff above):
+sudo -u loralarm .venv/bin/pip install -r requirements.txt -r requirements-web.txt
+sudo systemctl restart loralarm
+sudo journalctl -u loralarm -n 30 --no-pager
+```
+
+`devices.json` is gitignored, so a pull never touches the live config — but
+**never run `git clean -fdx`** on this checkout: it deletes ignored files, i.e. the
+live config *and* the database. The `safe.directory` line is needed once because
+the checkout is owned by `loralarm`, not your login user; git operations therefore
+always run via `sudo -u loralarm`.
+
+### Update the config (devices.json)
+
+Edit the **master** only — `install` overwrites the deployed copy, so in-place edits
+to `/opt/.../server/python/devices.json` are lost on the next deploy:
+
+```bash
+nano ~/devices.json
+python3 -m json.tool ~/devices.json > /dev/null && echo valid
+cp ~/devices.json ~/devices.json.$(date +%F).bak
+install -o tomas -g loralarm -m 640 ~/devices.json /opt/loralarm/loralarm.org/server/python/devices.json
+sudo systemctl restart loralarm
+```
+
+Verify every device resolves the family and battery scale you intended:
+
+```bash
+cd /opt/loralarm/loralarm.org/server/python
+sudo -u loralarm ./.venv/bin/python3 -c "
+from loralarm.config import Config
+cfg = Config.load('devices.json')
+for eui in cfg.devices:
+    c = cfg.for_event(eui)
+    print(f'{eui} {c.name:10s} family={c.family!r} full={c.batt_full_v} warn={c.batt_warn_v} empty={c.batt_empty_v}')"
+```
+
+Read it back critically: `full=3.1 warn=2.9 empty=2.8` with an unexpected family means
+**no family layer applied** (raw code defaults, tuned for 3 V cells) — a family name
+that matches neither a `families/*.json` profile nor a `families` key in devices.json.
+The service also logs this per uplink: `family 'X' is not defined ... check the spelling`.
+Remember the rule that cost us days: naming a family in the `families` section binds
+it to nothing — each **device entry** needs `"family": "..."`, and the string must be
+a name the repository knows (`RAK3172-BAT`, `RAK3172-LDO`, `RAK4631`, `RAK4631-R`, ...).
+
 ## Web app (PWA) users and device access
 
 `--web` starts the status page / push app (needs `requirements-web.txt`; `--static

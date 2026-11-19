@@ -115,7 +115,7 @@ static_assert(REJOIN_RETRY_TICKS < 256 && LINK_CHECK_TICKS < 256, "tick counters
 // Alternative that was used before: POST_JOIN_ADR 1 and POST_JOIN_TXP 2. Close to a gateway
 // full power can saturate its LNA (wild RSSI swings, COLLISION_PACKET on the RX1 downlink).
 // EU868 TXP index: 0=+16 dBm, 1=+14, 2=+12, 3=+10, 4=+8, 5=+6 dBm EIRP.
-#define POST_JOIN_ADR 0			// 1 = network adapts DR/TXP (ADR), 0 = fixed
+#define POST_JOIN_ADR 1			// 1 = network adapts DR/TXP (ADR), 0 = fixed
 #define POST_JOIN_TXP JOIN_MAX_TXP // TXP index kept after join (0 = max)
 #define POST_JOIN_DR JOIN_DR	// DR kept after join; only applied when POST_JOIN_ADR is 0
 
@@ -136,7 +136,7 @@ static_assert(REJOIN_RETRY_TICKS < 256 && LINK_CHECK_TICKS < 256, "tick counters
 // Timing and payload
 // ---------------------------------------------------------------------------
 const uint16_t SENSOR_WARMUP_TIME = 200;	  // 200ms: OPT3001 needs 100ms conversion + margin
-const uint8_t MAX_PAYLOAD_SIZE = 255;		  // Cayenne buffer cap (P2P frames and backstop only).
+const uint8_t MAX_PAYLOAD_SIZE = 255;		  // Cayenne buffer cap (P2P frames; LoRaWAN is capped lower).
 											  // The live LoRaWAN budget is the FRMPayload limit at
 											  // the current DR (DR0-DR2: 43, DR3-DR5: 107 bytes in
 											  // EU868) — see payload_budget.h and uplink_arm_frame_budget()

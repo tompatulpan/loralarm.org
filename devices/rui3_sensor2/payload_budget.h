@@ -15,8 +15,8 @@
  *
  * MAC commands the network piggy-backs in FOpts can shrink the budget by up to
  * 15 bytes more. No reserve is held back for them: the stack then refuses the
- * send and send_packet() logs it, and holding back would cost every low-DR
- * heartbeat data it could have carried.
+ * send (send_packet() logs "Enqueue returned false"), and holding back would
+ * cost every low-DR heartbeat data it could have carried.
  *
  * Frames are built most-important-channel-first (see uplink.cpp and the
  * read_order in sensors.cpp) with the budget armed via WisCayenne::setMaxSize(),
@@ -25,6 +25,10 @@
  *
  * Only EU868 is implemented. The static assert below makes a different region
  * fail the build instead of silently reusing these numbers (US915 DR0 = 11!).
+ * The check only runs when config.h (which defines LORA_REGION) is included first.
+ *
+ * The CH_* sizes below are cross-checked against the CayenneLPP *_SIZE constants by
+ * static_asserts in uplink.cpp.
  */
 #pragma once
 
@@ -67,8 +71,7 @@ namespace payload_budget
 	 */
 	static inline uint16_t frmpayload(uint8_t dr)
 	{
-		const uint16_t mac = eu868_max_mac_payload(dr);
-		return mac > 8 ? mac - 8 : 0;
+		return eu868_max_mac_payload(dr) - 8;
 	}
 
 	// --- Channel accounting (Cayenne LPP, 1 channel byte + 1 type byte + data) ------

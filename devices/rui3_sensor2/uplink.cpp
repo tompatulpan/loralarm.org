@@ -86,21 +86,41 @@ static void append_switch_and_motion(void)
 // Payload budget
 // ---------------------------------------------------------------------------
 
+// The wire size of every channel payload_budget.h accounts for must match the Cayenne
+// library, or the host-tested budget arithmetic silently drifts from the real frames.
+static_assert(payload_budget::CH_DIGITAL == LPP_DIGITAL_INPUT_SIZE + 2 &&
+				  payload_budget::CH_DIGITAL == LPP_DIGITAL_OUTPUT_SIZE + 2,
+			  "payload_budget::CH_DIGITAL out of sync with CayenneLPP");
+static_assert(payload_budget::CH_VOLTAGE == LPP_VOLTAGE_SIZE + 2, "payload_budget::CH_VOLTAGE out of sync");
+static_assert(payload_budget::CH_TEMPERATURE == LPP_TEMPERATURE_SIZE + 2, "payload_budget::CH_TEMPERATURE out of sync");
+static_assert(payload_budget::CH_HUMIDITY == LPP_RELATIVE_HUMIDITY_SIZE + 2, "payload_budget::CH_HUMIDITY out of sync");
+static_assert(payload_budget::CH_PRESSURE == LPP_BAROMETRIC_PRESSURE_SIZE + 2, "payload_budget::CH_PRESSURE out of sync");
+static_assert(payload_budget::CH_LUMINOSITY == LPP_LUMINOSITY_SIZE + 2, "payload_budget::CH_LUMINOSITY out of sync");
+static_assert(payload_budget::CH_ACCELEROMETER == LPP_ACCELEROMETER_SIZE + 2, "payload_budget::CH_ACCELEROMETER out of sync");
+static_assert(payload_budget::CH_VOC == LPP_VOC_SIZE + 2, "payload_budget::CH_VOC out of sync");
+
 void uplink_arm_frame_budget(void)
 {
+	// CayenneLPP::reset() keeps the sticky error flag: clear what an earlier frame left
+	// behind so the post-build overflow check only sees this frame.
+	(void)g_solution_data.getError();
+
 	// LoRaWAN: the FRMPayload budget follows the frame's DR (payload_budget.h). The
 	// Cayenne layer then refuses adds beyond it (LPP_ERROR_OVERFLOW, checked after
 	// the build), so a low-DR frame loses its least-important channels, not the
 	// whole heartbeat. P2P has no frame header: buffer size is the only limit.
+	uint8_t budget = MAX_PAYLOAD_SIZE;
 	if (api.lorawan.nwm.get() == 1)
 	{
-		g_solution_data.setMaxSize(static_cast<uint8_t>(payload_budget::frmpayload(api.lorawan.dr.get())));
+		// send_packet() restores the configured link policy (DR) right before the
+		// stack send; do it first so the budget is armed for the DR actually used.
+		if (api.lorawan.njs.get())
+		{
+			lorawan_enforce_link_policy();
+		}
+		budget = static_cast<uint8_t>(payload_budget::frmpayload(api.lorawan.dr.get()));
 	}
-	else
-	{
-		// P2P has no LoRaWAN frame header: the buffer itself is the limit.
-		g_solution_data.setMaxSize(MAX_PAYLOAD_SIZE);
-	}
+	g_solution_data.setMaxSize(budget);
 }
 
 // ---------------------------------------------------------------------------
@@ -180,8 +200,7 @@ static void heartbeat_run(void)
 	// fully populated board): report what the frame carries so the loss is visible.
 	if (g_solution_data.getError() == LPP_ERROR_OVERFLOW)
 	{
-		MYLOG("UPLINK", "Payload budget reached: %d bytes sent, least-priority channels dropped",
-			  g_solution_data.getSize());
+		MYLOG("UPLINK", "Payload trimmed to %d bytes", g_solution_data.getSize());
 	}
 
 	send_packet();
@@ -271,18 +290,6 @@ bool send_packet(void)
 		}
 
 		lorawan_enforce_link_policy();
-
-		// Backstop: the budget is armed before every frame (uplink_arm_frame_budget),
-		// so this can only fire if a frame was built without arming it. Refuse here
-		// with the reason instead of letting the stack drop it unlabeled.
-		const uint16_t budget = payload_budget::frmpayload(api.lorawan.dr.get());
-		if (g_solution_data.getSize() > budget)
-		{
-			MYLOG("UPLINK", "Payload too large for DR%d: %d > %u bytes - not sent",
-				  api.lorawan.dr.get(), g_solution_data.getSize(), budget);
-			return false;
-		}
-
 		const bool link_check = lorawan_take_link_check();
 		const bool confirm = g_confirmed_mode || link_check;
 		const uint8_t retry = link_check ? LINK_CHECK_RETRIES : g_confirmed_retry;

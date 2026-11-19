@@ -22,9 +22,9 @@ instead of by luck.
   pressure, light, VOC last). At a low DR the Cayenne layer skips the tail — the frame goes
   out with telemetry dropped (logged), never losing battery/config/motion/switch/acc/temp,
   i.e. every channel the alarm rules read.
-- `send_packet()` backstop: a frame exceeding its DR budget (only possible if a future
-  builder forgets the budget) is refused with the DR in the log instead of a silent
-  stack rejection that would also lose the motion flag.
+- The configured link policy is re-applied before the budget is armed, so the budget matches
+  the DR the stack will use. No extra size check in `send_packet()`: the RAK3172 build has only
+  a few hundred bytes of flash headroom, and the stack already rejects an oversized frame.
 - Wire format unchanged at DR3 — the shipped link policy (ADR off, fixed DR3) is untouched,
   and the server, codecs and codecs' fixtures need no change; only the channel *order* in
   the heartbeat differs, which the channel-keyed codecs ignore. No version-byte bump

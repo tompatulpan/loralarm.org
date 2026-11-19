@@ -70,11 +70,11 @@ Every frame (heartbeat, motion alert, switch event) now works the same way:
    ch 2/3, pressure ch 4, light ch 5, VOC ch 14 last).
 3. Cayenne-level overflow is a *skip*, not a frame drop: at a low DR the telemetry tail
    (pressure/light/gas) is left out and the heartbeat logged
-   (`Payload budget reached: N bytes sent, least-priority channels dropped`); every channel the
-   alarm rules read still goes out.
-4. `send_packet()` backstops: a frame larger than the DR's budget (only possible if some future
-   builder forgets step 1) is refused with a logged reason instead of losing the motion flag in
-   a silent stack rejection.
+   (`Payload trimmed to N bytes`); every channel the alarm rules read still goes out.
+4. Before arming, the configured link policy (DR) is re-applied, so the budget matches the DR
+   the stack will actually use. There is deliberately no second size check in `send_packet()`:
+   flash headroom on the RAK3172 is only a few hundred bytes, and the stack already rejects an
+   oversized frame (logged as `Enqueue returned false`).
 
 `tests/host/test_payload_budget.cpp` locks the whole accounting: the EU868 table, the
 52-byte worst case, the DR0 build (40 bytes, all alarm-relevant channels kept) and the event
