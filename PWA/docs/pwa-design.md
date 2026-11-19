@@ -142,6 +142,12 @@ alarm_ack        (user_id, dev_eui, kind, acked_ts)                   -- per-use
   - `GET /api/state` — live banner, **plain polling** every 15–30 s. SSE is dropped:
     proxy buffering/idle timeouts through the tunnel make it unreliable.
   - static: `manifest.webmanifest`, `sw.js`, icons, the app itself
+    — the server sends `no-cache` (ETag revalidation, cheap), but Cloudflare's
+    Browser Cache TTL (4 h) overrides it for these extensions, so `index.html`
+    must reference `app.js`/`styles.css`/`manifest.webmanifest` with a `?v=`
+    query and the version bump on every change (index.html itself is served
+    `cf-cache-status: DYNAMIC`, so a bumped `?v=` reaches every phone on the
+    next open, edge cache included).
 - **Web Push:** `pywebpush`, VAPID keypair (generate once, store in service config,
   gitignore the private key). On alarm transition: for each device, look up subscribed
   users → endpoints → send. Prune endpoints on 404/410; back off and retry on 429/5xx;
