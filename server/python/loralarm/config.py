@@ -158,6 +158,8 @@ class Config:
         self.registry = self.base_registry.fork()
         apply_user_definitions(self.registry, data.get("profiles"))
         self.defaults = data.get("defaults", {})
+        # family names seen but not defined; each is warned about once below
+        self._warned_unknown_family: set[str] = set()
         # merge per family so a partial override keeps the built-in keys
         user_families = data.get("families", {})
         family_defaults = {p.name: p.defaults for p in self.registry.profiles() if p.name}
@@ -237,8 +239,22 @@ class Config:
         # devices that are not in the config — those are warned about anyway.
         if isinstance(entry.get("family"), str) and entry["family"]:
             family = entry["family"]
+        # The settings lookup is by name like get_profile(), but used to be a
+        # case-sensitive dict get() that silently returned {} on a miss — a
+        # miss or a case drift left the device on the raw DeviceConfig defaults
+        # (tuned for 3 V cells, batt_full_v = 3.1), and a 4.2 V device then
+        # computed 100 % battery at ~3.9-4 V. Match case-insensitively and warn
+        # once per unrecognized name so a typo is visible in the log.
+        families = self.families
+        fam_key = next((k for k in families if k.lower() == (family or "").lower()), None)
+        if family and fam_key is None and family not in self._warned_unknown_family:
+            self._warned_unknown_family.add(family)
+            log.warning("config: family %r is not defined (no such key in 'families', "
+                        "no built-in profile of that name); devices using it get the raw "
+                        "defaults (batt_full_v=%s V) — check the spelling",
+                        family, DeviceConfig.batt_full_v)
         merged: dict[str, Any] = {}
-        for layer in (self.defaults, self.families.get(family, {}), entry):
+        for layer in (self.defaults, families.get(fam_key, {}), entry):
             for k, v in layer.items():
                 if k in _FIELD_TYPES and not _valid_type(k, v):
                     # an invalid value must not reach the alarm code (TypeError on
