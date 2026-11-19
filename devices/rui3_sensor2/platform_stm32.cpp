@@ -72,10 +72,11 @@ static const uint8_t BATT_SAMPLES = 5;
 // Mode B: lumped divider ratio for the external cell divider on BATT_SENSE_PIN
 // (LDO boards, ATC+BATMODE=1). Absorbs the resistor ratio and pin tolerances.
 // Calibration: new_divider = current_divider * (multimeter_V / code_V).
-// Default 1.0 = UNCALIBRATED: with a real divider it reads LOW, so the low-battery
-// latch trips and TX is suppressed (device goes quiet; no alarm uplink is sent)
-// until a calibrated value is compiled in. Never a missed low battery.
-static const float BATT_SENSE_DIVIDER = 1.0f;
+// Last cal: multimeter=4.15 V, code=1.705 V @ 1.0 -> 2.434 (nominal 1/0.4 = 2.5).
+// Uncalibrated (1.0) with a real divider reads LOW, so the low-battery latch
+// trips and TX is suppressed (device goes quiet) until a calibrated value is
+// compiled in. Never a missed low battery.
+static const float BATT_SENSE_DIVIDER = 2.434f;
 
 // Mode B: voltage reported when the divider pin gives no valid sample (unwired,
 // shorted or saturated). Must be above the policy's invalid threshold (0.5 V) and
