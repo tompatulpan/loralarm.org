@@ -10,6 +10,7 @@ const KIND_LABEL = {
   battery_low: 'Lågt batteri', battery_empty: 'Tomt batteri',
   motion: 'Rörelselarm', circuit: 'Kretslarm', tilt: 'Tiltlarm',
   door: 'Dörrlarm', stale: 'Ingen kontakt', armed: 'Larm',
+  button: 'Knapplarm',
 };
 // Lucide outline icons (ISC License, lucide-icons/lucide), inline to keep the
 // CSP (`default-src 'self'`) and offline PWA intact; colored via currentColor.
@@ -207,7 +208,7 @@ function renderBanners(el) {
   host.innerHTML = rows.map(({ a, cls, when }) => `
     <div class="swipe">
       <button class="swipe-del" type="button" aria-label="Ta bort larmet">Ta bort</button>
-      <div class="banner swipe-item${cls}${SWIPE_OPEN === bannerKey(a) ? ' open' : ''}">
+      <div class="banner swipe-item${cls ? ' ' + cls : ''}${SWIPE_OPEN === bannerKey(a) ? ' open' : ''}">
         <div class="dot"></div>
         <div>
           <div class="t">${esc(KIND_LABEL[a.kind] || a.kind)}: ${esc(a.name)}${when}</div>
@@ -220,6 +221,7 @@ function renderBanners(el) {
 
 function wireSwipe(row, a) {
   const item = row.querySelector('.swipe-item');
+  if (!item) return;                    // insurance: never abort the whole fleet
   const key = bannerKey(a);
   row.querySelector('.swipe-del').addEventListener('click', () => dismissAlarm(a));
 
@@ -645,12 +647,19 @@ async function boot() {
   try {
     ME = await api('/api/me');        // session cookie still valid?
     await refresh();
-    showApp();
+  } catch (_) {
+    showLogin();                     // api() already switched on 401; also network errors
+    return;
+  }
+  showApp();
+  try {
     renderFleet();
     if (new URLSearchParams(location.search).has('dev')) location.hash = pendingTarget();
     route();
-  } catch (_) {
-    showLogin();
+  } catch (e) {
+    // a rendering bug must never look like "logged out" (that masked the
+    // swipe-item-recent class crash as a phantom logout)
+    toast('Kunde inte rita upp statusvyn: ' + e.message);
   }
   setInterval(tick, POLL_MS);
   setInterval(renderConn, 5000);      // also while polls are failing or frozen
