@@ -1,5 +1,35 @@
 # Changelog
 
+## [Unreleased]
+
+### Frames obey the DR-dependent LoRaWAN payload budget (EU868)
+
+The payload code only guarded the 255-byte Cayenne buffer; whether a frame fit the radio was
+left to the fixed-DR3 link policy. A fully populated board (RAK1906 + RAK1903 + RAK1904 +
+switch, deferred motion) builds a **52-byte** heartbeat — above the 43 usable FRMPayload
+bytes at DR0-DR2 (51 MACPayload − FHDR 7 − FPort 1), where the stack silently drops it. v33
+with ADR on could legitimately land on those DRs; this firmware is protected structurally
+instead of by luck.
+
+- New pure `payload_budget.h` (host-tested in `tests/host/test_payload_budget.cpp`): the
+  EU868 MaxMACPayload table (DR0–2: 51, DR3–5: 115, DR6: 242, DR7: 250) with a
+  `static_assert` that refuses to build for any region other than EU868.
+- `WisCayenne::setMaxSize()` (shrink-only, never above the allocated buffer) plus
+  `uplink_arm_frame_budget()`: every frame — heartbeat, motion alert, switch event —
+  starts with `reset()` and the budget of the DR it will actually use (full buffer in P2P).
+- Heartbeat is assembled most-important-first: supply/battery/config block (ch 1, 7–10, 13),
+  motion (ch 12), switch (ch 11), then sensors in the new `read_order` (acc, temp/humidity,
+  pressure, light, VOC last). At a low DR the Cayenne layer skips the tail — the frame goes
+  out with telemetry dropped (logged), never losing battery/config/motion/switch/acc/temp,
+  i.e. every channel the alarm rules read.
+- `send_packet()` backstop: a frame exceeding its DR budget (only possible if a future
+  builder forgets the budget) is refused with the DR in the log instead of a silent
+  stack rejection that would also lose the motion flag.
+- Wire format unchanged at DR3 — the shipped link policy (ADR off, fixed DR3) is untouched,
+  and the server, codecs and codecs' fixtures need no change; only the channel *order* in
+  the heartbeat differs, which the channel-keyed codecs ignore. No version-byte bump
+  needed; bump `FW_VERSION_BYTE` on the next release that carries changes anyway.
+
 ## [v101] — RAK3172 battery sensing mode (ATC+BATMODE)
 
 RAK3172 ships in two supply layouts: the cell feeds VDD directly (no regulator), or the cell

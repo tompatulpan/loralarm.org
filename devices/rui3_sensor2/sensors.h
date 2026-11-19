@@ -34,7 +34,11 @@ void sensors_wakeup(void);
 /** Put present sensors back to sleep. */
 void sensors_shutdown(void);
 
-/** Append every present sensor's reading to g_solution_data (heartbeat). */
+/**
+ * Append every present sensor's reading to g_solution_data (heartbeat).
+ * Reads in payload-priority order (read_order in sensors.cpp): the channels
+ * read last are the ones dropped first when a low-DR frame budget runs out.
+ */
 void sensors_read_all(void);
 
 /**

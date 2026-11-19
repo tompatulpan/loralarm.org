@@ -24,12 +24,12 @@ ToFo: A list with needed AT-commnds, such as ATC+SENDINT=300, devEUI, joinEUI, a
 | `sensors.h` / `sensors.cpp` | **Sensor registry** — one table drives init, wake-up, read, shutdown, alert reads and conflicts |
 | `RAK1901…1906_*.cpp` | Sensor drivers (unchanged apart from the registry hooks) |
 | `battery.h` / `battery.cpp` | Boot guard, confirmed-critical check, shutdown latch, per-tick supervision |
-| `uplink.h` / `uplink.cpp` | Heartbeat (`sensor_handler`), packet send, send timer |
+| `uplink.h` / `uplink.cpp` | Heartbeat (`sensor_handler`), packet send, send timer, per-frame payload budget |
 | `lorawan.h` / `lorawan.cpp` | Join policy, callbacks, downlink handling, P2P callbacks |
 | `custom_at.cpp` | Flash settings and the custom AT commands (`SENDINT`, `MININT`, `BATCRIT`, `BATMODE`, `STATUS`) |
 | `switch_gpio.cpp` | Debounced switch input |
 | `platform*.{h,cpp}` | MCU differences (battery ADC, BLE, power rail) — no `#ifdef` for the MCU elsewhere |
-| `battery_policy.h`, `send_policy.h`, `downlink_parse.h` | **Pure** decision rules, no Arduino includes, host-tested |
+| `battery_policy.h`, `send_policy.h`, `downlink_parse.h`, `payload_budget.h` | **Pure** decision rules, no Arduino includes, host-tested |
 
 ### Adding a sensor
 1. Write `init_x / read_x / startup_x / shutdown_x` in its own `.cpp` and declare them in `sensors.h`.
@@ -51,6 +51,34 @@ No change is needed in `sensor_handler`, `setup()` or the alert path.
   that fires mid-heartbeat.
 - Everything else — join/ADR/TXP handling, battery latch and hysteresis, boot guard, caching of the
   session, BLE re-arm on nRF52 — is a straight port.
+
+## Payload budget (DR-dependent frame limit)
+
+The LoRaWAN limit an uplink must obey is the *current data rate's* FRMPayload budget (EU868:
+43 usable bytes at DR0–DR2, 107 at DR3–DR5 — see `payload_budget.h`, which refuses to compile
+for any other region). The wire budget, not the code, decides what fits: a fully populated
+board (RAK1906 + RAK1903 + RAK1904 + switch + deferred motion in the same heartbeat) builds a
+**52-byte** frame, which v33 could only have dropped at DR0–DR2 — and at the shipped fixed
+DR3 it always fits, which made the gap invisible.
+
+Every frame (heartbeat, motion alert, switch event) now works the same way:
+
+1. `reset()` then `uplink_arm_frame_budget()`: `WisCayenne::setMaxSize()` shrinks the usable
+   buffer to the FRMPayload budget of the DR the frame will use (the full 255-byte buffer in P2P).
+2. Channels are appended **most-important-first**: supply/battery/config block (ch 1, 7–10, 13),
+   motion (ch 12), switch (ch 11), then the sensors in `read_order` (acc ch 6, temp/humidity
+   ch 2/3, pressure ch 4, light ch 5, VOC ch 14 last).
+3. Cayenne-level overflow is a *skip*, not a frame drop: at a low DR the telemetry tail
+   (pressure/light/gas) is left out and the heartbeat logged
+   (`Payload budget reached: N bytes sent, least-priority channels dropped`); every channel the
+   alarm rules read still goes out.
+4. `send_packet()` backstops: a frame larger than the DR's budget (only possible if some future
+   builder forgets step 1) is refused with a logged reason instead of losing the motion flag in
+   a silent stack rejection.
+
+`tests/host/test_payload_budget.cpp` locks the whole accounting: the EU868 table, the
+52-byte worst case, the DR0 build (40 bytes, all alarm-relevant channels kept) and the event
+frames. The wire format of a DR3 frame is unchanged — the server and codecs need no change.
 
 ## Connection supervision
 
@@ -144,7 +172,7 @@ extension reads `.vscode/arduino.json` from the **opened workspace folder**, so 
 
 ## Host tests
 
-The battery, heartbeat-content and downlink rules need no hardware:
+The battery, heartbeat-content, downlink and payload-budget rules need no hardware:
 
 ```
 make -C devices/rui3_sensor2/tests/host

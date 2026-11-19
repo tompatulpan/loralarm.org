@@ -11,6 +11,7 @@
 #include <CayenneLPP.h>
 
 #include "config.h"
+#include "payload_budget.h"
 #include "wisblock_cayenne.h"
 #include "platform.h"
 #include "state.h"

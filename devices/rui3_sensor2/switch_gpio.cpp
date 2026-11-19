@@ -87,6 +87,7 @@ void handle_gpio(void* unused)
         
         // Clear payload and prepare new data
         g_solution_data.reset();
+        uplink_arm_frame_budget();
         g_solution_data.addDigitalOutput(LPP_CHANNEL_DIG_5, switch_state ? 0x01 : 0x00);
         // Carry the supply state like a motion alert: a latched node must never look healthy
         append_supply_state();

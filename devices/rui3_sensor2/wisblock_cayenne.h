@@ -29,7 +29,22 @@
 class WisCayenne : public CayenneLPP
 {
 public:
-	WisCayenne(uint8_t size) : CayenneLPP(size) {}
+	WisCayenne(uint8_t size) : CayenneLPP(size), _buffer_size(size) {}
+
+	/**
+	 * Shrink the usable payload budget for the frame being built (never above the
+	 * allocated buffer). uplink_arm_frame_budget() calls this with the LoRaWAN
+	 * FRMPayload budget of the current DR before every frame; add* calls that do
+	 * not fit raise LPP_ERROR_OVERFLOW and are skipped — that is how a low-DR
+	 * frame drops its least-important channels instead of the whole heartbeat.
+	 */
+	void setMaxSize(uint8_t size)
+	{
+		if (size <= _buffer_size)
+		{
+			_maxsize = size;
+		}
+	}
 
 	uint8_t addGNSS_4(uint8_t channel, int32_t latitude, int32_t longitude, int32_t altitude);
 	uint8_t addGNSS_6(uint8_t channel, int32_t latitude, int32_t longitude, int32_t altitude);
@@ -38,5 +53,7 @@ public:
 	uint8_t addVoc_index(uint8_t channel, uint32_t voc_index);
 
 private:
+	/** Bytes actually allocated in the constructor; setMaxSize() never exceeds it. */
+	uint8_t _buffer_size;
 };
 #endif

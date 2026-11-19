@@ -241,6 +241,7 @@ void send_acc_alert(void* unused)
 #endif
 	MYLOG("ACC", "Motion detected! Sending immediate alert...");
 	g_solution_data.reset();
+	uplink_arm_frame_budget();
 	g_solution_data.addDigitalOutput(LPP_CHANNEL_DIG_6, 0x01);
 	// Motion frames keep flowing while a low-battery latch suppresses heartbeats, so they
 	// carry the supply state too: the server must never see a latched node as healthy.

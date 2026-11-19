@@ -46,11 +46,11 @@
 // ---------------------------------------------------------------------------
 // Reported on ch 7 in heartbeats. This line (modular rewrite, wire-compatible with
 // rui3_sensor v33) starts at 100 so it can never be mistaken for the old 3x series.
-#define FW_VERSION_BYTE 101
+#define FW_VERSION_BYTE 102
 
 // Version string reported by the RUI3 stack (AT+VER / api.system.firmwareVersion).
 // Must track FW_VERSION_BYTE: it is the only way to identify the firmware without a join.
-#define FW_VERSION_STR "rui3_sensor2-v101"
+#define FW_VERSION_STR "rui3_sensor2-v102"
 
 // ---------------------------------------------------------------------------
 // Pins
@@ -136,7 +136,10 @@ static_assert(REJOIN_RETRY_TICKS < 256 && LINK_CHECK_TICKS < 256, "tick counters
 // Timing and payload
 // ---------------------------------------------------------------------------
 const uint16_t SENSOR_WARMUP_TIME = 200;	  // 200ms: OPT3001 needs 100ms conversion + margin
-const uint8_t MAX_PAYLOAD_SIZE = 255;
+const uint8_t MAX_PAYLOAD_SIZE = 255;		  // Cayenne buffer cap (P2P frames and backstop only).
+											  // The live LoRaWAN budget is the FRMPayload limit at
+											  // the current DR (DR0-DR2: 43, DR3-DR5: 107 bytes in
+											  // EU868) — see payload_budget.h and uplink_arm_frame_budget()
 const uint8_t BATTERY_SEND_INTERVAL = 1;	  // Send battery status and digital outputs every N heartbeats
 #define INTERVAL_MAX_S 2147483UL			  // Largest AT+SENDINT / AT+MININT in seconds: x1000 must fit a uint32_t (ms)
 

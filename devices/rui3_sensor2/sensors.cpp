@@ -107,13 +107,28 @@ void sensors_shutdown(void)
 	MYLOG("SENSORS", "Sensor shutdown complete");
 }
 
+// Heartbeat read order = payload priority (payload_budget.h): the frame budget is
+// armed by uplink_arm_frame_budget() and the Cayenne layer fills most-important-first
+// for the current DR, so a low-DR frame drops the channels read last instead of the
+// heartbeat. The accelerometer (tilt baseline, motion context) and the environmental
+// temperature/humidity come first; light is pure telemetry and reads last. The table
+// order above still drives init, wake-up and shutdown.
+static const SensorId read_order[SENSOR_COUNT] = {
+	SENSOR_RAK1904, // ch 6 XYZ — 8 bytes, tilt detector input
+	SENSOR_RAK1906, // ch 2/3 T/H, ch 4 pressure, ch 14 VOC (T/H added first inside the driver)
+	SENSOR_RAK1901, // ch 2/3 T/H only
+	SENSOR_RAK1902, // ch 4 pressure only
+	SENSOR_RAK1903, // ch 5 light — telemetry, least important
+};
+
 void sensors_read_all(void)
 {
-	for (uint8_t i = 0; i < SENSOR_COUNT; i++)
+	for (uint8_t prio = 0; prio < SENSOR_COUNT; prio++)
 	{
-		if (sensors[i].present && !is_suppressed(sensors[i]))
+		const SensorDesc &s = sensors[read_order[prio]];
+		if (s.present && !is_suppressed(s))
 		{
-			sensors[i].read();
+			s.read();
 		}
 	}
 }

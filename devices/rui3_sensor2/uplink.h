@@ -20,6 +20,15 @@ void sensor_handler(void *unused);
  */
 void append_supply_state(void);
 
+/**
+ * Shrink g_solution_data's budget to the FRMPayload bytes available at the current
+ * DR (payload_budget.h; the full MAX_PAYLOAD_SIZE buffer in P2P mode). Call right
+ * after every g_solution_data.reset(), before any add*: channels are appended
+ * most-important-first, so a low-DR frame drops its tail (pressure/light/gas),
+ * never the heartbeat itself.
+ */
+void uplink_arm_frame_budget(void);
+
 /** Send whatever is in g_solution_data over LoRaWAN or P2P. */
 bool send_packet(void);
 

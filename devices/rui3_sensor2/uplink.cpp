@@ -83,6 +83,27 @@ static void append_switch_and_motion(void)
 }
 
 // ---------------------------------------------------------------------------
+// Payload budget
+// ---------------------------------------------------------------------------
+
+void uplink_arm_frame_budget(void)
+{
+	// LoRaWAN: the FRMPayload budget follows the frame's DR (payload_budget.h). The
+	// Cayenne layer then refuses adds beyond it (LPP_ERROR_OVERFLOW, checked after
+	// the build), so a low-DR frame loses its least-important channels, not the
+	// whole heartbeat. P2P has no frame header: buffer size is the only limit.
+	if (api.lorawan.nwm.get() == 1)
+	{
+		g_solution_data.setMaxSize(static_cast<uint8_t>(payload_budget::frmpayload(api.lorawan.dr.get())));
+	}
+	else
+	{
+		// P2P has no LoRaWAN frame header: the buffer itself is the limit.
+		g_solution_data.setMaxSize(MAX_PAYLOAD_SIZE);
+	}
+}
+
+// ---------------------------------------------------------------------------
 // Heartbeat
 // ---------------------------------------------------------------------------
 
@@ -121,8 +142,12 @@ static void heartbeat_run(void)
 
 	MYLOG("UPLINK", "Read Sensors");
 	g_solution_data.reset();
-	sensors_read_all();
-	sensors_shutdown();
+	// Budget first, channels after: supply/config block, motion, switch, then the
+	// sensors in read-priority order (sensors.cpp read_order). If the armed budget
+	// (43 usable FRMPayload bytes even at DR0-DR2) is exhausted, the Cayenne layer
+	// skips further adds — the tail (pressure/light/gas) is dropped, never the
+	// alarm-relevant channels or the heartbeat itself. See payload_budget.h.
+	uplink_arm_frame_budget();
 
 	// Increment the transmission counter
 	transmission_count++;
@@ -148,11 +173,15 @@ static void heartbeat_run(void)
 
 	append_switch_and_motion();
 
-	// Validate payload size before sending
-	if (g_solution_data.getSize() > MAX_PAYLOAD_SIZE)
+	sensors_read_all();
+	sensors_shutdown();
+
+	// Something did not fit the armed budget (only possible at a low DR with a
+	// fully populated board): report what the frame carries so the loss is visible.
+	if (g_solution_data.getError() == LPP_ERROR_OVERFLOW)
 	{
-		MYLOG("UPLINK", "Payload too large: %d bytes", g_solution_data.getSize());
-		return;
+		MYLOG("UPLINK", "Payload budget reached: %d bytes sent, least-priority channels dropped",
+			  g_solution_data.getSize());
 	}
 
 	send_packet();
@@ -242,6 +271,18 @@ bool send_packet(void)
 		}
 
 		lorawan_enforce_link_policy();
+
+		// Backstop: the budget is armed before every frame (uplink_arm_frame_budget),
+		// so this can only fire if a frame was built without arming it. Refuse here
+		// with the reason instead of letting the stack drop it unlabeled.
+		const uint16_t budget = payload_budget::frmpayload(api.lorawan.dr.get());
+		if (g_solution_data.getSize() > budget)
+		{
+			MYLOG("UPLINK", "Payload too large for DR%d: %d > %u bytes - not sent",
+				  api.lorawan.dr.get(), g_solution_data.getSize(), budget);
+			return false;
+		}
+
 		const bool link_check = lorawan_take_link_check();
 		const bool confirm = g_confirmed_mode || link_check;
 		const uint8_t retry = link_check ? LINK_CHECK_RETRIES : g_confirmed_retry;
