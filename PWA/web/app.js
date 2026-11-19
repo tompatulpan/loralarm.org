@@ -184,6 +184,7 @@ function renderChrome() {
 // reloads and this phone — and returns as soon as the alarm fires again.
 // SWIPE_W must match the .swipe-del width in styles.css.
 const SWIPE_W = 84;
+let SWIPE_DRAGGING = false;
 
 function bannerKey(a) { return `${a.dev_eui}/${a.kind}`; }
 
@@ -194,6 +195,7 @@ function closeOpenSwipe(except) {
 }
 
 function renderBanners(el) {
+  if (SWIPE_DRAGGING) return;           // a poll must not replace the row under the finger
   const host = $(el);
   const recent = STATE.recent || [];
   if (!STATE.alarms.length && !recent.length) {
@@ -230,7 +232,7 @@ function wireSwipe(row, a) {
   item.addEventListener('pointerdown', (e) => {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     if (SWIPE_OPEN !== key) { closeOpenSwipe(item); SWIPE_OPEN = null; }
-    dragging = true;
+    dragging = SWIPE_DRAGGING = true;
     x0 = e.clientX;
     base = offset = SWIPE_OPEN === key ? -SWIPE_W : 0;
     item.classList.add('drag');          // no transition while the finger is down
@@ -243,7 +245,7 @@ function wireSwipe(row, a) {
   });
   const end = () => {
     if (!dragging) return;
-    dragging = false;
+    dragging = SWIPE_DRAGGING = false;
     item.classList.remove('drag');
     item.style.transform = '';
     if (Math.abs(offset - base) < 8) {   // a tap (no drag): an open row closes
@@ -644,6 +646,11 @@ async function boot() {
     });
   }
 
+  // started before the session check: after a fresh login (doLogin) polling
+  // must run too; tick() is a no-op while ME is unset
+  setInterval(tick, POLL_MS);
+  setInterval(renderConn, 5000);      // also while polls are failing or frozen
+
   try {
     ME = await api('/api/me');        // session cookie still valid?
     await refresh();
@@ -661,8 +668,6 @@ async function boot() {
     // swipe-item-recent class crash as a phantom logout)
     toast('Kunde inte rita upp statusvyn: ' + e.message);
   }
-  setInterval(tick, POLL_MS);
-  setInterval(renderConn, 5000);      // also while polls are failing or frozen
 }
 
 // a push notification opens /?dev=<eui> — kept across login and for an open session
