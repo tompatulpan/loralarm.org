@@ -71,6 +71,18 @@ input.pin:focus{outline:none;border-color:#1f6feb}
 .card.dimmed{opacity:.55}
 .banner .t{font-size:.8rem;font-weight:700}
 .banner .d{font-size:.68rem;color:#c9d1d9;opacity:.85;margin-top:1px}
+/* sweep-left-to-delete on the alarm banners (SWIPE_W in app.js = the button width) */
+.swipe{position:relative;border-radius:12px;margin-bottom:8px;overflow:hidden}
+.swipe .banner{margin-bottom:0}
+.swipe-del{
+  position:absolute;top:0;right:0;bottom:0;width:84px;
+  border:none;border-radius:0 12px 12px 0;background:#b62324;color:#fff;
+  font-size:.72rem;font-weight:700;cursor:pointer;
+}
+.swipe-item{position:relative;z-index:1;touch-action:pan-y;user-select:none;
+  transition:transform .25s ease}
+.swipe-item.drag{transition:none}
+.swipe-item.open{transform:translateX(-84px)}
 
 /* device card */
 .card{

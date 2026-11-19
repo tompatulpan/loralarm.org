@@ -308,10 +308,16 @@ def create_app(engine: Engine, event_log: EventLog, webpush: Any = None,
     def state(user: dict = Depends(_guard)):
         snap = engine.snapshot()
         visible = _visible(user, snap)
+        # the user's swipe-away dismissals: a (device, kind) badge is hidden
+        # until an event newer than the acknowledgment arrives. A pulse alarm
+        # carries its ts, an active one is checked against its last event.
+        acked = event_log.alarms_acked(user["id"])
         alarms = [{"dev_eui": eui, "name": e.get("name", ""), "kind": k,
                    "detail": e.get("state", {}).get("last_detail", {}).get(k, "")}
                   for eui, e in snap.items() if eui in visible
-                  for k in e.get("state", {}).get("active", [])]
+                  for k in e.get("state", {}).get("active", [])
+                  if (eui, k) not in acked
+                  or event_log.last_change(eui, k) > acked[(eui, k)]]
         active = {(a["dev_eui"], a["kind"]) for a in alarms}
         latest: dict[tuple[str, str], tuple] = {}
         for r in event_log.recent(hours=RECENT_ALARM_H, limit=500, dev_euis=sorted(visible)):
@@ -320,9 +326,28 @@ def create_app(engine: Engine, event_log: EventLog, webpush: Any = None,
         # newest event of a (device, kind) is a fire that nothing cleared and that is
         # not already listed as active -> a pulse alarm that happened recently
         recent = [{"dev_eui": eui, "name": r[1], "kind": kind, "detail": r[4], "ts": r[0]}
-                  for (eui, kind), r in latest.items() if r[3] and (eui, kind) not in active]
+                  for (eui, kind), r in latest.items()
+                  if r[3] and (eui, kind) not in active
+                  and r[0] > acked.get((eui, kind), "")]
         recent.sort(key=lambda a: a["ts"], reverse=True)
         return {"ok": not alarms, "alarms": alarms, "recent": recent}
+
+    # ---- swipe-away dismissal of the alarm banners (PWA "sweep left to
+    # delete"): per user and per (device, kind), until an alarm fires again ----
+
+    @app.post("/api/alarms/ack", dependencies=[Depends(_csrf)])
+    def ack_alarm(body: dict = Depends(_body), user: dict = Depends(_guard)):
+        eui = body.get("dev_eui")
+        kind = body.get("kind")
+        if not isinstance(eui, str) or not _EUI_RE.match(eui.lower()):
+            raise HTTPException(status_code=422, detail="bad devEUI")
+        if not isinstance(kind, str) or not 1 <= len(kind) <= 64:
+            raise HTTPException(status_code=422, detail="bad kind")
+        eui = eui.lower()
+        if eui not in _visible(user):      # 404, not 403: do not reveal other users' devices
+            raise HTTPException(status_code=404, detail="unknown device")
+        event_log.ack_alarm(user["id"], eui, kind)
+        return {"ok": True}
 
     @app.get("/api/events")
     def events(request: Request, user: dict = Depends(_guard)):

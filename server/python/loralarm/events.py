@@ -32,6 +32,8 @@ CREATE TABLE IF NOT EXISTS events (
 -- "recent events", so the useful index is on ts
 DROP INDEX IF EXISTS idx_events_id_desc;
 CREATE INDEX IF NOT EXISTS idx_events_ts ON events(ts);
+-- newest event per (device, kind): the alarm_ack lookups
+CREATE INDEX IF NOT EXISTS idx_events_dev_kind ON events(dev_eui, kind, id);
 CREATE TABLE IF NOT EXISTS device_state (
     dev_eui  TEXT PRIMARY KEY,
     snapshot TEXT NOT NULL,
@@ -99,6 +101,17 @@ CREATE TABLE IF NOT EXISTS push_ack (
     endpoint_id INTEGER NOT NULL,
     ts          TEXT NOT NULL,
     PRIMARY KEY (event_id, endpoint_id)
+);
+-- PWA "sweep left to delete" on the alarm banners: per-user acknowledgment of
+-- everything logged so far for (device, kind). A later fire/clear event has a
+-- newer ts than `acked_ts` and shows again; the badge is not deleted globally —
+-- other users still see it until they dismiss it themselves.
+CREATE TABLE IF NOT EXISTS alarm_ack (
+    user_id   INTEGER NOT NULL,
+    dev_eui   TEXT NOT NULL,
+    kind      TEXT NOT NULL,
+    acked_ts  TEXT NOT NULL,           -- newest covered event ts (fixed-width UTC text)
+    PRIMARY KEY (user_id, dev_eui, kind)
 );
 """
 
@@ -474,3 +487,39 @@ class EventLog:
                 (event_id, endpoint_id, self._utc(utc_now())))
             self._conn.commit()
             return True
+
+    # ---- PWA: swipe-away dismissal of the alarm banners ("sweep left to
+    # delete"). Per user and per (device, kind): everything up to and including
+    # `acked_ts` is hidden; a newer event shows the badge again. ----
+
+    def ack_alarm(self, user_id: int, dev_eui: str, kind: str) -> str:
+        """Dismiss the current badge: stamp every event so far for (device,
+        kind) as acknowledged and return that ts ('' when none exist). MAX()
+        keeps an older ack if the newest event somehow moved backwards."""
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT MAX(ts) FROM events WHERE dev_eui = ? AND kind = ?",
+                (dev_eui, kind)).fetchone()
+            ts = row[0] or self._utc(utc_now())
+            self._conn.execute(
+                "INSERT INTO alarm_ack (user_id, dev_eui, kind, acked_ts) VALUES (?, ?, ?, ?) "
+                "ON CONFLICT(user_id, dev_eui, kind) DO UPDATE SET "
+                "acked_ts = MAX(acked_ts, excluded.acked_ts)",
+                (user_id, dev_eui, kind, ts))
+            self._conn.commit()
+            return ts
+
+    def alarms_acked(self, user_id: int) -> dict[tuple[str, str], str]:
+        """The user's dismissals: {(dev_eui, kind): acked_ts}."""
+        with self._lock:
+            return {(r[0], r[1]): r[2] for r in self._conn.execute(
+                "SELECT dev_eui, kind, acked_ts FROM alarm_ack WHERE user_id = ?",
+                (user_id,))}
+
+    def last_change(self, dev_eui: str, kind: str) -> str:
+        """Newest event ts for (device, kind), '' when there is none."""
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT MAX(ts) FROM events WHERE dev_eui = ? AND kind = ?",
+                (dev_eui, kind)).fetchone()
+        return row[0] if row and row[0] else ''

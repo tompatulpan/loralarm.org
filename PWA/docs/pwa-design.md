@@ -101,6 +101,11 @@ flowchart TD
 - Status view: alarm banner (from service in-RAM state) + fleet table
   (last-seen, battery, alarm state). **No charts**; deep-link to Grafana for history.
   Stale ("ingen kontakt") counts as an active alarm and sorts with the problems.
+- The alarm banners (active + recent pulse) can be **swept left to delete**:
+  a red "Ta bort" is revealed and records a per-user dismissal
+  (`POST /api/alarms/ack`). The badge — including the appbar count — stays
+  gone across polls and reloads until the same kind of alarm fires again;
+  the fleet cards keep showing the device's alarm state.
 
 ## 4. Data model (SQLite, same DB as the events table)
 
@@ -113,6 +118,7 @@ push_endpoints   (id, user_id, endpoint UNIQUE, p256dh, auth, ua, created_at,
 device_armed     (dev_eui PRIMARY KEY, armed, until, changed_by, changed_at)
 webpush_log      (event_id, endpoint_id, status, http_code, ts)       -- endpoint_id, never the raw endpoint
 push_ack         (event_id, endpoint_id, ts)                          -- written by the service worker ack
+alarm_ack        (user_id, dev_eui, kind, acked_ts)                   -- per-user swipe-away dismissal of an alarm badge
 ```
 
 - `EventLog` owns the single SQLite connection and lock; new tables go through that
@@ -130,6 +136,9 @@ push_ack         (event_id, endpoint_id, ts)                          -- written
   - `GET/PUT /api/devices/{eui}/armed` — arm state; PUT takes `armed` + `snooze` duration
   - `POST /api/push/subscribe`, `DELETE ...` — Web Push subscription register/remove
   - `POST /api/push/ack` — service-worker delivery receipt (§7)
+  - `POST /api/alarms/ack` — per-user swipe-away dismissal of an alarm banner:
+    hides the (device, kind) badge in `/api/state` (top of fleet + device view)
+    until an alarm of that kind fires again; other users are not affected
   - `GET /api/state` — live banner, **plain polling** every 15–30 s. SSE is dropped:
     proxy buffering/idle timeouts through the tunnel make it unreliable.
   - static: `manifest.webmanifest`, `sw.js`, icons, the app itself

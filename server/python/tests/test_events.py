@@ -53,5 +53,42 @@ class StatePersistenceTest(unittest.TestCase):
         self.assertIsNone(log.last_seen("unknown"))
 
 
+class AlarmAckTest(unittest.TestCase):
+    """The PWA "sweep left to delete" backing store: per (user, device, kind),
+    everything up to the newest event ts is acknowledged; a newer event
+    (a later fire/clear) makes the badge show again."""
+
+    def test_ack_stamps_the_newest_event(self):
+        log = EventLog(None)
+        log.log(T0, DEV_EUI, "sensor3", "motion", True, "rörelse")
+        log.log(T0 + timedelta(hours=1), DEV_EUI, "sensor3", "motion", True, "rörelse")
+        acked = log.ack_alarm(1, DEV_EUI, "motion")
+        self.assertEqual(acked, log.last_change(DEV_EUI, "motion"))
+        self.assertEqual(log.alarms_acked(1), {(DEV_EUI, "motion"): acked})
+        self.assertEqual(log.last_change(DEV_EUI, "temp"), "")   # nothing logged for it
+
+        # a newer event arrives: last_change moves past the acknowledgment
+        log.log(T0 + timedelta(hours=2), DEV_EUI, "sensor3", "motion", False)
+        self.assertGreater(log.last_change(DEV_EUI, "motion"), acked)
+        # re-acking covers it again and never moves backwards
+        self.assertEqual(log.ack_alarm(1, DEV_EUI, "motion"),
+                         log.last_change(DEV_EUI, "motion"))
+
+    def test_ack_is_per_user_and_per_kind(self):
+        log = EventLog(None)
+        log.log(T0, DEV_EUI, "sensor3", "motion", True, "rörelse")
+        log.ack_alarm(1, DEV_EUI, "motion")
+        self.assertEqual(log.alarms_acked(2), {})    # the other user still sees the badge
+        log.ack_alarm(1, DEV_EUI, "temp")
+        acked = log.alarms_acked(1)
+        self.assertEqual(set(acked), {(DEV_EUI, "motion"), (DEV_EUI, "temp")})
+
+    def test_ack_without_events_stamps_now(self):
+        log = EventLog(None)
+        ts = log.ack_alarm(1, DEV_EUI, "motion")
+        self.assertGreaterEqual(ts, EventLog._utc(utc_now() - timedelta(seconds=5)))
+        self.assertEqual(log.last_change(DEV_EUI, "motion"), "")
+
+
 if __name__ == "__main__":
     unittest.main()

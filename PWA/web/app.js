@@ -27,6 +27,7 @@ let WEBPUSH_ON = false;
 let LAST_OK = 0;          // ms timestamp of the last successful refresh
 let FAILS = 0;            // consecutive failed refreshes
 let SNOOZE_OPEN = null;   // devEUI whose snooze picker is open (survives re-renders)
+let SWIPE_OPEN = null;    // 'devEUI/kind' of the alarm banner swiped open (ditto)
 let TICKING = false;
 let DEFERRED_INSTALL = null;   // beforeinstallprompt event (Chrome/Android et al.)
 const POLL_MS = 15000;
@@ -176,6 +177,21 @@ function renderChrome() {
   badge.textContent = n > 0 ? `${n} larm aktiv${n > 1 ? 'a' : ''}` : (r > 0 ? `${r} nytt larm` : '');
 }
 
+// "Sweep left to delete": every alarm banner (active + recent pulse) can be
+// swiped left to reveal a dismiss button. The dismissal is per-user state on
+// the server (POST /api/alarms/ack): the badge stays away across polls,
+// reloads and this phone — and returns as soon as the alarm fires again.
+// SWIPE_W must match the .swipe-del width in styles.css.
+const SWIPE_W = 84;
+
+function bannerKey(a) { return `${a.dev_eui}/${a.kind}`; }
+
+function closeOpenSwipe(except) {
+  document.querySelectorAll('.swipe-item.open').forEach((el) => {
+    if (el !== except) el.classList.remove('open');
+  });
+}
+
 function renderBanners(el) {
   const host = $(el);
   const recent = STATE.recent || [];
@@ -184,24 +200,71 @@ function renderBanners(el) {
       <div><div class="t">Inga aktiva larm</div><div class="d">Alla enheter är tysta</div></div></div>`;
     return;
   }
-  const active = STATE.alarms.map((a) => `
-    <div class="banner">
-      <div class="dot"></div>
-      <div>
-        <div class="t">${esc(KIND_LABEL[a.kind] || a.kind)}: ${esc(a.name)}</div>
-        <div class="d">${esc(a.detail)}</div>
+  const rows = [
+    ...STATE.alarms.map((a) => ({ a, cls: '', when: '' })),
+    ...recent.map((a) => ({ a, cls: 'recent', when: ` · ${esc(relTime(a.ts))}` })),
+  ];
+  host.innerHTML = rows.map(({ a, cls, when }) => `
+    <div class="swipe">
+      <button class="swipe-del" type="button" aria-label="Ta bort larmet">Ta bort</button>
+      <div class="banner swipe-item${cls}${SWIPE_OPEN === bannerKey(a) ? ' open' : ''}">
+        <div class="dot"></div>
+        <div>
+          <div class="t">${esc(KIND_LABEL[a.kind] || a.kind)}: ${esc(a.name)}${when}</div>
+          <div class="d">${esc(a.detail)}</div>
+        </div>
       </div>
-    </div>`);
-  // pulse alarms (e.g. motion) fire once and never clear: show them for a while
-  const recents = recent.map((a) => `
-    <div class="banner recent">
-      <div class="dot"></div>
-      <div>
-        <div class="t">${esc(KIND_LABEL[a.kind] || a.kind)}: ${esc(a.name)} · ${esc(relTime(a.ts))}</div>
-        <div class="d">${esc(a.detail)}</div>
-      </div>
-    </div>`);
-  host.innerHTML = active.concat(recents).join('');
+    </div>`).join('');
+  host.querySelectorAll('.swipe').forEach((row, i) => wireSwipe(row, rows[i].a));
+}
+
+function wireSwipe(row, a) {
+  const item = row.querySelector('.swipe-item');
+  const key = bannerKey(a);
+  row.querySelector('.swipe-del').addEventListener('click', () => dismissAlarm(a));
+
+  let x0 = 0, base = 0, offset = 0, dragging = false;
+
+  item.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    if (SWIPE_OPEN !== key) { closeOpenSwipe(item); SWIPE_OPEN = null; }
+    dragging = true;
+    x0 = e.clientX;
+    base = offset = SWIPE_OPEN === key ? -SWIPE_W : 0;
+    item.classList.add('drag');          // no transition while the finger is down
+    try { item.setPointerCapture(e.pointerId); } catch (_) { /* pointercancel still ends it */ }
+  });
+  item.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    offset = Math.max(-SWIPE_W, Math.min(0, base + e.clientX - x0));
+    item.style.transform = offset ? `translateX(${offset}px)` : '';
+  });
+  const end = () => {
+    if (!dragging) return;
+    dragging = false;
+    item.classList.remove('drag');
+    item.style.transform = '';
+    if (Math.abs(offset - base) < 8) {   // a tap (no drag): an open row closes
+      if (SWIPE_OPEN === key) { SWIPE_OPEN = null; item.classList.remove('open'); }
+      return;
+    }
+    const open = offset <= -SWIPE_W / 2;
+    SWIPE_OPEN = open ? key : null;
+    item.classList.toggle('open', open);
+  };
+  item.addEventListener('pointerup', end);
+  item.addEventListener('pointercancel', end);
+}
+
+async function dismissAlarm(a) {
+  try {
+    await api('/api/alarms/ack', { method: 'POST', body: { dev_eui: a.dev_eui, kind: a.kind } });
+    SWIPE_OPEN = null;
+    toast('Larmet dolt — visas igen när det larmar på nytt');
+    await refresh();
+    renderChrome();
+    route();                            // re-renders the visible view, banners included
+  } catch (e) { toast(e.message); }
 }
 
 function recentFor(d) { return (STATE.recent || []).filter((r) => r.dev_eui === d.dev_eui); }

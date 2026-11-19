@@ -434,6 +434,88 @@ class RecentAlarmsTest(unittest.TestCase):
 
 
 @needs_web
+class AlarmAckApiTest(unittest.TestCase):
+    """PWA "sweep left to delete" on the alarm banners: POST /api/alarms/ack
+    hides the (device, kind) badge for *that user* until an alarm of the same
+    kind fires again (a newer event than the acknowledgment)."""
+
+    def client_for(self, users=(USER,), motion_mode="level"):
+        from fastapi.testclient import TestClient
+        log = EventLog(None)
+        log.seed_users(list(users))
+        cfg = make_config(devices={DEV_EUI: {"name": "sensor3"}},
+                          defaults={"motion_mode": motion_mode})
+        engine = Engine(cfg, log, None)
+        return TestClient(create_app(engine, log, cookie_secure=False)), engine
+
+    def fire(self, engine, motion=1, at=None):
+        engine.on_uplink(make_uplink(obj=sensor_obj(motion_alert=motion),
+                                     time=at or utc_now()))
+
+    def ack(self, client, eui=DEV_EUI, kind="motion", headers=HEADERS):
+        return client.post("/api/alarms/ack", headers=headers,
+                          json={"dev_eui": eui, "kind": kind})
+
+    def test_active_badge_hidden_until_it_fires_again(self):
+        client, engine = self.client_for()
+        login(client, USER["token"])
+        at = utc_now() - timedelta(minutes=10)
+        self.fire(engine, at=at)
+        state = client.get("/api/state").json()
+        self.assertEqual([a["kind"] for a in state["alarms"]], ["motion"])
+        self.assertFalse(state["ok"])
+
+        self.assertEqual(self.ack(client).status_code, 200)
+        state = client.get("/api/state").json()
+        self.assertEqual((state["alarms"], state["recent"]), ([], []))
+        self.assertTrue(state["ok"])     # a dismissed badge is not an active alarm
+        # the fleet keeps reporting the alarm: only the banner is dismissed
+        devs = client.get("/api/devices").json()["devices"]
+        self.assertEqual(devs[0]["active"], ["motion"])
+
+        # cleared and fired again later (newer event): the badge is back
+        self.fire(engine, motion=0, at=at + timedelta(minutes=5))
+        self.fire(engine, at=at + timedelta(minutes=6))
+        state = client.get("/api/state").json()
+        self.assertEqual([a["kind"] for a in state["alarms"]], ["motion"])
+        self.assertFalse(state["ok"])
+
+    def test_pulse_badge_hidden_until_the_next_pulse(self):
+        client, engine = self.client_for(motion_mode="event")
+        login(client, USER["token"])
+        at = utc_now() - timedelta(minutes=10)
+        self.fire(engine, at=at)
+        self.assertEqual(len(client.get("/api/state").json()["recent"]), 1)
+        self.assertEqual(self.ack(client).status_code, 200)
+        self.assertEqual(client.get("/api/state").json()["recent"], [])
+        self.fire(engine, at=at + timedelta(minutes=5))       # a newer pulse
+        self.assertEqual(len(client.get("/api/state").json()["recent"]), 1)
+
+    def test_dismissal_is_per_user(self):
+        client, engine = self.client_for(users=(ADMIN, USER))
+        self.fire(engine, at=utc_now() - timedelta(minutes=10))
+        login(client, USER["token"])
+        self.assertEqual(self.ack(client).status_code, 200)
+        self.assertEqual(client.get("/api/state").json()["alarms"], [])
+        login(client, ADMIN["token"])        # same badge, other user: still there
+        self.assertEqual([a["kind"] for a in client.get("/api/state").json()["alarms"]],
+                         ["motion"])
+        self.assertEqual(self.ack(client).status_code, 200)
+        self.assertEqual(client.get("/api/state").json()["alarms"], [])
+
+    def test_ack_needs_auth_csrf_and_a_known_device(self):
+        client, engine = self.client_for()
+        self.fire(engine, at=utc_now() - timedelta(minutes=10))
+        self.assertEqual(self.ack(client).status_code, 401)               # not logged in
+        login(client, USER["token"])
+        self.assertEqual(self.ack(client, headers={}).status_code, 403)  # CSRF header
+        self.assertEqual(self.ack(client, eui="nope").status_code, 422)  # bad devEUI
+        self.assertEqual(self.ack(client, kind="").status_code, 422)      # bad kind
+        self.assertEqual(self.ack(client, eui="0123456789abcdef").status_code, 404)
+        self.assertEqual(self.ack(client, headers=HEADERS).status_code, 200)
+
+
+@needs_web
 class GroupAccessApiTest(unittest.TestCase):
     def setUp(self):
         self.client, self.engine, self.log, self.ungrouped, self.users = make_group_client()
