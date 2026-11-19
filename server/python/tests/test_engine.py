@@ -209,6 +209,12 @@ class FamilySourceTest(unittest.TestCase):
         self.assertEqual(len(mismatches), 1)                       # once per device
         self.assertEqual(engine.devices[DEV_EUI][0].family, "RAK3172-BAT")  # config wins
 
+    def test_profile_name_matching_an_alias_warns_nothing(self):
+        cfg = make_config(devices={DEV_EUI: {"name": "sensor3", "family": "RAK3172-BAT"}})
+        engine = Engine(cfg)
+        with self.assertNoLogs("loralarm.service", level="WARNING"):
+            engine.on_uplink(make_uplink(device_name="sensor3", profile="rui3"))
+
     def test_matching_profile_name_warns_nothing(self):
         cfg = make_config(devices={DEV_EUI: {"name": "sensor3", "family": "RAK4631"}})
         engine = Engine(cfg)

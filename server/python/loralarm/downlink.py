@@ -302,7 +302,7 @@ def main(argv: list[str] | None = None) -> int:
     """One-shot per-device downlink CLI:
 
         python3 -m loralarm.downlink --mqtt <host> --config devices.json \
-            --dev <devEui|name> [--app-id UUID] [--family RAK3172] \
+            --dev <devEui|name> [--app-id UUID] [--family RAK3172-BAT] \
             [--set threshold=16] [--set frequency=50] [--set duration=2] \
             [--set command=1] [--raw --fport 6 --value 002] [--confirmed] [--dry-run]
 
@@ -327,7 +327,7 @@ def main(argv: list[str] | None = None) -> int:
                          "in the config, which in turn wins over env LORALARM_CS_APP_ID "
                          "(the live service learns it from uplinks)")
     ap.add_argument("--family", default=None,
-                    help="device profile name (RAK3172/RAK4631) for frequency translation; "
+                    help="family (e.g. RAK3172-BAT/RAK4631) for frequency translation; "
                          "defaults to the `family` key of the device config entry")
     ap.add_argument("--set", dest="settings", action="append", default=[], metavar="KEY=VALUE",
                     help="threshold|frequency|duration|command = value; repeatable")

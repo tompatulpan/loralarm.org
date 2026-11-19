@@ -37,6 +37,7 @@ from .downlink import (DEFAULT_DL_TOPIC, Downlink, DownlinkSender, desired_frame
 from .event import Uplink
 from .events import EventLog, utc_now
 from .notify import Notifier
+from .profiles import GENERIC
 from .registry import Registry
 from .schedule import Window, local_time, parse_window, zone
 
@@ -173,6 +174,9 @@ class Engine:
                 or profile_name.lower() == cfg.family.lower()
                 or cfg.dev_eui in self._warned_family_mismatch):
             return
+        known = self.registry.get_profile(profile_name)
+        if known is not GENERIC and known is self.registry.get_profile(cfg.family):
+            return  # same family under an alias (e.g. profile "rui3")
         self._warned_family_mismatch.add(cfg.dev_eui)
         log.warning("device %s (%s): configured family %r differs from the ChirpStack "
                     "device-profile name %r; the config wins — check that the profile "
@@ -273,7 +277,7 @@ class Engine:
                 state.touch(up)
                 frame, transitions = None, []
 
-            print(f"{up.time:%Y-%m-%d %H:%M:%S} {up.device_name:<10} {up.device_profile_name:<8} "
+            print(f"{up.time:%Y-%m-%d %H:%M:%S} {up.device_name:<10} {up.device_profile_name:<11} "
                   f"fPort={up.f_port} fCnt={up.f_cnt}"
                   + (f" rssi={frame.rssi} snr={frame.snr}" if frame is not None else ""),
                   flush=True)

@@ -51,6 +51,16 @@ class BuiltinFamiliesTest(unittest.TestCase):
         self.assertEqual(get_profile("lds02").data_ports, frozenset({10}))
         self.assertIsNotNone(rule_for("door"))
 
+    def test_rak3172_variants_feed_the_shared_battery_shutdown_rule(self):
+        # alarm kinds are global: the rule is registered once (by -BAT), every
+        # family only has to map the field it reads
+        self.assertIsNotNone(rule_for("battery_shutdown"))
+        for name in ("RAK3172-BAT", "RAK3172-LDO"):
+            with self.subTest(family=name):
+                profile = get_profile(name)
+                self.assertEqual(profile.name, name)
+                self.assertIn("low_battery_shutdown", profile.fields)
+
 
 class UserProfilesTest(unittest.TestCase):
     def _config(self, profiles=None, family: str = "HUM-1") -> Config:
