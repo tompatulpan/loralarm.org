@@ -1,18 +1,35 @@
 {
+  "_note": "Fiktiv demo-data (påhittad 2026-11-20): raderna följer LoRaLarm-PWA:ns fleetlista-format (LED, brusstapel, temp · batteri · tid) men varje namn och varje värde är påhittat. Ingen koppling till registret på alarms.loralarm.org, inga konton, inga grupper, ingen inloggning — se även partialmallen (status-panel.html).",
   "sv": {
+    "pill": "3 AKTIVA LARM · 10 ENHETER ONLINE",
+    "pillCls": "pill-alert",
     "devices": [
-      { "led": "ok", "name": "dorrkontakt.lora", "state": "stängd · 07:41", "weak": false },
-      { "led": "ok", "name": "vattenmatare.kallare", "state": "normal · 07:39", "weak": false },
-      { "led": "warn", "name": "temp.garage", "state": "svag signal · 06:58", "weak": true },
-      { "led": "alert", "name": "lackage.kok", "state": "FUKT · 07:43", "weak": false }
+      { "led": "alert", "name": "dorr.baksida", "state": "DÖRRLARM · ÖPPEN · 09:41", "weak": false },
+      { "led": "alert", "name": "rorelse.forrad", "state": "RÖRELSEALARM · 09:24", "weak": false },
+      { "led": "alert", "name": "temp.vind", "state": "HÖG TEMPERATUR · 29.9 °C · 09:37", "weak": false },
+      { "led": "ok", "name": "dorr.fram", "state": "larm av · 91 % · 09:22", "weak": false },
+      { "led": "ok", "name": "knapp.pannrum", "state": "09:26", "weak": false },
+      { "led": "warn", "name": "temp.garage", "state": "svag signal · 7.4 °C · 06:58", "weak": true },
+      { "led": "ok", "name": "temp.groventre", "state": "20.1 °C · 87 % · 09:35", "weak": false },
+      { "led": "ok", "name": "temp.uterum", "state": "16.9 °C · 54 % · 09:31", "weak": false },
+      { "led": "ok", "name": "temp.vardagsrum", "state": "21.4 °C · 68 % · 09:40", "weak": false },
+      { "led": "ok", "name": "vattenmatare.kallare", "state": "13.2 °C · 96 % · 09:18", "weak": false }
     ]
   },
   "en": {
+    "pill": "3 ACTIVE ALARMS · 10 DEVICES ONLINE",
+    "pillCls": "pill-alert",
     "devices": [
-      { "led": "ok", "name": "door-sensor.lora", "state": "closed · 07:41", "weak": false },
-      { "led": "ok", "name": "water-meter.basement", "state": "nominal · 07:39", "weak": false },
-      { "led": "warn", "name": "temp.garage", "state": "low signal · 06:58", "weak": true },
-      { "led": "alert", "name": "leak-detector.kitchen", "state": "MOISTURE · 07:43", "weak": false }
+      { "led": "alert", "name": "door.back", "state": "DOOR ALARM · OPEN · 09:41", "weak": false },
+      { "led": "alert", "name": "motion.shed", "state": "MOTION ALARM · 09:24", "weak": false },
+      { "led": "alert", "name": "temp.attic", "state": "HIGH TEMPERATURE · 29.9 °C · 09:37", "weak": false },
+      { "led": "ok", "name": "door.front", "state": "disarmed · 91% · 09:22", "weak": false },
+      { "led": "ok", "name": "button.boiler", "state": "09:26", "weak": false },
+      { "led": "warn", "name": "temp.garage", "state": "weak signal · 7.4 °C · 06:58", "weak": true },
+      { "led": "ok", "name": "temp.hallway", "state": "20.1 °C · 87% · 09:35", "weak": false },
+      { "led": "ok", "name": "temp.veranda", "state": "16.9 °C · 54% · 09:31", "weak": false },
+      { "led": "ok", "name": "temp.livingroom", "state": "21.4 °C · 68% · 09:40", "weak": false },
+      { "led": "ok", "name": "water-meter.basement", "state": "13.2 °C · 96% · 09:18", "weak": false }
     ]
   }
 }

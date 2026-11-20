@@ -36,7 +36,7 @@ other = "Inget moln krävs"
 other = "system.status"
 
 [statusPill]
-other = "LARMAT · 3 ENHETER ONLINE"
+other = "3 AKTIVA LARM · 10 ENHETER ONLINE"
 
 # --- Vad systemet gör ---
 [whatKicker]

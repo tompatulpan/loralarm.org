@@ -9,6 +9,7 @@ secrets.h
 loralarm.db
 notes.txt
 note.txt
+server/python/devices.json
 
 # Logs from device firmware / debugging
 *.log

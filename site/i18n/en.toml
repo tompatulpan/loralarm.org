@@ -36,7 +36,7 @@ other = "No cloud required"
 other = "system.status"
 
 [statusPill]
-other = "ARMED · 3 DEVICES ONLINE"
+other = "3 ACTIVE ALARMS · 10 DEVICES ONLINE"
 
 # --- What it does ---
 [whatKicker]
