@@ -17,8 +17,8 @@
   <div class="device">
     <span class="led led-{{ .led }}"></span>
     <span class="name">{{ .name }}</span>
-    <span class="signal{{ if .weak }} weak{{ end }}"><i></i><i></i><i></i><i></i></span>
     <span class="state{{ if eq .led "alert" }} state-alert{{ end }}">{{ .state }}</span>
+    <span class="signal{{ if .weak }} weak{{ end }}" title="{{ i18n "signalTitle" }}"><i></i><i></i><i></i><i></i></span>
   </div>
   {{ end }}
 </div>

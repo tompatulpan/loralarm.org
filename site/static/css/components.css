@@ -131,10 +131,14 @@ nav a.active { color: var(--accent); background: var(--accent-soft); font-weight
 .device .name { font-family: var(--mono); font-size: 13px; }
 .device .state { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--text-muted); }
 
-/* Hela registret (18 snapshot-rader från PWA:n): tätare rader så panelen
-   fortfarande andas i heron; på smala skärmar capas höjden med scroll. */
+/* Hela registret (10 demorader i PWA-format): tätare rader så panelen
+   fortfarande andas i heron; på smala skärmar capas höjden med scroll.
+   Signalstapeln ligger längst till höger i raden (state pressas dit av
+   margin-left:auto); staplarnas defaultmarginal slås bort — radens gap
+   räcker som mellanrum. */
 #status-panel .device { padding: 9px 10px; gap: 10px; }
 #status-panel .device .name { font-size: 12.5px; }
+#status-panel .device .signal { margin-left: 0; }
 @media (max-width: 859px) {
   #status-panel { max-height: 380px; overflow-y: auto; scrollbar-width: thin; }
 }

@@ -38,6 +38,9 @@ other = "system.status"
 [statusPill]
 other = "3 AKTIVA LARM · 10 ENHETER ONLINE"
 
+[signalTitle]
+other = "Signalstyrka (staplar efter RSSI/SNR)"
+
 # --- Vad systemet gör ---
 [whatKicker]
 other = "Vad systemet gör"
