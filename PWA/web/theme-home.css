@@ -1,0 +1,375 @@
+/* theme-home.css — valfritt CSS-lager för LoRaLarm-PWA:n.
+ *
+ * Aktiveras när <body> har klassen .theme-home (växlas i Inställningar,
+ * sparas i localStorage). Lagret skriver över PWA:ns grundstil (styles.css)
+ * så att enhetslistan får samma "device data"-utseende som statuspanelen
+ * på loralarm.org (se site/static/css/components.css: .panel, .device,
+ * .led, .signal, .pill) — samma palett (teal-accent #2dd4bf, paneler
+ * #19212a, linjer #242e3a) och samma radformat: glödande LED + mono-namn
+ * + statusrad högerjusterad + signalstaplar längst till höger.
+ *
+ * Allt är scope:at under body.theme-home så grundtemat är orört när
+ * lagret är avslaget. */
+
+/* ---------- Palett och grund ---------- */
+
+body.theme-home {
+  background: #0b0f14;
+  color: #eef2f7;
+  /* samma subtila rutnät som hemsidan (base.css) */
+  background-image:
+    linear-gradient(#242e3a22 1px, transparent 1px),
+    linear-gradient(90deg, #242e3a22 1px, transparent 1px);
+  background-size: 48px 48px;
+  background-attachment: fixed;
+}
+
+body.theme-home .view { max-width: 680px; }
+
+/* ---------- Appbar ---------- */
+
+body.theme-home .appbar h2 { color: #eef2f7; letter-spacing: 0.02em; }
+body.theme-home .badge {
+  background: #2dd4bf;
+  color: #06251f;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.64rem;
+  letter-spacing: 0.06em;
+}
+
+/* ---------- Alarm-banners (samma färger som pill-ok/warn/alert på hemsidan) ---------- */
+
+body.theme-home .banner {
+  background: #19212a;
+  border: 1px solid #242e3a;
+  border-radius: 14px;
+}
+body.theme-home .banner .dot { background: #f87171; box-shadow: 0 0 10px #f87171; }
+body.theme-home .banner .t { color: #eef2f7; }
+body.theme-home .banner .d { color: #96a3b0; }
+
+body.theme-home .banner.ok {
+  background: rgba(34, 197, 94, 0.06);
+  border-color: rgba(34, 197, 94, 0.35);
+}
+body.theme-home .banner.ok .dot { background: #22c55e; box-shadow: 0 0 10px #22c55e; }
+
+body.theme-home .banner.warn {
+  background: rgba(251, 191, 36, 0.06);
+  border-color: rgba(251, 191, 36, 0.35);
+}
+body.theme-home .banner.warn .dot { background: #fbbf24; box-shadow: 0 0 10px #fbbf24; }
+
+body.theme-home .banner.recent {
+  background: rgba(248, 113, 113, 0.05);
+  border-color: rgba(248, 113, 113, 0.3);
+}
+body.theme-home .banner.recent .dot { background: #f87171; box-shadow: 0 0 10px #f87171; }
+
+/* ---------- Fleet: gör #fleet till en panel som på hemsidan ---------- */
+
+body.theme-home #fleet {
+  background: #19212a;
+  border: 1px solid #242e3a;
+  border-radius: 14px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  padding: 4px 0;
+  overflow: hidden;
+}
+
+/* Paneltitel via pseudo-element (motsvarar .panel-head .panel-title) */
+body.theme-home #fleet::before {
+  content: "system.status";
+  display: block;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #96a3b0;
+  padding: 12px 16px 10px;
+  border-bottom: 1px solid #242e3a;
+}
+
+/* ---------- Enhetskort → enhetsrad (som .device på hemsidan) ---------- */
+
+body.theme-home .card {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid #242e3a;
+  border-radius: 0;
+  padding: 10px 16px;
+  gap: 12px;
+  width: 100%;
+}
+body.theme-home #fleet .card:last-child { border-bottom: none; }
+body.theme-home .card.dimmed { opacity: 0.55; }
+
+/* Ikonrutan blir en glödande LED-punkt (samma som .led på hemsidan).
+   Färgen sätts via :has() på pill-klassen i .right — samma semantik
+   som hemsidans led-ok/warn/alert/offline. */
+body.theme-home .card .ic {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 8px #22c55e;
+  flex: none;
+  padding: 0;
+}
+body.theme-home .card .ic svg { display: none; }
+
+body.theme-home .card:has(.pill.alarm) .ic {
+  background: #f87171;
+  box-shadow: 0 0 8px #f87171;
+  animation: theme-home-blink 1.4s infinite;
+}
+body.theme-home .card:has(.pill.warn) .ic {
+  background: #fbbf24;
+  box-shadow: 0 0 8px #fbbf24;
+}
+body.theme-home .card:has(.pill.off) .ic {
+  background: #3a4654;
+  box-shadow: none;
+}
+@keyframes theme-home-blink { 50% { opacity: 0.25; } }
+
+/* Namn i mono, som .device .name på hemsidan */
+body.theme-home .card .nm {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 13px;
+  font-weight: 400;
+  color: #eef2f7;
+}
+
+/* Arm-chip: ta bort emoji-pill, gör om till diskret text */
+body.theme-home .card .arm {
+  background: none;
+  padding: 0;
+  margin-left: 6px;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 10px;
+  font-weight: 400;
+  color: #96a3b0;
+  vertical-align: 1px;
+}
+body.theme-home .card .arm.on { color: #2dd4bf; background: none; }
+
+/* Meta-raden blir statustext (temp · batteri · tid) i muted-grått */
+body.theme-home .card .meta {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 11px;
+  color: #96a3b0;
+  margin-top: 1px;
+}
+
+/* Högerkolumnen: pill + batteri + signal på samma rad.
+   Signalstapeln ligger längst till höger (order: 99), precis som på
+   hemsidans .device-rad där .signal är sista elementet. */
+body.theme-home .card .right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+  text-align: right;
+}
+body.theme-home .card .right .sig { order: 99; margin-left: 2px; }
+
+/* Pill: samma stil som hemsidans .pill-ok/warn/alert */
+body.theme-home .pill {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  padding: 3px 10px;
+  border-radius: 99px;
+  border: 1px solid;
+  white-space: nowrap;
+}
+body.theme-home .pill.ok {
+  color: #22c55e;
+  border-color: rgba(34, 197, 94, 0.4);
+  background: rgba(34, 197, 94, 0.08);
+}
+body.theme-home .pill.warn {
+  color: #fbbf24;
+  border-color: rgba(251, 191, 36, 0.4);
+  background: rgba(251, 191, 36, 0.08);
+}
+body.theme-home .pill.alarm {
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.4);
+  background: rgba(248, 113, 113, 0.08);
+}
+body.theme-home .pill.off {
+  color: #96a3b0;
+  border-color: #242e3a;
+  background: transparent;
+}
+
+/* Signalstaplar: samma som hemsidans .signal (accent-färg, 4 staplar) */
+body.theme-home .sig { height: 14px; gap: 2px; }
+body.theme-home .sig i { width: 3px; background: #2dd4bf; border-radius: 1px; opacity: 0.9; }
+body.theme-home .sig i:not(.on) { background: #242e3a; }
+body.theme-home .sig.warn i.on { background: #fbbf24; }
+body.theme-home .sig.bad i.on { background: #f87171; }
+body.theme-home .sig i.h1 { height: 4px; }
+body.theme-home .sig i.h2 { height: 7px; }
+body.theme-home .sig i.h3 { height: 10px; }
+body.theme-home .sig i.h4 { height: 14px; }
+
+/* Batteri/temp-rad: samma muted mono som .device .state */
+body.theme-home .batt {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 11px;
+  color: #96a3b0;
+  margin-top: 0;
+}
+body.theme-home .batt b { color: #fbbf24; font-weight: 400; }
+body.theme-home .batt b.low { color: #f87171; }
+body.theme-home .batt .temp { color: #2dd4bf; font-weight: 400; }
+
+/* ---------- Inställningar: kort blir panel-rader ---------- */
+
+body.theme-home #mute-list .card {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid #242e3a;
+  border-radius: 0;
+  padding: 10px 4px;
+}
+body.theme-home #mute-list .card:last-child { border-bottom: none; }
+body.theme-home #mute-list .card .ic {
+  width: 9px; height: 9px; border-radius: 50%;
+  background: #22c55e; box-shadow: 0 0 8px #22c55e;
+}
+body.theme-home #mute-list .card .ic svg { display: none; }
+body.theme-home #mute-list .card .nm {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 13px; font-weight: 400;
+}
+
+/* Inställningskort (push, konto) — panel-utseende */
+body.theme-home #view-settings > .card {
+  background: #19212a;
+  border: 1px solid #242e3a;
+  border-radius: 14px;
+  padding: 14px 16px;
+}
+body.theme-home #view-settings > .card .ic {
+  width: 34px; height: 34px; border-radius: 9px;
+  background: rgba(45, 212, 191, 0.08);
+  border: 1px solid rgba(45, 212, 191, 0.25);
+  box-shadow: none;
+}
+body.theme-home #view-settings > .card .ic svg { display: block; }
+body.theme-home #view-settings > .card .nm { font-size: 0.82rem; font-weight: 600; font-family: inherit; }
+
+/* ---------- Toggle-switchar (teal) ---------- */
+
+body.theme-home .tg.on,
+body.theme-home .armswitch.on { background: #2dd4bf; }
+body.theme-home .tg.on::after,
+body.theme-home .armswitch.on::after { background: #06251f; }
+
+/* ---------- Knappar ---------- */
+
+body.theme-home .btn {
+  background: #2dd4bf;
+  color: #06251f;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+}
+body.theme-home .btn.ghost {
+  background: transparent;
+  border: 1px solid #242e3a;
+  color: #eef2f7;
+}
+body.theme-home .btn.ghost:hover {
+  color: #2dd4bf;
+  border-color: #2dd4bf;
+}
+
+/* ---------- Detaljvy: kv-rader i panel ---------- */
+
+body.theme-home .kv {
+  background: #19212a;
+  border: 1px solid #242e3a;
+  border-radius: 14px;
+  padding: 4px 16px;
+}
+body.theme-home .kv .rowk { border-bottom-color: #242e3a; }
+body.theme-home .kv .rowk:last-child { border-bottom: none; }
+body.theme-home .kv .k { color: #96a3b0; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 12px; }
+body.theme-home .kv .v { color: #eef2f7; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 12px; font-weight: 400; }
+
+body.theme-home .armrow {
+  background: #19212a;
+  border: 1px solid rgba(45, 212, 191, 0.35);
+  border-radius: 14px;
+}
+
+/* ---------- Sektionsrubriker ---------- */
+
+body.theme-home .sect {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color: #2dd4bf;
+  letter-spacing: 0.18em;
+}
+
+/* ---------- Tabbar ---------- */
+
+body.theme-home .tabbar {
+  background: #0d1319;
+  border-top-color: #242e3a;
+}
+body.theme-home .tabbar div.on { color: #2dd4bf; }
+body.theme-home .tabbar div { color: #96a3b0; }
+
+/* ---------- Login ---------- */
+
+body.theme-home .login-card {
+  background: #19212a;
+  border: 1px solid #242e3a;
+  border-radius: 14px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+body.theme-home h1 span { color: #2dd4bf; }
+body.theme-home .sub { color: #96a3b0; }
+body.theme-home input.pin {
+  background: #0b0f14;
+  border-color: #242e3a;
+  color: #eef2f7;
+}
+body.theme-home input.pin:focus { border-color: #2dd4bf; }
+body.theme-home .install-help {
+  background: #171f28;
+  border-color: #242e3a;
+}
+body.theme-home .ih-title { color: #2dd4bf; }
+body.theme-home .ios-hint {
+  background: rgba(34, 197, 94, 0.06);
+  border-color: rgba(34, 197, 94, 0.35);
+  color: #7ee787;
+}
+
+/* ---------- Toast ---------- */
+
+body.theme-home #toast {
+  background: #19212a;
+  border-color: #242e3a;
+  color: #eef2f7;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 11px;
+}
+
+/* ---------- Swipe delete-knapp ---------- */
+
+body.theme-home .swipe-del { background: #b62324; }
+
+/* ---------- Scrollbar i smala paneler (samma som hemsidan) ---------- */
+
+body.theme-home #fleet {
+  scrollbar-width: thin;
+  scrollbar-color: #242e3a transparent;
+}

@@ -34,6 +34,7 @@ let DEFERRED_INSTALL = null;   // beforeinstallprompt event (Chrome/Android et a
 const POLL_MS = 15000;
 const STALE_AFTER_MS = 2.5 * POLL_MS;   // ~2 missed polls
 const EUI_RE = /^[0-9a-f]{16}$/;
+const THEME_KEY = 'loralarm-theme';   // 'home' = statuspanelsvy (loralarm.org-utseende), annars default
 
 // ---------- API ----------
 
@@ -116,6 +117,23 @@ function runningStandalone() {
   return window.matchMedia('(display-mode: standalone)').matches
     || window.matchMedia('(display-mode: fullscreen)').matches
     || navigator.standalone === true;
+}
+
+// ---------- theme (valfritt CSS-lager: statuspanelsvy à la loralarm.org) ----------
+
+function applyTheme() {
+  const home = localStorage.getItem(THEME_KEY) === 'home';
+  document.body.classList.toggle('theme-home', home);
+  const tg = $('#theme-toggle');
+  if (tg) tg.classList.toggle('on', home);
+}
+
+function toggleTheme() {
+  const home = localStorage.getItem(THEME_KEY) !== 'home';
+  if (home) localStorage.setItem(THEME_KEY, 'home');
+  else localStorage.removeItem(THEME_KEY);
+  applyTheme();
+  toast(home ? 'Statuspanelsvy på' : 'Standardvy på');
 }
 
 let WAS_STALE = false;
@@ -427,6 +445,10 @@ async function renderSettings() {
   $('#ios-hint').classList.toggle('hidden', !(IS_IOS && !runningStandalone()));
   renderInstall();
 
+  const themeTg = $('#theme-toggle');
+  themeTg.classList.toggle('on', localStorage.getItem(THEME_KEY) === 'home');
+  themeTg.onclick = toggleTheme;
+
   const sub = await pushSubscription();
   const state = $('#push-state'), meta = $('#push-meta');
   if (!('PushManager' in window)) {
@@ -613,6 +635,7 @@ async function nativeInstall() {
 // ---------- boot ----------
 
 async function boot() {
+  applyTheme();                     // sätt body.theme-home innan första målningen
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
 
   $('#login-btn').addEventListener('click', doLogin);

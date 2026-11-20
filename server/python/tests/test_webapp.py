@@ -585,7 +585,7 @@ class HeadersAndStaticTest(unittest.TestCase):
 
     def test_api_is_never_cached_and_static_always_revalidates(self):
         self.assertEqual(self.client.get("/api/health").headers["cache-control"], "no-store")
-        for path in ("/", "/app.js", "/styles.css", "/sw.js", "/manifest.webmanifest"):
+        for path in ("/", "/app.js", "/styles.css", "/theme-home.css", "/sw.js", "/manifest.webmanifest"):
             r = self.client.get(path)
             self.assertEqual(r.status_code, 200, path)
             self.assertEqual(r.headers["cache-control"], "no-cache", path)
