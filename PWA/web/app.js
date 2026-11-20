@@ -314,17 +314,17 @@ function sigMeter(d) {
     : (d.rssi >= -80 ? 'ok' : d.rssi >= -100 ? 'warn' : 'bad');
   let h = '';
   for (let i = 1; i <= 4; i++) h += `<i class="h${i}${i <= bars ? ' on' : ''}"></i>`;
-  return `<span class="sig ${cls}" title="RSSI ${d.rssi} dBm · SNR ${d.snr ?? '—'} dB">${h}</span>`;
+  return `<span class="sig ${cls}" title="RSSI ${d.rssi}dBm · SNR ${d.snr ?? '—'}dB">${h}</span>`;
 }
 
 function battLine(d) {
   const batt = [];
-  if (d.battery_voltage != null) batt.push(`${d.battery_voltage.toFixed(2)} V`);
-  if (d.battery_pct != null) batt.push(`${Math.round(d.battery_pct)} %`);
+  if (d.battery_voltage != null) batt.push(`${d.battery_voltage.toFixed(2)}V`);
+  if (d.battery_pct != null) batt.push(`${Math.round(d.battery_pct)}%`);
   const low = d.battery_pct != null && d.battery_pct < 20;
   const parts = [
-    d.temperature != null ? `<span class="temp">${d.temperature.toFixed(1)} °C</span>` : '',
-    batt.length ? `<b class="${low ? 'low' : ''}">${esc(batt.join(' · '))}</b>` : '',
+    d.temperature != null ? `<span class="temp">${d.temperature.toFixed(1)}°C</span>` : '',
+    batt.length ? `<b class="${low ? 'low' : ''}">${esc(batt.join('·'))}</b>` : '',
     relTime(d.last_seen),
   ].filter(Boolean);
   return `<div class="batt">${parts.join(' · ')}</div>`;
@@ -360,11 +360,11 @@ function renderDevice(eui) {
   if (!d) { location.hash = '#/'; return; }
   renderBanners('#dev-banners');
   const rows = [
-    ['Temperatur', d.temperature != null ? `${d.temperature.toFixed(1)} °C` : '—'],
+    ['Temperatur', d.temperature != null ? `${d.temperature.toFixed(1)}°C` : '—'],
     ['Batteri', d.battery_voltage != null
-      ? `${d.battery_voltage.toFixed(2)} V${d.battery_pct != null ? ` · ${Math.round(d.battery_pct)} %` : ''}` : '—'],
+      ? `${d.battery_voltage.toFixed(2)}V${d.battery_pct != null ? `·${Math.round(d.battery_pct)}%` : ''}` : '—'],
     ['Senaste uplink', relTime(d.last_seen)],
-    ['RSSI / SNR', d.rssi != null ? `${sigMeter(d)} ${d.rssi} dBm / ${d.snr ?? '—'} dB` : '—', true],
+    ['RSSI / SNR', d.rssi != null ? `${sigMeter(d)} ${d.rssi}dBm/${d.snr ?? '—'}dB` : '—', true],
     ['devEUI', d.dev_eui],
   ];
   $('#dev-kv').innerHTML = rows.map(([k, v, raw]) =>
