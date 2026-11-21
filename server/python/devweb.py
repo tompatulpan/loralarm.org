@@ -115,7 +115,7 @@ def main() -> int:
                       EUI_HOT: {"name": "temp.vind", "family": "RAK4631",
                                 "tk_correction_c": 0.0,       # sim: raw value on screen
                                 "temp_alarm_max_c": 28.0},
-                      EUI_GARAGE: {"name": "temp.garage", "family": "RAK4631",
+                      EUI_GARAGE: {"name": "temp.garage", "family": "RAK4631-R",
                                    "tk_correction_c": 0.0,
                                    "temp_alarm_min_c": -20.0},   # sim: no false frost alarm
                       EUI_DOOR2: {"name": "dorr.fram",
@@ -164,8 +164,8 @@ def main() -> int:
              {"battery": 3.3, "status": 1}, -89, 0.5),
             (EUI_HOT, "temp.vind", "RAK4631", 2,
              {"temperature": 29.9, "battery_voltage": 4.05}, -55, 10.0),
-            (EUI_GARAGE, "temp.garage", "RAK4631", 2,
-             {"temperature": 7.4, "battery_voltage": 3.55}, -104, -7.0),
+            (EUI_GARAGE, "temp.garage", "RAK4631-R", 2,
+             {"temperature": 7.4, "battery_voltage": 3.55, "digital_in_7": 33}, -104, -7.0),
             (EUI_DOOR2, "dorr.fram", "Dragino Switch LDS02", 10,
              {"BAT_V": 2.95, "DOOR_OPEN_STATUS": 0}, -63, 6.0),
             (EUI_BTN, "knapp.pannrum", "Smart Button [Milesight]", 85,

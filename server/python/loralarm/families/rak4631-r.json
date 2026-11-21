@@ -6,6 +6,7 @@
     "table": {"1": 1, "2": 10, "3": 25, "4": 50, "5": 100, "6": 200, "7": 400}
   },
   "fields": {
+    "fw_version": {"from": "digital_in_7", "type": "number"},
     "low_battery_shutdown": {"from": "low_battery_shutdown"}
   },
   "defaults": {

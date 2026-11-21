@@ -395,14 +395,22 @@ function renderDevice(eui) {
   const d = device(eui);
   if (!d) { location.hash = '#/'; return; }
   renderBanners('#dev-banners');
+  const batt = [];
+  if (d.battery_voltage != null) batt.push(`${d.battery_voltage.toFixed(2)}V`);
+  if (d.battery_pct != null) batt.push(`${Math.round(d.battery_pct)}%`);
+  const low = d.battery_pct != null && d.battery_pct < 20;
+  const battCell = batt.length
+    ? `<b class="${low ? 'low' : ''}">${esc(batt.join(' · '))} ${BATT_ICON}</b>`   // ikon höger om värdet
+    : '—';
   const rows = [
     ['Temperatur', d.temperature != null ? `${d.temperature.toFixed(1)}°C` : '—'],
-    ['Batteri', d.battery_voltage != null
-      ? `${d.battery_voltage.toFixed(2)}V${d.battery_pct != null ? `·${Math.round(d.battery_pct)}%` : ''}` : '—'],
+    ['Batteri', battCell, true],
     ['Senaste uplink', relTime(d.last_seen)],
     ['RSSI / SNR', d.rssi != null ? `${sigMeter(d)} ${d.rssi}dBm/${d.snr ?? '—'}dB` : '—', true],
-    ['devEUI', d.dev_eui],
+    ['Familj', d.family || '—'],                      // ChirpStack device-profile (ev. config-override)
   ];
+  if (d.fw_version != null) rows.push(['Firmware', `v${d.fw_version}`]);   // bara om codec:n sänder den
+  rows.push(['devEUI', d.dev_eui]);
   $('#dev-kv').innerHTML = rows.map(([k, v, raw]) =>
     `<div class="rowk"><span class="k">${esc(k)}</span><span class="v">${raw ? v : esc(v)}</span></div>`).join('');
   const tg = $('#follow-toggle');
