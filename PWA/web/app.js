@@ -401,13 +401,13 @@ function renderDevice(eui) {
   if (d.battery_pct != null) batt.push(`${Math.round(d.battery_pct)}%`);
   const low = d.battery_pct != null && d.battery_pct < 20;
   const battCell = batt.length
-    ? `<b class="${low ? 'low' : ''}">${esc(batt.join(' · '))} ${BATT_ICON}</b>`   // ikon höger om värdet
+    ? `<b class="${low ? 'low' : ''}">${esc(batt.join(' · '))}</b>`   // detaljvyn: ingen ikon, bara data (bärnsten vid lågt)
     : '—';
   const rows = [
     ['Temperatur', d.temperature != null ? `${d.temperature.toFixed(1)}°C` : '—'],
     ['Batteri', battCell, true],
     ['Senaste uplink', relTime(d.last_seen)],
-    ['RSSI / SNR', d.rssi != null ? `${d.rssi}dBm/${d.snr ?? '—'}dB ${sigMeter(d)}` : '—', true],   // ikoner höger om data
+    ['RSSI / SNR', d.rssi != null ? `${d.rssi}dBm/${d.snr ?? '—'}dB` : '—'],   // detaljvyn: inga staplar, bara data
     ['Familj', d.family || '—'],                      // ChirpStack device-profile (ev. config-override)
   ];
   if (d.fw_version != null) rows.push(['Firmware', `v${d.fw_version}`]);   // bara om codec:n sänder den

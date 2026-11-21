@@ -156,10 +156,9 @@ input.pin:focus{outline:none;border-color:#1f6feb}
 .kv .rowk:last-child{border-bottom:none}
 .kv .k{color:#8b949e}
 .kv .v{font-weight:600;text-align:right}
-/* detalj-värdet "2.94V · 57% 🔋": b runt batteriet (ikon till höger), bärnsten vid lågt */
+/* detalj-värdet "2.94V · 57%": ingen ikon i detaljvyn; bärnsten-text vid lågt batteri */
 .kv .v b{font-weight:600}
 .kv .v b.low{color:#d29922}
-.kv .v svg{vertical-align:-2px;margin-left:2px}
 .dim{font-size:.62rem}
 
 /* settings */
