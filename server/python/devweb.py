@@ -165,7 +165,7 @@ def main() -> int:
             (EUI_HOT, "temp.vind", "RAK4631", 2,
              {"temperature": 29.9, "battery_voltage": 4.05}, -55, 10.0),
             (EUI_GARAGE, "temp.garage", "RAK4631-R", 2,
-             {"temperature": 7.4, "battery_voltage": 3.55, "digital_in_7": 33}, -104, -7.0),
+             {"temperature": 7.4, "battery_voltage": 3.55, "version_byte": 33}, -104, -7.0),
             (EUI_DOOR2, "dorr.fram", "Dragino Switch LDS02", 10,
              {"BAT_V": 2.95, "DOOR_OPEN_STATUS": 0}, -63, 6.0),
             (EUI_BTN, "knapp.pannrum", "Smart Button [Milesight]", 85,

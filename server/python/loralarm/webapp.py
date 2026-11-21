@@ -292,7 +292,7 @@ def create_app(engine: Engine, event_log: EventLog, webpush: Any = None,
                 "temperature": lv.get("temperature"),
                 "battery_pct": lv.get("battery_pct"),
                 "battery_voltage": lv.get("battery_voltage"),
-                "fw_version": lv.get("fw_version"),   # rui3 LPP ch 7 version byte, if the codec names it
+                "fw_version": lv.get("fw_version"),   # rui3 codec's `version_byte` (LPP ch 7)
                 "rssi": state.get("last_rssi"),
                 "snr": state.get("last_snr"),
                 "armed": bool(armed_row.get("armed", True)),
