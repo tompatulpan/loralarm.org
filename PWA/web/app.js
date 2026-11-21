@@ -322,15 +322,12 @@ function battLine(d) {
   if (d.battery_voltage != null) batt.push(`${d.battery_voltage.toFixed(2)}V`);
   if (d.battery_pct != null) batt.push(`${Math.round(d.battery_pct)}%`);
   const low = d.battery_pct != null && d.battery_pct < 20;
-  // temp+battery stay on one nowrap line (.readings); last-seen may wrap
-  // to a second line on narrow screens instead of breaking mid-value
-  const readings = [
+  const parts = [
     d.temperature != null ? `<span class="temp">${d.temperature.toFixed(1)}°C</span>` : '',
     batt.length ? `<b class="${low ? 'low' : ''}">${esc(batt.join('·'))}</b>` : '',
-  ].filter(Boolean).join('·');
-  const seen = esc(relTime(d.last_seen));
-  if (!readings) return `<div class="batt">${seen}</div>`;
-  return `<div class="batt"><span class="readings">${readings}</span><span class="seen"> · ${seen}</span></div>`;
+    relTime(d.last_seen),
+  ].filter(Boolean);
+  return `<div class="batt">${parts.join(' · ')}</div>`;
 }
 
 function renderFleet() {

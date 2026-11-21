@@ -118,7 +118,6 @@ input.pin:focus{outline:none;border-color:#1f6feb}
 .armrow .lbl{font-size:.76rem;font-weight:700}
 .armrow .sub2{font-size:.64rem;color:#8b949e;margin-top:1px}
 .batt{font-size:.64rem;color:#8b949e;margin-top:3px}
-.batt .readings{white-space:nowrap}
 .batt b{color:#d29922;font-weight:700}
 .batt b.low{color:#f85149}
 .batt .temp{color:#58a6ff;font-weight:700}
