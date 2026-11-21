@@ -94,7 +94,26 @@ input.pin:focus{outline:none;border-color:#1f6feb}
 .card .ic svg{width:18px;height:18px}
 .card .nm{font-size:.82rem;font-weight:600}
 .card .meta{font-size:.66rem;color:#8b949e;margin-top:2px}
-.card .right{margin-left:auto;text-align:right}
+
+/* Fleet-kort: fast 3-raders grid — inga radbrytningar, overflow → …
+   [ic] RAD 1: namn + arm-chip        (arm alltid synlig, namn trunkerar)
+        RAD 2: mätvärden + signal     (readings vänster, staplar längst höger)
+        RAD 3: meta + statuspill      (meta trunkerar, pill nowrap) */
+.card.dev{
+  display:grid;align-items:center;row-gap:2px;padding:9px 12px;
+  grid-template-columns:34px minmax(0,1fr);
+  grid-template-areas:"ic c1" "ic c2" "ic c3";
+}
+.card.dev .ic{grid-area:ic}
+.card.dev .c1{grid-area:c1;display:flex;align-items:center;gap:6px;min-width:0}
+.card.dev .c1 .nm{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card.dev .c1 .arm{flex:none}
+.card.dev .c2{grid-area:c2;display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:0}
+.card.dev .readings{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card.dev .sig{flex:none}
+.card.dev .c3{grid-area:c3;display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:0}
+.card.dev .c3 .meta{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:0}
+.card.dev .c3 .pill{flex:none;max-width:60%;overflow:hidden;text-overflow:ellipsis}
 .pill{display:inline-block;font-size:.6rem;padding:2px 7px;border-radius:999px;font-weight:600}
 .pill.ok{background:#0d2818;color:#2ea043}
 .pill.warn{background:#3d2d00;color:#d29922}
@@ -117,10 +136,10 @@ input.pin:focus{outline:none;border-color:#1f6feb}
 .armrow{display:flex;align-items:center;gap:10px;background:#161b22;border:1px solid #2ea04355;border-radius:12px;padding:10px 12px}
 .armrow .lbl{font-size:.76rem;font-weight:700}
 .armrow .sub2{font-size:.64rem;color:#8b949e;margin-top:1px}
-.batt{font-size:.64rem;color:#8b949e;margin-top:3px}
-.batt b{color:#d29922;font-weight:700}
-.batt b.low{color:#f85149}
-.batt .temp{color:#58a6ff;font-weight:700}
+.readings{font-size:.64rem;color:#8b949e}
+.readings b{color:#d29922;font-weight:700}
+.readings b.low{color:#f85149}
+.readings .temp{color:#58a6ff;font-weight:700}
 
 /* toggle */
 .tg{display:inline-block;width:38px;height:22px;border-radius:999px;background:#21262d;position:relative;flex:none;cursor:pointer}

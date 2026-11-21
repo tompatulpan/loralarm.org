@@ -105,8 +105,9 @@ body.theme-home #fleet .card:last-child { border-bottom: none; }
 body.theme-home .card.dimmed { opacity: 0.55; }
 
 /* Ikonrutan blir en glödande LED-punkt (samma som .led på hemsidan).
-   Färgen sätts via :has() på pill-klassen i .right — samma semantik
-   som hemsidans led-ok/warn/alert/offline. */
+   Färgen sätts via :has() på pill-klassen i .c3 — samma semantik
+   som hemsidans led-ok/warn/alert/offline. Gridet centrerar LED:en
+   över kortets tre rader (align-items:center i styles.css). */
 body.theme-home .card .ic {
   width: 9px;
   height: 9px;
@@ -132,6 +133,9 @@ body.theme-home .card:has(.pill.off) .ic {
   box-shadow: none;
 }
 @keyframes theme-home-blink { 50% { opacity: 0.25; } }
+
+/* I statuspanelsvyn får LED:en plats i sin egen smala kolumn */
+body.theme-home .card.dev { grid-template-columns: 9px minmax(0, 1fr); }
 
 /* Namn i mono, som .device .name på hemsidan */
 body.theme-home .card .nm {
@@ -162,17 +166,16 @@ body.theme-home .card .meta {
   margin-top: 1px;
 }
 
-/* Högerkolumnen: pill + batteri + signal på samma rad.
-   Signalstapeln ligger längst till höger (order: 99), precis som på
-   hemsidans .device-rad där .signal är sista elementet. */
-body.theme-home .card .right {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-left: auto;
-  text-align: right;
+/* Mätvärden (RAD 2, .readings): samma muted mono som .device .state */
+body.theme-home .card .readings {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 11px;
+  color: #96a3b0;
+  margin-top: 0;
 }
-body.theme-home .card .right .sig { order: 99; margin-left: 2px; }
+body.theme-home .card .readings b { color: #fbbf24; font-weight: 400; }
+body.theme-home .card .readings b.low { color: #f87171; }
+body.theme-home .card .readings .temp { color: #2dd4bf; font-weight: 400; }
 
 /* Pill: samma stil som hemsidans .pill-ok/warn/alert */
 body.theme-home .pill {
@@ -216,17 +219,6 @@ body.theme-home .sig i.h1 { height: 4px; }
 body.theme-home .sig i.h2 { height: 7px; }
 body.theme-home .sig i.h3 { height: 10px; }
 body.theme-home .sig i.h4 { height: 14px; }
-
-/* Batteri/temp-rad: samma muted mono som .device .state */
-body.theme-home .batt {
-  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  font-size: 11px;
-  color: #96a3b0;
-  margin-top: 0;
-}
-body.theme-home .batt b { color: #fbbf24; font-weight: 400; }
-body.theme-home .batt b.low { color: #f87171; }
-body.theme-home .batt .temp { color: #2dd4bf; font-weight: 400; }
 
 /* ---------- Inställningar: kort blir panel-rader ---------- */
 

@@ -327,7 +327,7 @@ function battLine(d) {
     batt.length ? `<b class="${low ? 'low' : ''}">${esc(batt.join('·'))}</b>` : '',
     relTime(d.last_seen),
   ].filter(Boolean);
-  return `<div class="batt">${parts.join(' · ')}</div>`;
+  return `<span class="readings">${parts.join(' · ')}</span>`;
 }
 
 function renderFleet() {
@@ -341,15 +341,17 @@ function renderFleet() {
     return a.name.localeCompare(b.name);
   });
   $('#fleet').innerHTML = sorted.map((d) => `
-    <div class="card clickable${d.armed ? '' : ' dimmed'}" data-eui="${esc(d.dev_eui)}">
+    <div class="card dev clickable${d.armed ? '' : ' dimmed'}" data-eui="${esc(d.dev_eui)}">
       <div class="ic">${KIND_ICON[d.kind] || KIND_ICON.sensor}</div>
-      <div>
-        <div class="nm">${esc(d.name)}
-          <span class="arm ${d.armed ? 'on' : 'off'}">🛡 larm ${d.armed ? 'på' : 'av'}${d.armed ? '' : ' ' + esc(fmtUntil(d.armed_until))}</span>
-        </div>
-        <div class="meta">${esc(d.family)}${d.group ? ' · ' + esc(d.group) : ''}${d.following ? '' : ' · följs ej'}</div>
+      <div class="c1">
+        <span class="nm">${esc(d.name)}</span>
+        <span class="arm ${d.armed ? 'on' : 'off'}">🛡 larm ${d.armed ? 'på' : 'av'}${d.armed ? '' : ' ' + esc(fmtUntil(d.armed_until))}</span>
       </div>
-      <div class="right">${pillFor(d)} ${sigMeter(d)}${battLine(d)}</div>
+      <div class="c2">${battLine(d)}${sigMeter(d)}</div>
+      <div class="c3">
+        <span class="meta">${esc(d.family)}${d.group ? ' · ' + esc(d.group) : ''}${d.following ? '' : ' · följs ej'}</span>
+        ${pillFor(d)}
+      </div>
     </div>`).join('');
   $('#fleet').querySelectorAll('.card').forEach((c) =>
     c.addEventListener('click', () => { location.hash = '#/dev/' + c.dataset.eui; }));
