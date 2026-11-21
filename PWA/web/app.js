@@ -20,6 +20,10 @@ const KIND_ICON = {
   button: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="12" r="10"/></svg>',
   sensor: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z"/></svg>',
 };
+// Lucide battery (fleet-raden Z4); kontur, färg via currentColor
+const BATT_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="10" x="2" y="7" rx="2"/><path d="M22 11v2"/><path d="M6 11v2"/></svg>';
+// larm-sorter som ger VARNING (bärnsten) i stället för rött på raden
+const WARN_KINDS = new Set(['battery_low', 'battery_empty', 'button_battery', 'battery_shutdown']);
 
 let ME = null;            // {name, role}
 let DEVICES = [];         // GET /api/devices
@@ -294,12 +298,16 @@ function recentFor(d) { return (STATE.recent || []).filter((r) => r.dev_eui === 
 function pillFor(d) {
   const rc = recentFor(d);
   if (!(d.active && d.active.length) && rc.length) {
-    return `<span class="pill alarm">${rc.map((r) => esc(KIND_LABEL[r.kind] || r.kind)).join(', ').toUpperCase()} · ${esc(relTime(rc[0].ts))}</span>`;
+    return `<span class="pill alarm">${rc.map((r) => esc(KIND_LABEL[r.kind] || r.kind)).join(', ').toUpperCase()} · ${esc(relAge(rc[0].ts).text)}</span>`;
   }
   if (d.active && d.active.length) {
-    return `<span class="pill alarm">${d.active.map((k) => esc(KIND_LABEL[k] || k)).join(', ').toUpperCase()}</span>`;
+    return `<span class="pill ${WARN_KINDS.has(d.active[0]) ? 'warn' : 'alarm'}">${d.active.map((k) => esc(KIND_LABEL[k] || k)).join(', ').toUpperCase()}</span>`;
   }
-  if (!d.armed) return '<span class="pill off">LARM AV</span>';
+  if (!d.armed) {                      // AV · HH:MM (v2: pillen, inte något chip)
+    const u = d.armed_until ? new Date(d.armed_until) : null;
+    const until = isNaN(u) ? '' : ` · ${String(u.getHours()).padStart(2, '0')}:${String(u.getMinutes()).padStart(2, '0')}`;
+    return `<span class="pill off">AV${until}</span>`;
+  }
   return '<span class="pill ok">OK</span>';
 }
 
@@ -317,17 +325,28 @@ function sigMeter(d) {
   return `<span class="sig ${cls}" title="RSSI ${d.rssi}dBm · SNR ${d.snr ?? '—'}dB">${h}</span>`;
 }
 
-function battLine(d) {
-  const batt = [];
-  if (d.battery_voltage != null) batt.push(`${d.battery_voltage.toFixed(2)}V`);
-  if (d.battery_pct != null) batt.push(`${Math.round(d.battery_pct)}%`);
+// flott-raden (v2): korta ålderstexter ("5 min"), röd efter > 24 h
+function relAge(iso) {
+  if (!iso) return { text: '—', bad: false };
+  const t = new Date(iso).getTime();
+  if (isNaN(t)) return { text: '—', bad: false };
+  const s = Math.max(0, (Date.now() - t) / 1000);
+  if (s < 60) return { text: 'just nu', bad: false };
+  const m = s / 60;
+  if (m < 60) return { text: `${Math.floor(m)} min`, bad: false };
+  const h = m / 60;
+  if (h < 24) return { text: `${Math.floor(h)} h`, bad: false };
+  return { text: `${Math.floor(h / 24)} d`, bad: true };
+}
+
+// Z4: batteri med ikon; bärnsten när battery_pct < 20, inget span utan data
+function battStr(d) {
+  const parts = [];
+  if (d.battery_voltage != null) parts.push(`${d.battery_voltage.toFixed(2)}V`);
+  if (d.battery_pct != null) parts.push(`${Math.round(d.battery_pct)}%`);
+  if (!parts.length) return '';
   const low = d.battery_pct != null && d.battery_pct < 20;
-  const parts = [
-    d.temperature != null ? `<span class="temp">${d.temperature.toFixed(1)}°C</span>` : '',
-    batt.length ? `<b class="${low ? 'low' : ''}">${esc(batt.join('·'))}</b>` : '',
-    relTime(d.last_seen),
-  ].filter(Boolean);
-  return `<span class="readings">${parts.join(' · ')}</span>`;
+  return `<span class="bat${low ? ' low' : ''}">${BATT_ICON}${esc(parts.join(' · '))}</span>`;
 }
 
 function renderFleet() {
@@ -340,19 +359,30 @@ function renderFleet() {
     if (rb !== 0) return rb;
     return a.name.localeCompare(b.name);
   });
-  $('#fleet').innerHTML = sorted.map((d) => `
-    <div class="card dev clickable${d.armed ? '' : ' dimmed'}" data-eui="${esc(d.dev_eui)}">
+  $('#fleet').innerHTML = sorted.map((d) => {
+    // Z0: allvarslist — röd vid larm, bärnsten vid batteri-varning
+    const row = d.active?.length
+      ? (d.active.every((k) => WARN_KINDS.has(k)) ? ' warn-r' : ' alarm-r')
+      : '';
+    const grp = [d.group, d.following ? '' : 'följs ej'].filter(Boolean).join(' · ');
+    const age = relAge(d.last_seen);
+    return `
+    <div class="card dev clickable${row}${d.armed ? '' : ' dimmed'}" data-eui="${esc(d.dev_eui)}">
       <div class="ic">${KIND_ICON[d.kind] || KIND_ICON.sensor}</div>
       <div class="c1">
         <span class="nm">${esc(d.name)}</span>
-        <span class="arm ${d.armed ? 'on' : 'off'}">🛡 larm ${d.armed ? 'på' : 'av'}${d.armed ? '' : ' ' + esc(fmtUntil(d.armed_until))}</span>
-      </div>
-      <div class="c2">${battLine(d)}${sigMeter(d)}</div>
-      <div class="c3">
-        <span class="meta">${esc(d.family)}${d.group ? ' · ' + esc(d.group) : ''}${d.following ? '' : ' · följs ej'}</span>
+        <small class="grp">${esc(grp)}</small>
         ${pillFor(d)}
       </div>
-    </div>`).join('');
+      <div class="c2">
+        ${d.temperature != null ? `<span class="temp">${d.temperature.toFixed(1)}°C</span>` : '<span class="nn">—</span>'}
+        ${battStr(d)}
+        <span class="sp"></span>
+        <span class="seen${age.bad ? ' bad' : ''}">${esc(age.text)}</span>
+        ${sigMeter(d)}
+      </div>
+    </div>`;
+  }).join('');
   $('#fleet').querySelectorAll('.card').forEach((c) =>
     c.addEventListener('click', () => { location.hash = '#/dev/' + c.dataset.eui; }));
 }

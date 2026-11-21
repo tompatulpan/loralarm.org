@@ -95,25 +95,35 @@ input.pin:focus{outline:none;border-color:#1f6feb}
 .card .nm{font-size:.82rem;font-weight:600}
 .card .meta{font-size:.66rem;color:#8b949e;margin-top:2px}
 
-/* Fleet-kort: fast 3-raders grid — inga radbrytningar, overflow → …
-   [ic] RAD 1: namn + arm-chip        (arm alltid synlig, namn trunkerar)
-        RAD 2: mätvärden + signal     (readings vänster, staplar längst höger)
-        RAD 3: meta + statuspill      (meta trunkerar, pill nowrap) */
+/* Fleet-kort (v2): fast 2-radig grid — inga radbrytningar, overflow → …
+   Z0: radens vänsterkant (3 px, alltid reserverad, röd vid larm / bärnsten vid varning)
+   [ic] RAD 1: namn + grupp …… pill (högerställd)
+        RAD 2: temp + batt …… senast + signal (högerställda) */
 .card.dev{
-  display:grid;align-items:center;row-gap:2px;padding:9px 12px;
+  display:grid;align-items:center;row-gap:2px;padding:10px 12px;
   grid-template-columns:34px minmax(0,1fr);
-  grid-template-areas:"ic c1" "ic c2" "ic c3";
+  grid-template-areas:"ic c1" "ic c2";
+  border-left:3px solid transparent;
 }
+.card.dev.alarm-r{border-left-color:#f85149;background:rgba(248,113,113,.06)}
+.card.dev.warn-r{border-left-color:#d29922;background:rgba(210,153,34,.05)}
+.card.dev.dimmed{opacity:.6}
 .card.dev .ic{grid-area:ic}
-.card.dev .c1{grid-area:c1;display:flex;align-items:center;gap:6px;min-width:0}
+.card.dev .c1{grid-area:c1;display:flex;align-items:center;gap:8px;min-width:0}
 .card.dev .c1 .nm{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.card.dev .c1 .arm{flex:none}
-.card.dev .c2{grid-area:c2;display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:0}
-.card.dev .readings{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.card.dev .sig{flex:none}
-.card.dev .c3{grid-area:c3;display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:0}
-.card.dev .c3 .meta{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:0}
-.card.dev .c3 .pill{flex:none;max-width:60%;overflow:hidden;text-overflow:ellipsis}
+.card.dev .c1 .grp{flex:0 1 auto;min-width:0;font-size:.6rem;color:#8b949e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card.dev .c1 .grp:empty{display:none}
+.card.dev .c1 .pill{margin-left:auto;flex:none;max-width:55%;overflow:hidden;text-overflow:ellipsis}
+.card.dev .c2{grid-area:c2;display:flex;align-items:center;gap:8px;min-width:0;white-space:nowrap}
+.card.dev .c2 .temp{color:#58a6ff;font-weight:700;font-size:.64rem}
+.card.dev .c2 .bat{display:inline-flex;align-items:center;gap:4px;font-size:.64rem;color:#8b949e;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.card.dev .c2 .bat svg{flex:none}
+.card.dev .c2 .bat.low{color:#d29922}
+.card.dev .c2 .nn{color:#484f58;font-size:.64rem}
+.card.dev .c2 .sp{flex:1}
+.card.dev .c2 .seen{font-size:.64rem;color:#8b949e}
+.card.dev .c2 .seen.bad{color:#f85149}
+.card.dev .c2 .sig{flex:none}
 .pill{display:inline-block;font-size:.6rem;padding:2px 7px;border-radius:999px;font-weight:600}
 .pill.ok{background:#0d2818;color:#2ea043}
 .pill.warn{background:#3d2d00;color:#d29922}
@@ -126,9 +136,6 @@ input.pin:focus{outline:none;border-color:#1f6feb}
 .sig.warn i.on{background:#d29922}
 .sig.bad i.on{background:#f85149}
 .sig i.h1{height:4px}.sig i.h2{height:6px}.sig i.h3{height:8px}.sig i.h4{height:11px}
-.arm{display:inline-flex;align-items:center;gap:3px;font-size:.6rem;font-weight:600;padding:2px 7px;border-radius:999px;margin-left:5px;vertical-align:middle}
-.arm.on{background:#12261f;color:#2ea043}
-.arm.off{background:#2d2d35;color:#8b949e}
 .armswitch{margin-left:auto;width:38px;height:22px;border-radius:999px;background:#21262d;position:relative;flex:none;cursor:pointer}
 .armswitch::after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#8b949e;transition:.2s}
 .armswitch.on{background:#2ea043}
@@ -136,10 +143,6 @@ input.pin:focus{outline:none;border-color:#1f6feb}
 .armrow{display:flex;align-items:center;gap:10px;background:#161b22;border:1px solid #2ea04355;border-radius:12px;padding:10px 12px}
 .armrow .lbl{font-size:.76rem;font-weight:700}
 .armrow .sub2{font-size:.64rem;color:#8b949e;margin-top:1px}
-.readings{font-size:.64rem;color:#8b949e}
-.readings b{color:#d29922;font-weight:700}
-.readings b.low{color:#f85149}
-.readings .temp{color:#58a6ff;font-weight:700}
 
 /* toggle */
 .tg{display:inline-block;width:38px;height:22px;border-radius:999px;background:#21262d;position:relative;flex:none;cursor:pointer}

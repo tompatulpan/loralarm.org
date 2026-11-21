@@ -105,9 +105,9 @@ body.theme-home #fleet .card:last-child { border-bottom: none; }
 body.theme-home .card.dimmed { opacity: 0.55; }
 
 /* Ikonrutan blir en glödande LED-punkt (samma som .led på hemsidan).
-   Färgen sätts via :has() på pill-klassen i .c3 — samma semantik
+   Färgen sätts via :has() på pill-klassen i .c1 — samma semantik
    som hemsidans led-ok/warn/alert/offline. Gridet centrerar LED:en
-   över kortets tre rader (align-items:center i styles.css). */
+   över rad 1–2 (align-items:center i styles.css; v2: i linje med namnet). */
 body.theme-home .card .ic {
   width: 9px;
   height: 9px;
@@ -134,48 +134,47 @@ body.theme-home .card:has(.pill.off) .ic {
 }
 @keyframes theme-home-blink { 50% { opacity: 0.25; } }
 
-/* I statuspanelsvyn får LED:en plats i sin egen smala kolumn */
-body.theme-home .card.dev { grid-template-columns: 9px minmax(0, 1fr); }
+/* Flottraden (v2): smal LED-kolumn, raderna som .device på hemsidan */
+body.theme-home .card.dev {
+  grid-template-columns: 9px minmax(0, 1fr);
+  padding: 10px 16px 10px 13px;
+}
+body.theme-home .card.dev.alarm-r {
+  border-left-color: #f87171;
+  background: rgba(248, 113, 113, 0.06);
+}
+body.theme-home .card.dev.warn-r {
+  border-left-color: #fbbf24;
+  background: rgba(251, 191, 36, 0.05);
+}
+body.theme-home .card.dev .ic { align-self: start; margin-top: 3px; }
 
-/* Namn i mono, som .device .name på hemsidan */
+/* RAD 1: namn + grupp i mono, pill höger */
 body.theme-home .card .nm {
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   font-size: 13px;
   font-weight: 400;
   color: #eef2f7;
 }
-
-/* Arm-chip: ta bort emoji-pill, gör om till diskret text */
-body.theme-home .card .arm {
-  background: none;
-  padding: 0;
-  margin-left: 6px;
+body.theme-home .card .grp {
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   font-size: 10px;
-  font-weight: 400;
   color: #96a3b0;
-  vertical-align: 1px;
 }
-body.theme-home .card .arm.on { color: #2dd4bf; background: none; }
 
-/* Meta-raden blir statustext (temp · batteri · tid) i muted-grått */
-body.theme-home .card .meta {
+/* RAD 2: mätvärden i muted mono — samma som .device .state */
+body.theme-home .card .c2 {
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   font-size: 11px;
   color: #96a3b0;
-  margin-top: 1px;
 }
-
-/* Mätvärden (RAD 2, .readings): samma muted mono som .device .state */
-body.theme-home .card .readings {
-  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  font-size: 11px;
-  color: #96a3b0;
-  margin-top: 0;
-}
-body.theme-home .card .readings b { color: #fbbf24; font-weight: 400; }
-body.theme-home .card .readings b.low { color: #f87171; }
-body.theme-home .card .readings .temp { color: #2dd4bf; font-weight: 400; }
+body.theme-home .card .c2 .temp { color: #2dd4bf; font-weight: 400; font-size: 11px; }
+body.theme-home .card .c2 .bat { color: #96a3b0; font-size: 11px; }
+body.theme-home .card .c2 .bat.low { color: #fbbf24; }
+body.theme-home .card .c2 .bat svg { width: 13px; height: 13px; }
+body.theme-home .card .c2 .nn { color: #3a4654; }
+body.theme-home .card .c2 .seen { color: #96a3b0; font-size: 11px; }
+body.theme-home .card .c2 .seen.bad { color: #f87171; }
 
 /* Pill: samma stil som hemsidans .pill-ok/warn/alert */
 body.theme-home .pill {
@@ -209,15 +208,15 @@ body.theme-home .pill.off {
   background: transparent;
 }
 
-/* Signalstaplar: samma som hemsidans .signal (accent-färg, 4 staplar) */
+/* Signalstaplar: v2 — 4 px breda, höjder 5/8/11/14, accent/släckt linjefärg */
 body.theme-home .sig { height: 14px; gap: 2px; }
-body.theme-home .sig i { width: 3px; background: #2dd4bf; border-radius: 1px; opacity: 0.9; }
-body.theme-home .sig i:not(.on) { background: #242e3a; }
+body.theme-home .sig i { width: 4px; background: #2a3542; border-radius: 1px; }
+body.theme-home .sig i.on { background: #2dd4bf; }
 body.theme-home .sig.warn i.on { background: #fbbf24; }
 body.theme-home .sig.bad i.on { background: #f87171; }
-body.theme-home .sig i.h1 { height: 4px; }
-body.theme-home .sig i.h2 { height: 7px; }
-body.theme-home .sig i.h3 { height: 10px; }
+body.theme-home .sig i.h1 { height: 5px; }
+body.theme-home .sig i.h2 { height: 8px; }
+body.theme-home .sig i.h3 { height: 11px; }
 body.theme-home .sig i.h4 { height: 14px; }
 
 /* ---------- Inställningar: kort blir panel-rader ---------- */

@@ -1,0 +1,492 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>LoRaLarm PWA — mobilgränssnitt v2 (skisser)</title>
+<style>
+  :root{
+    --bg:#0b0f14; --panel:#19212a; --panel2:#141b23; --line:#242e3a;
+    --text:#eef2f7; --muted:#96a3b0; --teal:#2dd4bf; --teal-ink:#06251f;
+    --red:#f87171; --amber:#fbbf24; --green:#22c55e;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    font-family:Inter,system-ui,-apple-system,sans-serif; color-scheme:dark;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#06090d;color:var(--text);padding:40px 24px 64px;display:flex;flex-direction:column;align-items:center;gap:36px}
+  h1{font-size:1.5rem;letter-spacing:.02em}
+  h1 span{color:var(--teal)}
+  .lead{color:var(--muted);max-width:980px;text-align:center;line-height:1.55;font-size:.92rem;margin-top:-20px}
+  .row{display:flex;flex-wrap:wrap;gap:44px;justify-content:center;max-width:1400px}
+  .col{width:410px;display:flex;flex-direction:column;gap:14px}
+  .legend{font-size:.82rem;line-height:1.5;color:var(--muted)}
+  .legend h3{color:var(--text);font-size:.95rem;margin-bottom:6px}
+  .legend ol{list-style:none;counter-reset:n;display:flex;flex-direction:column;gap:6px}
+  .legend li{counter-increment:n;padding-left:28px;position:relative}
+  .legend li::before{content:counter(n);position:absolute;left:0;top:1px;width:19px;height:19px;border-radius:50%;background:var(--teal);color:var(--teal-ink);font:700 11px/19px var(--mono);text-align:center}
+  .legend b{color:var(--text)}
+
+  /* ---------- phone frame (390×844 css px screen = real mobile layout) ---------- */
+  .phone{position:relative;width:410px;height:864px;border-radius:52px;border:10px solid #030507;background:var(--bg);
+    box-shadow:0 0 0 1px #1b2430,0 20px 60px rgba(0,0,0,.6)}
+  .scr{position:absolute;inset:0;border-radius:42px;overflow:hidden;display:flex;flex-direction:column;
+    background-image:linear-gradient(#242e3a22 1px,transparent 1px),linear-gradient(90deg,#242e3a22 1px,transparent 1px);background-size:48px 48px}
+  .statusbar{height:44px;flex:none;display:flex;justify-content:space-between;align-items:flex-end;padding:0 30px 6px;font:600 14px var(--mono);color:var(--text)}
+  .statusbar .ic{display:flex;gap:6px;align-items:center}
+  .island{position:absolute;top:10px;left:50%;transform:translateX(-50%);width:104px;height:28px;border-radius:20px;background:#000;z-index:5}
+  .homebar{position:absolute;bottom:7px;left:50%;transform:translateX(-50%);width:130px;height:5px;border-radius:3px;background:#eef2f7aa;z-index:5}
+  .mk{position:absolute;z-index:6;margin-left:-40px;width:22px;height:22px;border-radius:50%;background:var(--teal);color:var(--teal-ink);font:700 12px/22px var(--mono);text-align:center;box-shadow:0 0 0 3px #0b0f14}
+
+  svg.i{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+  svg.i.sm{width:14px;height:14px}
+  svg.i.lg{width:22px;height:22px}
+
+  /* ---------- app chrome ---------- */
+  .appbar{display:flex;align-items:center;gap:10px;padding:8px 16px 10px;min-height:56px;flex:none}
+  .appbar h2{font-size:1.15rem;font-weight:700;letter-spacing:.01em}
+  .appbar .sub{font:11px var(--mono);color:var(--muted);margin-top:2px;display:flex;align-items:center;gap:6px}
+  .appbar .grow{flex:1;min-width:0}
+  .live{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green)}
+  .badge{font:600 11px var(--mono);letter-spacing:.06em;background:var(--red);color:#2a0a0a;padding:5px 11px;border-radius:99px}
+  .badge.ok{background:rgba(34,197,94,.12);color:var(--green);border:1px solid rgba(34,197,94,.4)}
+  .back{width:44px;height:44px;margin-left:-10px;border-radius:12px;display:flex;align-items:center;justify-content:center;color:var(--text)}
+  .content > *{flex:none}
+  .content{flex:1;overflow:hidden;padding:2px 12px 12px;display:flex;flex-direction:column;gap:12px}
+  .tabbar{flex:none;display:flex;background:#0d1319;border-top:1px solid var(--line);padding:0 8px 26px}
+  .tab{flex:1;height:58px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11px;color:var(--muted);position:relative}
+  .tab.on{color:var(--teal)}
+  .tab.on::before{content:"";position:absolute;top:-1px;left:30%;right:30%;height:2px;border-radius:2px;background:var(--teal)}
+  .tab svg{width:22px;height:22px}
+
+  .label{font:11px var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--muted);padding:2px 4px 0;display:flex;justify-content:space-between;align-items:center}
+  .label.teal{color:var(--teal)}
+  .label a{letter-spacing:.04em;text-transform:none;color:var(--muted);font-size:12px}
+
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.45);overflow:hidden}
+
+  /* ---------- alarm list (one panel, compact rows) ---------- */
+  .alarms{border-color:rgba(248,113,113,.4);background:linear-gradient(180deg,rgba(248,113,113,.10),var(--panel) 70%)}
+  .alarm{display:flex;align-items:center;gap:12px;padding:10px 14px;border-top:1px solid #f8717126}
+  .alarm:first-child{border-top:none}
+  .alarm .ico{width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center;background:rgba(248,113,113,.14);color:var(--red);flex:none}
+  .alarm.warn .ico{background:rgba(251,191,36,.14);color:var(--amber)}
+  .alarm .t{font-size:14px;font-weight:600}
+  .alarm .d{font-size:12px;color:var(--muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .alarm .tx{min-width:0;flex:1}
+  .alarm time{font:11px var(--mono);color:var(--muted);flex:none;align-self:flex-start;margin-top:3px}
+
+  /* ---------- fleet rows: 2 lines instead of 3 ---------- */
+  .row2{display:grid;grid-template-columns:10px minmax(0,1fr) auto;column-gap:12px;row-gap:3px;padding:11px 16px 11px 13px;border-top:1px solid var(--line);border-left:3px solid transparent;align-items:center}
+  .row2:first-child{border-top:none}
+  .row2.alarm-r{border-left-color:var(--red);background:rgba(248,113,113,.06)}
+  .row2.warn-r{border-left-color:var(--amber);background:rgba(251,191,36,.05)}
+  .row2.dim{opacity:.6}
+  .led{width:10px;height:10px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);grid-row:1}
+  .alarm-r .led{background:var(--red);box-shadow:0 0 8px var(--red)}
+  .warn-r .led{background:var(--amber);box-shadow:0 0 8px var(--amber)}
+  .dim .led{background:#3a4654;box-shadow:none}
+  .nm{font:15px var(--mono);display:flex;align-items:baseline;gap:8px;min-width:0}
+  .nm small{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pill{font:11px var(--mono);letter-spacing:.04em;padding:3px 10px;border-radius:99px;border:1px solid;white-space:nowrap;display:inline-flex;align-items:center;gap:5px}
+  .pill.ok{color:var(--green);border-color:rgba(34,197,94,.4);background:rgba(34,197,94,.08)}
+  .pill.warn{color:var(--amber);border-color:rgba(251,191,36,.4);background:rgba(251,191,36,.08)}
+  .pill.alarm{color:var(--red);border-color:rgba(248,113,113,.4);background:rgba(248,113,113,.08)}
+  .pill.off{color:var(--muted);border-color:var(--line)}
+  .rd{grid-column:2/4;display:flex;align-items:center;gap:10px;font:12px var(--mono);color:var(--muted);white-space:nowrap}
+  .rd .temp{color:var(--teal)}
+  .rd .low{color:var(--amber)}
+  .rd .bad{color:var(--red)}
+  .rd .sp{flex:1}
+  .rd .bat{display:inline-flex;align-items:center;gap:5px}
+  .rd .dotsep{opacity:.4}
+  .sig{display:inline-flex;align-items:flex-end;gap:2px;height:14px}
+  .sig i{width:4px;border-radius:1px;background:#2a3542}
+  .sig i.on{background:var(--teal)} .sig.warn i.on{background:var(--amber)} .sig.bad i.on{background:var(--red)}
+  .sig i:nth-child(1){height:5px}.sig i:nth-child(2){height:8px}.sig i:nth-child(3){height:11px}.sig i:nth-child(4){height:14px}
+  .grid-row2{grid-row:2}
+  .row2 > .nm{grid-column:2}
+  .row2 > .pill{grid-column:3}
+
+  /* ---------- banners (ok / stale) ---------- */
+  .banner{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:14px;border:1px solid}
+  .banner.ok{background:rgba(34,197,94,.07);border-color:rgba(34,197,94,.35)}
+  .banner.warn{background:rgba(251,191,36,.07);border-color:rgba(251,191,36,.4)}
+  .banner.alarm{background:linear-gradient(180deg,rgba(248,113,113,.14),rgba(248,113,113,.06));border-color:rgba(248,113,113,.45)}
+  .banner .ico{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex:none}
+  .banner.ok .ico{background:rgba(34,197,94,.14);color:var(--green)}
+  .banner.warn .ico{background:rgba(251,191,36,.14);color:var(--amber)}
+  .banner.alarm .ico{background:rgba(248,113,113,.16);color:var(--red)}
+  .banner .t{font-size:14px;font-weight:600}
+  .banner .d{font-size:12px;color:var(--muted);margin-top:2px;line-height:1.4}
+  .banner .tx{flex:1;min-width:0}
+  .banner .btn{width:auto;padding:8px 14px;font-size:13px}
+
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+  .stat b{display:block;font:600 22px var(--mono)}
+  .stat span{font-size:11px;color:var(--muted)}
+
+  /* ---------- buttons / toggles / segmented ---------- */
+  .btn{display:flex;align-items:center;justify-content:center;gap:8px;min-height:44px;border-radius:10px;border:1px solid transparent;font-size:15px;font-weight:600;background:var(--teal);color:var(--teal-ink);width:100%;white-space:nowrap}
+  .btn.ghost{background:transparent;border-color:var(--line);color:var(--text)}
+  .btn.danger{background:transparent;border-color:rgba(248,113,113,.35);color:var(--red)}
+  .btn.sm{min-height:40px;font-size:14px}
+  .tg{width:46px;height:28px;border-radius:99px;background:#2a3542;position:relative;flex:none}
+  .tg::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:var(--muted)}
+  .tg.on{background:var(--teal)} .tg.on::after{left:21px;background:var(--teal-ink)}
+  .seg{display:grid;grid-template-columns:1fr 1fr;background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:3px;gap:3px}
+  .seg div{min-height:40px;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:7px;font-size:14px;color:var(--muted)}
+  .seg div.on{background:var(--teal);color:var(--teal-ink);font-weight:600}
+
+  /* ---------- generic list rows (settings / detail) ---------- */
+  .item{display:flex;align-items:center;gap:12px;padding:12px 16px;border-top:1px solid var(--line);min-height:56px}
+  .item:first-child{border-top:none}
+  .item .tx{flex:1;min-width:0}
+  .item .t{font-size:15px;font-weight:500}
+  .item .d{font-size:12px;color:var(--muted);margin-top:2px;line-height:1.4}
+  .item .ico{width:34px;height:34px;border-radius:9px;background:rgba(45,212,191,.08);border:1px solid rgba(45,212,191,.25);color:var(--teal);display:flex;align-items:center;justify-content:center;flex:none}
+  .item .mono{font:14px var(--mono)}
+  .chev{color:var(--muted)}
+
+  /* ---------- detail ---------- */
+  .tiles{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .tile{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:6px;min-height:92px}
+  .tile .k{font:11px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+  .tile .v{font:600 26px/1 var(--mono)}
+  .tile .v small{font-size:13px;color:var(--muted);font-weight:400;margin-left:2px}
+  .tile .s{font:12px var(--mono);color:var(--muted);display:flex;align-items:center;gap:8px}
+  .bar{height:6px;border-radius:3px;background:#2a3542;overflow:hidden}
+  .bar i{display:block;height:100%;background:var(--amber)}
+  .chips{display:grid;grid-template-columns:1fr 1fr 1fr 1.7fr;gap:8px;padding:0 16px 14px}
+  .chip{white-space:nowrap;min-height:44px;border-radius:10px;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600}
+  .chip.mute{color:var(--muted)}
+  .eui{display:flex;align-items:center;justify-content:center;gap:8px;font:12px var(--mono);color:var(--muted);padding:4px}
+  .note{font-size:12px;color:var(--muted);line-height:1.5;padding:0 4px}
+
+  /* before/after */
+  .cmp{display:flex;gap:44px;flex-wrap:wrap;justify-content:center;align-items:flex-start}
+  .cmp img{width:410px;border-radius:30px;box-shadow:0 0 0 1px #1b2430,0 20px 60px rgba(0,0,0,.6);display:block}
+  .tag{font:600 11px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+  .tag.new{color:var(--teal)}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></symbol>
+    <symbol id="i-bell-off" viewBox="0 0 24 24"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M17 17H4a1 1 0 0 1-.74-1.673C4.59 13.956 6 12.499 6 8a6 6 0 0 1 .258-1.742"/><path d="m2 2 20 20"/><path d="M8.668 3.01A6 6 0 0 1 18 8c0 2.687.77 4.653 1.707 6.05"/></symbol>
+    <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M10 5H3"/><path d="M12 19H3"/><path d="M14 3v4"/><path d="M16 17v4"/><path d="M21 12h-9"/><path d="M21 19h-5"/><path d="M21 5h-7"/><path d="M8 10v4"/><path d="M8 12H3"/></symbol>
+    <symbol id="i-back" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+    <symbol id="i-chev" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></symbol>
+    <symbol id="i-warn" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol>
+    <symbol id="i-battery" viewBox="0 0 24 24"><rect width="16" height="10" x="2" y="7" rx="2"/><path d="M22 11v2"/><path d="M6 11v2"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></symbol>
+    <symbol id="i-logout" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></symbol>
+    <symbol id="i-phone" viewBox="0 0 24 24"><rect width="14" height="20" x="5" y="2" rx="2"/><path d="M12 18h.01"/></symbol>
+    <symbol id="i-layout" viewBox="0 0 24 24"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></symbol>
+    <symbol id="i-wifi-off" viewBox="0 0 24 24"><path d="M12 20h.01"/><path d="M8.5 16.429a5 5 0 0 1 7 0"/><path d="M5 12.859a10 10 0 0 1 5.17-2.69"/><path d="M19 12.859a10 10 0 0 0-2.007-1.523"/><path d="M2 8.82a15 15 0 0 1 4.177-2.643"/><path d="M22 8.82a15 15 0 0 0-11.288-3.764"/><path d="m2 2 20 20"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
+    <symbol id="i-door" viewBox="0 0 24 24"><path d="M10 21H2"/><path d="M10 3H7a2 2 0 00-2 2v16"/><path d="M14 12h.01"/><path d="M19 21V5a2 2 0 00-1.675-1.974l-6.163-1.013A1 1 0 0010 3v18a1 1 0 001.124.992z"/><path d="M22 21h-3"/></symbol>
+  </defs>
+</svg>
+
+<h1>LoRaLarm PWA <span>— mobilgränssnitt v2</span></h1>
+<div class="lead">Förslag på förbättrat mobilutseende, byggt på <b>statuspanelsvyn</b> (teal-accent, LED, mono-typografi). Mål: fler enheter ovanför vikningen,
+tydligare allvarlighetsgrad, rätt peklägen för tummen (≥ 44 px), enhetliga ikoner (Lucide i stället för emoji) och mer ärliga tomma/offline-lägen.
+Skisserna är statiska — inga appändringar ännu.</div>
+
+<!-- ================= BEFORE / AFTER ================= -->
+<div class="cmp">
+  <div><div class="tag">Idag · Status</div><img src="mockups/status-current.png" alt="Nuvarande statusvy"></div>
+  <div><div class="tag new">Förslag · Status</div><img src="mockups/01-status-larm.png" alt="Föreslagen statusvy"></div>
+</div>
+
+<div class="row">
+
+<!-- ================= 1: STATUS (alarms) ================= -->
+<div class="col">
+<div class="phone" data-name="01-status-larm">
+  <div class="scr"><div class="island"></div>
+  <div class="statusbar"><span>21:47</span><span class="ic">🔋</span></div>
+  <div class="appbar">
+    <div class="grow"><h2>LoRaLarm</h2><div class="sub"><span class="live"></span>uppdaterad 21:47 · 5 enheter</div></div>
+    <span class="badge">3 LARM</span>
+  </div>
+  <div class="content">
+    <div class="label"><span style="color:var(--red)">● Aktiva larm</span><a>Svep ← för att dölja</a></div>
+    <div class="panel alarms">
+      <div class="alarm"><div class="ico"><svg class="i"><use href="#i-warn"/></svg></div>
+        <div class="tx"><div class="t">Tiltlarm · sensor16</div><div class="d">z-axeln rörde sig 0.42 g (&gt; 0.3 g)</div></div><time>21:43</time></div>
+      <div class="alarm"><div class="ico"><svg class="i"><use href="#i-wifi-off"/></svg></div>
+        <div class="tx"><div class="t">Ingen kontakt · Water1</div><div class="d">Ingen uplink på 7 dagar</div></div><time>7 d</time></div>
+      <div class="alarm warn"><div class="ico"><svg class="i"><use href="#i-battery"/></svg></div>
+        <div class="tx"><div class="t">Lågt batteri · Door1</div><div class="d">2.94 V under 3.0 V</div></div><time>18:35</time></div>
+    </div>
+
+    <div class="label"><span>Enheter · 5</span><a>Sortering: larm först</a></div>
+    <div class="panel">
+      <div class="row2 alarm-r"><span class="led"></span>
+        <div class="nm">sensor16 <small>temp ute</small></div><span class="pill alarm">TILTLARM</span>
+        <div class="rd"><span class="temp">3.8°C</span><span class="bat"><svg class="i sm"><use href="#i-battery"/></svg>2.94V · 57%</span><span class="sp"></span><span>1 min</span><span class="sig warn"><i class="on"></i><i class="on"></i><i></i><i></i></span></div>
+      </div>
+      <div class="row2 alarm-r"><span class="led"></span>
+        <div class="nm">Water1 <small>källare</small></div><span class="pill alarm">INGEN KONTAKT</span>
+        <div class="rd"><span>—</span><span class="bat"><svg class="i sm"><use href="#i-battery"/></svg>3.10V · 80%</span><span class="sp"></span><span class="bad">7 d sedan</span><span class="sig bad"><i class="on"></i><i></i><i></i><i></i></span></div>
+      </div>
+      <div class="row2 warn-r"><span class="led"></span>
+        <div class="nm">Door1 <small>garageport</small></div><span class="pill warn">LÅGT BATTERI</span>
+        <div class="rd"><span>—</span><span class="bat low"><svg class="i sm"><use href="#i-battery"/></svg>2.94V · 14%</span><span class="sp"></span><span>21 min</span><span class="sig"><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span></div>
+      </div>
+      <div class="row2"><span class="led"></span>
+        <div class="nm">Door2 <small>förråd · följs ej</small></div><span class="pill ok">OK</span>
+        <div class="rd"><span>—</span><span class="bat"><svg class="i sm"><use href="#i-battery"/></svg>3.12V · 93%</span><span class="sp"></span><span>3 min</span><span class="sig"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span></div>
+      </div>
+      <div class="row2 dim"><span class="led"></span>
+        <div class="nm">sensor3 <small>förråd</small></div><span class="pill off"><svg class="i sm"><use href="#i-bell-off"/></svg>AV · 06:00</span>
+        <div class="rd"><span class="temp">11.2°C</span><span class="bat"><svg class="i sm"><use href="#i-battery"/></svg>3.12V · 88%</span><span class="sp"></span><span>4 min</span><span class="sig warn"><i class="on"></i><i class="on"></i><i></i><i></i></span></div>
+      </div>
+    </div>
+  </div>
+  <div class="tabbar">
+    <div class="tab on"><svg class="i"><use href="#i-home"/></svg>Status</div>
+    <div class="tab"><svg class="i"><use href="#i-sliders"/></svg>Inställningar</div>
+  </div>
+  <div class="homebar"></div>
+  </div>
+  <i class="mk" style="top:209px;left:0">1</i>
+  <i class="mk" style="top:369px;left:0">2</i>
+  <i class="mk" style="top:419px;left:0">3</i>
+  <i class="mk" style="top:490px;left:0">4</i>
+  <i class="mk" style="top:614px;left:0">5</i>
+</div>
+<div class="legend"><h3>1 · Status — larm aktiva</h3><ol>
+  <li><b>Ett larmkort, inte tre.</b> Kompakta rader (ikon, kind · enhet, en rad detalj, tid). Sparar höjd och är lättare att skanna; svep vänster = ta bort, som idag. Batteri = bärnsten, riktiga larm = rött (idag är allt rött).</li>
+  <li><b>Röd/bärnsten kantlist</b> + svag bakgrundston på larmrader — larm syns även med snabb blick, inte bara på LED-punkten.</li>
+  <li><b>Rader på 2 rader i stället för 3</b> (~64 px i stället för ~95). Fler enheter ovanför vikningen. Familj/grupp-raden ersätts av grupp bredvid namnet.</li>
+  <li><b>Statuspill uppe till höger</b> bredvid namnet; LED vertikalt i linje med namnet (idag svävar den mitt på raden).</li>
+  <li><b>Färg bara när något är fel:</b> batteri bärnsten först under 20 %, ”senast sedd” rött efter &gt; 24 h. Idag är även normala batterivärden bärnstensfärgade. ”larm på”-chippet försvinner (det är normaltillståndet) — bara ”AV · 06:00” visas. Större signalstaplar (4 px).</li>
+</ol></div>
+</div>
+
+<!-- ================= 2: STATUS (all OK) ================= -->
+<div class="col">
+<div class="phone" data-name="02-status-ok">
+  <div class="scr"><div class="island"></div>
+  <div class="statusbar"><span>09:12</span><span class="ic">🔋</span></div>
+  <div class="appbar">
+    <div class="grow"><h2>LoRaLarm</h2><div class="sub"><span class="live"></span>uppdaterad 09:12 · 5 enheter</div></div>
+    <span class="badge ok">ALLT OK</span>
+  </div>
+  <div class="content">
+    <div class="banner ok"><div class="ico"><svg class="i lg"><use href="#i-shield"/></svg></div>
+      <div class="tx"><div class="t">Inga aktiva larm</div><div class="d">Alla enheter är tysta och har hört av sig</div></div></div>
+    <div class="stats">
+      <div class="stat"><b>5</b><span>enheter</span></div>
+      <div class="stat"><b style="color:var(--teal)">4</b><span>larm på</span></div>
+      <div class="stat"><b style="color:var(--muted)">1</b><span>pausad</span></div>
+    </div>
+    <div class="label"><span>Enheter · 5</span><a>Sortering: namn</a></div>
+    <div class="panel">
+      <div class="row2"><span class="led"></span>
+        <div class="nm">Door1 <small>garageport</small></div><span class="pill ok">OK</span>
+        <div class="rd"><span>—</span><span class="bat"><svg class="i sm"><use href="#i-battery"/></svg>3.20V · 91%</span><span class="sp"></span><span>2 min</span><span class="sig"><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span></div></div>
+      <div class="row2"><span class="led"></span>
+        <div class="nm">Door2 <small>förråd</small></div><span class="pill ok">OK</span>
+        <div class="rd"><span>—</span><span class="bat"><svg class="i sm"><use href="#i-battery"/></svg>3.12V · 93%</span><span class="sp"></span><span>3 min</span><span class="sig"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span></div></div>
+      <div class="row2"><span class="led"></span>
+        <div class="nm">sensor16 <small>temp ute</small></div><span class="pill ok">OK</span>
+        <div class="rd"><span class="temp">3.8°C</span><span class="bat"><svg class="i sm"><use href="#i-battery"/></svg>3.30V · 96%</span><span class="sp"></span><span>1 min</span><span class="sig"><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span></div></div>
+      <div class="row2 dim"><span class="led"></span>
+        <div class="nm">sensor3 <small>förråd</small></div><span class="pill off"><svg class="i sm"><use href="#i-bell-off"/></svg>AV · 18:00</span>
+        <div class="rd"><span class="temp">11.2°C</span><span class="bat"><svg class="i sm"><use href="#i-battery"/></svg>3.12V · 88%</span><span class="sp"></span><span>4 min</span><span class="sig warn"><i class="on"></i><i class="on"></i><i></i><i></i></span></div></div>
+      <div class="row2"><span class="led"></span>
+        <div class="nm">Water1 <small>källare</small></div><span class="pill ok">OK</span>
+        <div class="rd"><span>—</span><span class="bat"><svg class="i sm"><use href="#i-battery"/></svg>3.10V · 80%</span><span class="sp"></span><span>5 min</span><span class="sig"><i class="on"></i><i class="on"></i><i></i><i></i></span></div></div>
+    </div>
+  </div>
+  <div class="tabbar">
+    <div class="tab on"><svg class="i"><use href="#i-home"/></svg>Status</div>
+    <div class="tab"><svg class="i"><use href="#i-sliders"/></svg>Inställningar</div>
+  </div>
+  <div class="homebar"></div>
+  </div>
+  <i class="mk" style="top:61px;left:0">1</i>
+  <i class="mk" style="top:126px;left:0">2</i>
+  <i class="mk" style="top:204px;left:0">3</i>
+</div>
+<div class="legend"><h3>2 · Status — allt OK</h3><ol>
+  <li><b>Badgen finns alltid</b> (”ALLT OK” grön / ”3 LARM” röd) — appbaren hoppar inte och man ser tillståndet utan att läsa banner.</li>
+  <li><b>Lugn grön banner</b> med sköldikon i stället för bara en prick. Texten bekräftar att enheterna också hört av sig (watchdog).</li>
+  <li><b>Sammanfattning i tre rutor</b> (enheter / larm på / pausade) — svarar direkt på ”är allt aktivt?”. Pausade enheter är det som oftast glöms bort.</li>
+</ol></div>
+</div>
+
+<!-- ================= 3: STATUS (offline) ================= -->
+<div class="col">
+<div class="phone" data-name="03-status-offline">
+  <div class="scr"><div class="island"></div>
+  <div class="statusbar"><span>21:52</span><span class="ic"><svg class="i sm"><use href="#i-wifi-off"/></svg>🔋</span></div>
+  <div class="appbar">
+    <div class="grow"><h2>LoRaLarm</h2><div class="sub"><span class="live" style="background:var(--amber);box-shadow:0 0 6px var(--amber)"></span>senast 21:47 · 5 min sedan</div></div>
+    <span class="badge" style="background:var(--amber)">OFFLINE</span>
+  </div>
+  <div class="content">
+    <div class="banner warn"><div class="ico"><svg class="i lg"><use href="#i-wifi-off"/></svg></div>
+      <div class="tx"><div class="t">Ingen kontakt med servern</div><div class="d">Visar data från 21:47. Aktiva larm kan saknas — lita inte på statusen.</div></div>
+    </div>
+    <div class="btn ghost sm"><svg class="i sm"><use href="#i-refresh"/></svg>Försök igen</div>
+    <div class="label"><span>Enheter · 5 (gammal data)</span></div>
+    <div class="panel" style="filter:saturate(.35)">
+      <div class="row2 alarm-r"><span class="led"></span>
+        <div class="nm">sensor16 <small>temp ute</small></div><span class="pill alarm">TILTLARM</span>
+        <div class="rd"><span class="temp">3.8°C</span><span class="bat"><svg class="i sm"><use href="#i-battery"/></svg>2.94V · 57%</span><span class="sp"></span><span>6 min</span><span class="sig warn"><i class="on"></i><i class="on"></i><i></i><i></i></span></div></div>
+      <div class="row2 warn-r"><span class="led"></span>
+        <div class="nm">Door1 <small>garageport</small></div><span class="pill warn">LÅGT BATTERI</span>
+        <div class="rd"><span>—</span><span class="bat low"><svg class="i sm"><use href="#i-battery"/></svg>2.94V · 14%</span><span class="sp"></span><span>26 min</span><span class="sig"><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span></div></div>
+      <div class="row2"><span class="led"></span>
+        <div class="nm">Door2 <small>förråd</small></div><span class="pill ok">OK</span>
+        <div class="rd"><span>—</span><span class="bat"><svg class="i sm"><use href="#i-battery"/></svg>3.12V · 93%</span><span class="sp"></span><span>8 min</span><span class="sig"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span></div></div>
+      <div class="row2 dim"><span class="led"></span>
+        <div class="nm">sensor3 <small>förråd</small></div><span class="pill off"><svg class="i sm"><use href="#i-bell-off"/></svg>AV · 06:00</span>
+        <div class="rd"><span class="temp">11.2°C</span><span class="bat"><svg class="i sm"><use href="#i-battery"/></svg>3.12V · 88%</span><span class="sp"></span><span>9 min</span><span class="sig warn"><i class="on"></i><i class="on"></i><i></i><i></i></span></div></div>
+    </div>
+  </div>
+  <div class="tabbar">
+    <div class="tab on"><svg class="i"><use href="#i-home"/></svg>Status</div>
+    <div class="tab"><svg class="i"><use href="#i-sliders"/></svg>Inställningar</div>
+  </div>
+  <div class="homebar"></div>
+  </div>
+  <i class="mk" style="top:61px;left:0">1</i>
+  <i class="mk" style="top:134px;left:0">2</i>
+  <i class="mk" style="top:389px;left:0">3</i>
+</div>
+<div class="legend"><h3>3 · Status — ingen kontakt</h3><ol>
+  <li><b>Badge och tidsstämpel går bärnsten</b> (”OFFLINE”, ”senast 21:47”) så det syns även när man bläddrar bort från bannern.</li>
+  <li><b>Gul banner + ”Försök igen”</b> med stor tryckyta, i stället för att bara vänta på nästa 15 s-poll.</li>
+  <li><b>Gammal data avmättas</b> (desaturerad lista, rubrik ”gammal data”) — ingen ser ett grönt ”OK” och tror att det är färskt. Ett grönt ”Inga aktiva larm” visas aldrig i det här läget (som idag).</li>
+</ol></div>
+</div>
+
+<!-- ================= 4: DETAIL ================= -->
+<div class="col">
+<div class="phone" data-name="04-enhet">
+  <div class="scr"><div class="island"></div>
+  <div class="statusbar"><span>21:47</span><span class="ic">🔋</span></div>
+  <div class="appbar">
+    <div class="back"><svg class="i lg"><use href="#i-back"/></svg></div>
+    <div class="grow"><h2 style="font-family:var(--mono);font-size:1.05rem">sensor16</h2><div class="sub">RAK3172 · temp ute</div></div>
+    <span class="pill alarm">TILTLARM</span>
+  </div>
+  <div class="content">
+    <div class="banner alarm"><div class="ico"><svg class="i lg"><use href="#i-warn"/></svg></div>
+      <div class="tx"><div class="t">Tiltlarm aktivt sedan 21:43</div><div class="d">z-axeln rörde sig 0.42 g (&gt; 0.3 g)</div></div></div>
+
+    <div class="tiles">
+      <div class="tile"><span class="k">Temperatur</span><span class="v" style="color:var(--teal)">3.8<small>°C</small></span><span class="s">&nbsp;</span></div>
+      <div class="tile"><span class="k">Batteri</span><span class="v">57<small>%</small></span><div class="bar"><i style="width:57%"></i></div><span class="s">2.94 V</span></div>
+      <div class="tile"><span class="k">Signal</span><span class="s" style="gap:10px"><span class="sig warn" style="height:24px"><i class="on" style="width:6px"></i><i class="on" style="width:6px"></i><i style="width:6px"></i><i style="width:6px"></i></span><span style="font:600 15px var(--mono);color:var(--amber)">Svag</span></span><span class="s">−92 dBm · SNR 3 dB</span></div>
+      <div class="tile"><span class="k">Senast sedd</span><span class="v">1<small>min sedan</small></span><span class="s">21:46:12</span></div>
+    </div>
+
+    <div class="label teal">Larm · gäller alla användare</div>
+    <div class="panel" style="border-color:rgba(45,212,191,.35)">
+      <div class="item" style="border-top:none"><div class="ico"><svg class="i"><use href="#i-shield"/></svg></div>
+        <div class="tx"><div class="t">Larm på</div><div class="d">Pausa vid underhåll — slås på igen automatiskt.</div></div><span class="tg on"></span></div>
+      <div class="chips"><div class="chip">1 h</div><div class="chip">8 h</div><div class="chip">24 h</div><div class="chip mute">Tills vidare</div></div>
+    </div>
+
+    <div class="label">Dina inställningar</div>
+    <div class="panel"><div class="item"><div class="tx"><div class="t">Följ enheten</div><div class="d">Notiser till den här telefonen — bara du</div></div><span class="tg on"></span></div></div>
+
+    <div class="eui"><svg class="i sm"><use href="#i-copy"/></svg>a1b2c3d4e5f60001</div>
+  </div>
+  <div class="tabbar">
+    <div class="tab on"><svg class="i"><use href="#i-home"/></svg>Status</div>
+    <div class="tab"><svg class="i"><use href="#i-sliders"/></svg>Inställningar</div>
+  </div>
+  <div class="homebar"></div>
+  </div>
+  <i class="mk" style="top:64px;left:0">1</i>
+  <i class="mk" style="top:129px;left:0">2</i>
+  <i class="mk" style="top:224px;left:0">3</i>
+  <i class="mk" style="top:516px;left:0">4</i>
+  <i class="mk" style="top:625px;left:0">5</i>
+  <i class="mk" style="top:680px;left:0">6</i>
+</div>
+<div class="legend"><h3>4 · Enhetsdetalj</h3><ol>
+  <li><b>‹ i appbaren</b> (44 × 44) ersätter helbreddsknappen ”Tillbaka” — ~70 px vertikalt utrymme sparas. Namn i mono + modell/grupp som underrad, status som pill.</li>
+  <li><b>Bara enhetens egna larm</b> visas här. Idag listas alla larm från alla enheter (Water1, Door1…) även på sensor16:s sida.</li>
+  <li><b>Mätvärden som brickor</b> (temperatur, batteri med stapel, signal med ord ”Svag/OK/Stark”, senast sedd) — läsbart på en sekund i stället för en kv-lista i mono 12 px.</li>
+  <li><b>Snooze alltid synlig</b> som fyra stora knappar under larmkontakten. Idag krävs ett extra tryck på reglaget för att ens se alternativen. ”Tills vidare” är dämpad (admin).</li>
+  <li><b>Personligt skilt från globalt:</b> ”Gäller alla användare” (teal ram) och ”Dina inställningar” (bara du) ligger i egna paneler med förklarande underrad.</li>
+  <li><b>devEUI</b> nedtonad längst ned med kopiera-ikon — används sällan, ska inte ta en hel rad av prioriterad yta.</li>
+</ol></div>
+</div>
+
+<!-- ================= 5: SETTINGS ================= -->
+<div class="col">
+<div class="phone" data-name="05-installningar">
+  <div class="scr"><div class="island"></div>
+  <div class="statusbar"><span>21:47</span><span class="ic">🔋</span></div>
+  <div class="appbar">
+    <div class="grow"><h2>Inställningar</h2><div class="sub">Tomas · admin</div></div>
+    <span class="badge">3 LARM</span>
+  </div>
+  <div class="content" style="gap:10px">
+    <div class="label teal">Push-notiser</div>
+    <div class="panel" style="padding:14px 16px;display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;gap:12px;align-items:center">
+        <div class="item" style="padding:0;min-height:0;border:none;flex:1"><div class="ico" style="color:var(--amber);border-color:rgba(251,191,36,.35);background:rgba(251,191,36,.08)"><svg class="i"><use href="#i-bell-off"/></svg></div>
+        <div class="tx"><div class="t" style="font-weight:600">Push ej aktiverad</div><div class="d">Utan push får du inga larm när appen är stängd.</div></div></div>
+      </div>
+      <div class="btn"><svg class="i sm"><use href="#i-bell"/></svg>Aktivera push på denna enhet</div>
+    </div>
+    <div class="panel"><div class="item"><div class="ico"><svg class="i"><use href="#i-phone"/></svg></div><div class="tx"><div class="t">Installera som app</div><div class="d">Ikon på startskärmen, helskärm</div></div><svg class="i chev"><use href="#i-chev"/></svg></div></div>
+
+    <div class="label"><span>Följ enheter</span><a>Alla · Inga</a></div>
+    <div class="panel">
+      <div class="item"><span class="led" style="width:9px;height:9px"></span><div class="tx"><div class="t mono">sensor16</div><div class="d">Larm på</div></div><span class="tg on"></span></div>
+      <div class="item"><span class="led" style="width:9px;height:9px"></span><div class="tx"><div class="t mono">Door2</div><div class="d">Larm på</div></div><span class="tg"></span></div>
+      <div class="item dim" style="opacity:.7"><span class="led" style="width:9px;height:9px;background:#3a4654;box-shadow:none"></span><div class="tx"><div class="t mono">sensor3</div><div class="d">Larm av till 06:00</div></div><span class="tg on"></span></div>
+    </div>
+
+    <div class="label">Utseende</div>
+    <div class="seg"><div><svg class="i sm"><use href="#i-moon"/></svg>Standard</div><div class="on"><svg class="i sm"><use href="#i-layout"/></svg>Statuspanel</div></div>
+
+    <div class="label">Konto</div>
+    <div class="panel"><div class="item"><div class="ico"><svg class="i"><use href="#i-user"/></svg></div><div class="tx"><div class="t">Tomas</div><div class="d">Admin · nya enheter följs automatiskt</div></div>
+      <div class="btn danger sm" style="width:auto;padding:0 14px"><svg class="i sm"><use href="#i-logout"/></svg>Logga ut</div></div></div>
+  </div>
+  <div class="tabbar">
+    <div class="tab"><svg class="i"><use href="#i-home"/></svg>Status</div>
+    <div class="tab on"><svg class="i"><use href="#i-sliders"/></svg>Inställningar</div>
+  </div>
+  <div class="homebar"></div>
+  </div>
+  <i class="mk" style="top:179px;left:0">1</i>
+  <i class="mk" style="top:285px;left:0">2</i>
+  <i class="mk" style="top:354px;left:0">3</i>
+  <i class="mk" style="top:593px;left:0">4</i>
+  <i class="mk" style="top:693px;left:0">5</i>
+</div>
+<div class="legend"><h3>5 · Inställningar</h3><ol>
+  <li><b>Push först, med tillstånd och åtgärd i samma kort.</b> Bärnstensfärgad klocka med överstruken ikon när det är avstängt, tydlig primärknapp. Det viktigaste för en larmapp ligger överst.</li>
+  <li><b>”Installera som app” som lugn rad</b> med chevron (öppnar instruktionerna) i stället för en andra helbredds-knapp bredvid primärknappen.</li>
+  <li><b>Enhetslistan i en panel</b> med LED, mono-namn och status — samma ögonspråk som Status. Genväg ”Alla · Inga” för många enheter.</li>
+  <li><b>Utseende som segmentkontroll</b> (Standard / Statuspanel) i stället för en reglage med fyra rader förklarande text.</li>
+  <li><b>”Logga ut” hamnar sist</b>, röd kantlinje, <i>på en rad</i> (idag bryts den till två) och med ikon. Konto-texten kortas.</li>
+</ol>
+<div class="note" style="margin-top:8px"><b>Flik:</b> ”Notiser” → <b>”Inställningar”</b> (reglage-ikon) — sidan rymmer mer än notiser, och en klocka antyder en larmlista. Emoji (🎨 🔔 👤 🛡) byts mot Lucide-ikoner som resten av appen. Aktiv flik får en 2 px teal-list överst.</div>
+</div>
+</div>
+
+</div>
+</body>
+</html>

@@ -300,3 +300,10 @@ critical kinds (§7); mockup inconsistencies fixed (see mockup).
 - Roles: which users may disarm / "tills vidare".
 - Cloudflare Access in front of the tunnel: yes/no.
 - Whether the `events` table gets a `user` column or the audit lives in `detail`.
+
+## 13. Mobile UI v2 proposal (2026-11-21)
+
+Visual review of the shipped PWA (390 px viewport, statuspanelsvy) with proposed
+changes: [`pwa-mockup-v2.html`](pwa-mockup-v2.html), exported PNGs in
+[`mockups/`](mockups/). Status quo is kept in `mockups/status-current.png`. Not yet
+implemented; the older `pwa-mockup.html` predates the shipped UI.
