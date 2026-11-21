@@ -293,6 +293,8 @@ body.theme-home .kv .rowk { border-bottom-color: #242e3a; }
 body.theme-home .kv .rowk:last-child { border-bottom: none; }
 body.theme-home .kv .k { color: #96a3b0; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 12px; }
 body.theme-home .kv .v { color: #eef2f7; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 12px; font-weight: 400; }
+body.theme-home .kv .v b { font-weight: 400; }
+body.theme-home .kv .v b.low { color: #fbbf24; }
 
 body.theme-home .armrow {
   background: #19212a;

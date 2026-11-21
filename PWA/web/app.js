@@ -13,7 +13,7 @@ const KIND_LABEL = {
   button: 'Knapplarm',
 };
 // Lucide outline icons (ISC License, lucide-icons/lucide), inline to keep the
-// CSP (`default-src 'self'`) and offline PWA intact; colored via currentColor.
+// CSP (`default-src 'self'`) intact without extra requests; colored via currentColor.
 const KIND_ICON = {
   door: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 21H2"/><path d="M10 3H7a2 2 0 00-2 2v16"/><path d="M14 12h.01"/><path d="M19 21V5a2 2 0 00-1.675-1.974l-6.163-1.013A1 1 0 0010 3v18a1 1 0 001.124.992z"/><path d="M22 21h-3"/></svg>',
   water: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"/></svg>',
@@ -301,7 +301,7 @@ function pillFor(d) {
     return `<span class="pill alarm">${rc.map((r) => esc(KIND_LABEL[r.kind] || r.kind)).join(', ').toUpperCase()} · ${esc(relAge(rc[0].ts).text)}</span>`;
   }
   if (d.active && d.active.length) {
-    return `<span class="pill ${WARN_KINDS.has(d.active[0]) ? 'warn' : 'alarm'}">${d.active.map((k) => esc(KIND_LABEL[k] || k)).join(', ').toUpperCase()}</span>`;
+    return `<span class="pill ${d.active.every((k) => WARN_KINDS.has(k)) ? 'warn' : 'alarm'}">${d.active.map((k) => esc(KIND_LABEL[k] || k)).join(', ').toUpperCase()}</span>`;
   }
   if (!d.armed) {                      // AV · HH:MM (v2: pillen, inte något chip)
     // "tills vidare" (admin) har ingen armed_until: bara "AV". OBS: isNaN(null)
@@ -394,6 +394,7 @@ function renderFleet() {
 function renderDevice(eui) {
   const d = device(eui);
   if (!d) { location.hash = '#/'; return; }
+  $('#appbar-title').textContent = d.name || 'Enhet';
   renderBanners('#dev-banners');
   const batt = [];
   if (d.battery_voltage != null) batt.push(`${d.battery_voltage.toFixed(2)}V`);
@@ -440,6 +441,7 @@ function renderArm(d) {
         await api(`/api/devices/${d.dev_eui}/armed`, { method: 'PUT', body: { armed: true } });
         toast('Larm på');
         await refresh();
+        route();
       }
     } catch (e) { toast(e.message); }
   };
@@ -451,6 +453,7 @@ function renderArm(d) {
         SNOOZE_OPEN = null;
         toast(`Larm av i ${b.dataset.h} h`);
         await refresh();
+        route();
       } catch (e) { toast(e.message); }
     };
   });
@@ -460,6 +463,7 @@ function renderArm(d) {
       SNOOZE_OPEN = null;
       toast('Larm av tills vidare');
       await refresh();
+      route();
     } catch (e) { toast(e.message); }
   };
 }
