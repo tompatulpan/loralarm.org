@@ -304,8 +304,12 @@ function pillFor(d) {
     return `<span class="pill ${WARN_KINDS.has(d.active[0]) ? 'warn' : 'alarm'}">${d.active.map((k) => esc(KIND_LABEL[k] || k)).join(', ').toUpperCase()}</span>`;
   }
   if (!d.armed) {                      // AV · HH:MM (v2: pillen, inte något chip)
+    // "tills vidare" (admin) har ingen armed_until: bara "AV". OBS: isNaN(null)
+    // är falskt (Number(null)===0), så null-testet måste komma explicit först
     const u = d.armed_until ? new Date(d.armed_until) : null;
-    const until = isNaN(u) ? '' : ` · ${String(u.getHours()).padStart(2, '0')}:${String(u.getMinutes()).padStart(2, '0')}`;
+    const until = (u && !isNaN(u))
+      ? ` · ${String(u.getHours()).padStart(2, '0')}:${String(u.getMinutes()).padStart(2, '0')}`
+      : '';
     return `<span class="pill off">AV${until}</span>`;
   }
   return '<span class="pill ok">OK</span>';
