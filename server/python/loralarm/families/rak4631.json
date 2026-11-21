@@ -6,6 +6,9 @@
     "label": "code",
     "table": {"31": 1, "47": 10, "63": 25, "79": 50, "95": 100}
   },
+  "fields": {
+    "fw_version": {"from": "version_byte", "type": "number"}
+  },
   "defaults": {
     "tk_correction_c": 8.0,
     "temp_alarm_min_c": 2.0,

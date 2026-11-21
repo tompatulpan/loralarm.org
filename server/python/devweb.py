@@ -150,6 +150,7 @@ def main() -> int:
         engine.on_uplink(uplink(EUI, "testsensor", "RAK4631", 2,
                                 {"temperature": 24.0, "battery_voltage": 3.9,
                                  "motion_alert": next_motion, "motion_switch": 0,
+                                 "version_byte": 32,
                                  "accelerometer": {"x": 0.1, "y": 0.0, "z": 1.0}},
                                 -62, 9.1, counter()))
 
@@ -163,7 +164,7 @@ def main() -> int:
             (EUI_WATER, "vattenmatare.kallare", "Browan Water sensor", 106,
              {"battery": 3.3, "status": 1}, -89, 0.5),
             (EUI_HOT, "temp.vind", "RAK4631", 2,
-             {"temperature": 29.9, "battery_voltage": 4.05}, -55, 10.0),
+             {"temperature": 29.9, "battery_voltage": 4.05, "version_byte": 31}, -55, 10.0),
             (EUI_GARAGE, "temp.garage", "RAK4631-R", 2,
              {"temperature": 7.4, "battery_voltage": 3.55, "version_byte": 33}, -104, -7.0),
             (EUI_DOOR2, "dorr.fram", "Dragino Switch LDS02", 10,
