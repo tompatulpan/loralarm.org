@@ -407,7 +407,7 @@ function renderDevice(eui) {
     ['Temperatur', d.temperature != null ? `${d.temperature.toFixed(1)}°C` : '—'],
     ['Batteri', battCell, true],
     ['Senaste uplink', relTime(d.last_seen)],
-    ['RSSI / SNR', d.rssi != null ? `${sigMeter(d)} ${d.rssi}dBm/${d.snr ?? '—'}dB` : '—', true],
+    ['RSSI / SNR', d.rssi != null ? `${d.rssi}dBm/${d.snr ?? '—'}dB ${sigMeter(d)}` : '—', true],   // ikoner höger om data
     ['Familj', d.family || '—'],                      // ChirpStack device-profile (ev. config-override)
   ];
   if (d.fw_version != null) rows.push(['Firmware', `v${d.fw_version}`]);   // bara om codec:n sänder den
