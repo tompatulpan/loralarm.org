@@ -11,6 +11,8 @@ const KIND_LABEL = {
   motion: 'Rörelselarm', circuit: 'Kretslarm', tilt: 'Tiltlarm',
   door: 'Dörrlarm', stale: 'Ingen kontakt', armed: 'Larm',
   button: 'Knapplarm',
+  water_leak: 'Vattenläcka', button_battery: 'Lågt batteri (knapp)',
+  battery_shutdown: 'Batteri avstängt',
 };
 // Lucide outline icons (ISC License, lucide-icons/lucide), inline to keep the
 // CSP (`default-src 'self'`) intact without extra requests; colored via currentColor.
@@ -22,8 +24,20 @@ const KIND_ICON = {
 };
 // Lucide battery (fleet-raden Z4); kontur, färg via currentColor
 const BATT_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="10" x="2" y="7" rx="2"/><path d="M22 11v2"/><path d="M6 11v2"/></svg>';
-// larm-sorter som ger VARNING (bärnsten) i stället för rött på raden
-const WARN_KINDS = new Set(['battery_low', 'battery_empty', 'button_battery', 'battery_shutdown']);
+// VARNING-slag (bärnsten) — se docs/alarm-levels.md. battery_empty/-shutdown är
+// ALARM (rött): enheten slutar övervaka. Nästa steg: flytta till serverregistret.
+const WARN_KINDS = new Set(['battery_low', 'button_battery']);
+// aktiva + nyligen utlösta (puls) slag på en rad — båda räknas för nivån
+function rowKinds(d) {
+  return [...(d.active || []), ...recentFor(d).map((r) => r.kind)];
+}
+const warnOnly = (kinds) => kinds.every((k) => WARN_KINDS.has(k));
+// allvarlighetsordning: 0=alarm, 1=varning, 2=ok (påslagen), 3=av/mattad
+function rowSeverity(d) {
+  const kinds = rowKinds(d);
+  if (kinds.length) return warnOnly(kinds) ? 1 : 0;
+  return d.armed ? 2 : 3;
+}
 
 let ME = null;            // {name, role}
 let DEVICES = [];         // GET /api/devices
@@ -226,7 +240,10 @@ function renderBanners(el) {
     return;
   }
   const rows = [
-    ...STATE.alarms.map((a) => ({ a, cls: '', when: '' })),
+    // nivåsorterat (docs/alarm-levels.md): röda larm före bärnstensvarningar
+    ...[...STATE.alarms]
+      .sort((x, y) => (WARN_KINDS.has(x.kind) ? 1 : 0) - (WARN_KINDS.has(y.kind) ? 1 : 0))
+      .map((a) => ({ a, cls: WARN_KINDS.has(a.kind) ? 'warn' : '', when: '' })),
     ...recent.map((a) => ({ a, cls: 'recent', when: ` · ${esc(relTime(a.ts))}` })),
   ];
   host.innerHTML = rows.map(({ a, cls, when }) => `
@@ -298,10 +315,10 @@ function recentFor(d) { return (STATE.recent || []).filter((r) => r.dev_eui === 
 function pillFor(d) {
   const rc = recentFor(d);
   if (!(d.active && d.active.length) && rc.length) {
-    return `<span class="pill alarm">${rc.map((r) => esc(KIND_LABEL[r.kind] || r.kind)).join(', ').toUpperCase()} · ${esc(relAge(rc[0].ts).text)}</span>`;
+    return `<span class="pill ${warnOnly(rc.map((r) => r.kind)) ? 'warn' : 'alarm'}">${rc.map((r) => esc(KIND_LABEL[r.kind] || r.kind)).join(', ').toUpperCase()} · ${esc(relAge(rc[0].ts).text)}</span>`;
   }
   if (d.active && d.active.length) {
-    return `<span class="pill ${d.active.every((k) => WARN_KINDS.has(k)) ? 'warn' : 'alarm'}">${d.active.map((k) => esc(KIND_LABEL[k] || k)).join(', ').toUpperCase()}</span>`;
+    return `<span class="pill ${warnOnly(rowKinds(d)) ? 'warn' : 'alarm'}">${d.active.map((k) => esc(KIND_LABEL[k] || k)).join(', ').toUpperCase()}</span>`;
   }
   if (!d.armed) {                      // AV · HH:MM (v2: pillen, inte något chip)
     // "tills vidare" (admin) har ingen armed_until: bara "AV". OBS: isNaN(null)
@@ -355,19 +372,12 @@ function battStr(d) {
 
 function renderFleet() {
   renderBanners('#banners');
-  const sorted = [...DEVICES].sort((a, b) => {
-    const hot = (d) => (d.active?.length || recentFor(d).length ? 0 : 1);
-    const ra = hot(a) - hot(b);
-    if (ra !== 0) return ra;
-    const rb = (a.armed ? 1 : 0) - (b.armed ? 1 : 0);
-    if (rb !== 0) return rb;
-    return a.name.localeCompare(b.name);
-  });
+  const sorted = [...DEVICES].sort((a, b) =>
+    rowSeverity(a) - rowSeverity(b) || a.name.localeCompare(b.name));
   $('#fleet').innerHTML = sorted.map((d) => {
     // Z0: allvarslist — röd vid larm, bärnsten vid batteri-varning
-    const row = d.active?.length
-      ? (d.active.every((k) => WARN_KINDS.has(k)) ? ' warn-r' : ' alarm-r')
-      : '';
+    const kinds = rowKinds(d);
+    const row = kinds.length ? (warnOnly(kinds) ? ' warn-r' : ' alarm-r') : '';
     const grp = [d.group, d.following ? '' : 'följs ej'].filter(Boolean).join(' · ');
     const age = relAge(d.last_seen);
     return `

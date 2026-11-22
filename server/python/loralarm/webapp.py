@@ -268,6 +268,11 @@ def create_app(engine: Engine, event_log: EventLog, webpush: Any = None,
         known = set(engine.config.devices) | set(snap) | set(event_log.known_devices())
         return {e for e in known if can_access(user, _group_of(e, snap))}
 
+    def _disarmed(euis) -> set[str]:
+        """A disarmed device is silent everywhere, not only in push: its active
+        and recent alarms are hidden until it is re-armed (which re-notifies)."""
+        return {e for e in euis if not (event_log.get_armed(e) or {}).get("armed", True)}
+
     # ---- fleet / state ----
 
     def _fleet(user: dict[str, Any]) -> list[dict[str, Any]]:
@@ -287,7 +292,7 @@ def create_app(engine: Engine, event_log: EventLog, webpush: Any = None,
                 "family": entry.get("family") or cfg.family,
                 "kind": cfg.kind,
                 "group": cfg.group,
-                "active": state.get("active", []),
+                "active": [] if not armed_row.get("armed", True) else state.get("active", []),
                 "last_seen": state.get("last_seen"),
                 "temperature": lv.get("temperature"),
                 "battery_pct": lv.get("battery_pct"),
@@ -309,6 +314,7 @@ def create_app(engine: Engine, event_log: EventLog, webpush: Any = None,
     def state(user: dict = Depends(_guard)):
         snap = engine.snapshot()
         visible = _visible(user, snap)
+        visible -= _disarmed(visible)
         # the user's swipe-away dismissals: a (device, kind) badge is hidden
         # until an event newer than the acknowledgment arrives. A pulse alarm
         # carries its ts, an active one is checked against its last event.

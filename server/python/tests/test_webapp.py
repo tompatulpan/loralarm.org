@@ -181,6 +181,20 @@ class ArmedApiTest(unittest.TestCase):
         ).fetchone()
         self.assertEqual(row, (0, "bosse"))
 
+    def test_disarmed_device_hides_alarms_in_state_and_fleet_until_rearmed(self):
+        client, engine, _ = make_client()
+        engine.on_uplink(make_uplink(obj=sensor_obj(motion_alert=1)))
+        login(client, USER["token"])
+        self.assertEqual([a["kind"] for a in client.get("/api/state").json()["alarms"]], ["motion"])
+        client.put(f"/api/devices/{DEV_EUI}/armed", json={"armed": False, "snooze_hours": 1},
+                   headers=HEADERS)
+        st = client.get("/api/state").json()
+        self.assertEqual((st["alarms"], st["recent"], st["ok"]), ([], [], True))
+        fleet = {d["dev_eui"]: d for d in client.get("/api/devices").json()["devices"]}
+        self.assertEqual(fleet[DEV_EUI]["active"], [])
+        client.put(f"/api/devices/{DEV_EUI}/armed", json={"armed": True}, headers=HEADERS)
+        self.assertEqual([a["kind"] for a in client.get("/api/state").json()["alarms"]], ["motion"])
+
     def test_disarm_forever_requires_admin(self):
         client, _, _ = make_client()
         login(client, USER["token"])

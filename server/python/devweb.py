@@ -170,7 +170,7 @@ def main() -> int:
             (EUI_DOOR2, "dorr.fram", "Dragino Switch LDS02", 10,
              {"BAT_V": 2.95, "DOOR_OPEN_STATUS": 0}, -63, 6.0),
             (EUI_BTN, "knapp.pannrum", "Smart Button [Milesight]", 85,
-             {"battery": 60}, -68, 7.0),
+             {"battery": 19}, -68, 7.0),
         ]:
             if dev is not None and eui != dev:
                 continue
@@ -179,7 +179,7 @@ def main() -> int:
 
     # one button press: a pulse (recent) alarm; heartbeats never repeat it
     engine.on_uplink(uplink(EUI_BTN, "knapp.pannrum", "Smart Button [Milesight]", 85,
-                            {"battery": 60, "button_event": {"status": "short press"}},
+                            {"battery": 19, "button_event": {"status": "short press"}},
                             -68, 7.0, counter()))
     heartbeat()
 
