@@ -74,9 +74,9 @@ Statuspanelsvyn på radkanten inne i den gemensamma panelen.
 | Element | Innehåll | Källa (API) |
 |---|---|---|
 | namn | enhetsnamn, mono i statuspanelsvyn, sans (fetare) i standard | `name` |
-| grupp | `· grupp` i mindre/muted grad, **endast om gruppen finns** | `group` |
-|följs ej | `· följs ej` i grad, endast när användaren inte följer | `following` |
-| pinstallation | namnet trunkeras **först** med `…`; grupp/följs-ejklämmer döljs hellre än att namnet klipps | — |
+| grupp | `· grupp` i mindre/muted gråton, **endast om gruppen finns** | `group` |
+| ingen push | `· ingen push` i gråton, endast när användaren stängt av PWA-push för enheten (per konto; ntfy/Pushover påverkas inte) | `following` |
+| Trångt | namnet trunkeras **först** med `…`; grupp- och ingen-push-texten döljs hellre än att namnet klipps | — |
 
 **Utbytt i v2:** "🛡 larm på"-chippet försvinner (på är normaltillståndet). Avslagen
 tid visas i pillen (Z3) i stället. family-rad (RAD 3 i gamla layouten) försvinner

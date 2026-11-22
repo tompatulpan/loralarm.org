@@ -378,7 +378,7 @@ function renderFleet() {
     // Z0: allvarslist — röd vid larm, bärnsten vid batteri-varning
     const kinds = rowKinds(d);
     const row = kinds.length ? (warnOnly(kinds) ? ' warn-r' : ' alarm-r') : '';
-    const grp = [d.group, d.following ? '' : 'följs ej'].filter(Boolean).join(' · ');
+    const grp = [d.group, d.following ? '' : 'ingen push'].filter(Boolean).join(' · ');
     const age = relAge(d.last_seen);
     return `
     <div class="card dev clickable${row}${d.armed ? '' : ' dimmed'}" data-eui="${esc(d.dev_eui)}">
