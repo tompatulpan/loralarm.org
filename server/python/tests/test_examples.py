@@ -200,7 +200,7 @@ class FullTemplateTest(unittest.TestCase):
             self.conf()
         data = json.loads(self.TEMPLATE.read_text(encoding="utf-8"))
         self.assertEqual({"profiles", "defaults", "families", "devices"} <= set(data), True)
-        self.assertEqual(len(data["devices"]), 8)
+        self.assertEqual(len(data["devices"]), 10)
 
     def test_pushover_credentials_reach_every_device(self):
         conf = self.conf()
@@ -227,6 +227,27 @@ class FullTemplateTest(unittest.TestCase):
         self.assertEqual(conf.for_event("ac1f09fffe120202", "", "RAK3172-BAT").temp_alarm_min_c, 0.0)  # type default
         water = conf.for_event("e8e1e100010a7001", "", "Browan Water sensor")
         self.assertEqual((water.kind, water.watchdog_hours, water.batt_empty_v), ("water", 3, 3.1))
+
+    def test_button_actions_drive_the_relay_and_leave_short_press_as_panic(self):
+        conf = self.conf()
+        sent, notifier = [], RecordingNotifier()
+
+        class FakeSender:
+            def send(self, app_id, dl):
+                sent.append((app_id, dl.dev_eui, dl.f_port, dl.data))
+
+        engine = Engine(conf, notifier=notifier, downlink_sender=FakeSender(), dl_topic="x/+")
+
+        def press(status):
+            return make_uplink(dev_eui="24e124535d243458", device_name="Button 1",
+                               profile="Smart Button [Milesight]", f_port=85,
+                               obj={"button_event": {"status": status}})
+
+        for status in ("double press", "long press", "short press"):
+            engine.on_uplink(press(status))
+        self.assertEqual([(e, p, d) for _, e, p, d in sent],
+                         [("24e124535d240001", 10, b"001"), ("24e124535d240001", 10, b"000")])
+        self.assertEqual([(c[1], c[2]) for c in notifier.calls], [("button", True)])
 
     def test_custom_profile_params_and_alarm_end_to_end(self):
         conf = self.conf()

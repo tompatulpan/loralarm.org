@@ -30,6 +30,7 @@ from pathlib import Path
 from typing import Any
 
 from . import mqttclient
+from .actions import ActionSet, replaces_pulse
 from .alarms import AlarmState
 from .config import Config, DeviceConfig
 from .downlink import (DEFAULT_DL_TOPIC, Downlink, DownlinkSender, desired_frames,
@@ -130,6 +131,7 @@ class Engine:
         # (deviceInfo.applicationId); the downlink topic needs it
         self.app_ids: dict[str, str] = {}
         self.downlink_sender = downlink_sender
+        self._actions = ActionSet()
         self.dl_topic = dl_topic
         # devices whose auto-downlink is disabled after a config/send error,
         # so one bad device does not spam the log on every uplink; cleared on
@@ -290,6 +292,8 @@ class Engine:
                 print(f"    settings fPort {up.f_port}: {text!r}", flush=True)
                 self._log_event(up.time, up.dev_eui, up.device_name,
                                 f"settings_f{up.f_port}", False, text)
+            if frame is not None and cfg.actions:
+                transitions = self._run_actions(cfg, up, frame, transitions)
             for t in transitions:
                 print(f"    >>> {self.registry.label_for(t.kind)}: {'LARM' if t.active else 'återställt'} — {t.detail}",
                       flush=True)
@@ -300,6 +304,35 @@ class Engine:
             if enforce:
                 self._confirm_downlinks(up.dev_eui, cfg, up.obj, utc_now())
                 self._enforce_downlinks(up.dev_eui, cfg, up.obj)
+
+    def _run_actions(self, cfg: DeviceConfig, up: Uplink, frame, transitions: list) -> list:
+        """Execute the config's event actions (actions.py) for this frame and drop
+        the pulse alarms they replace. Called with the lock held; an action that
+        fails is logged and never costs the uplink its other alarms."""
+        replaced: set[str] = set()
+        for action in self._actions.for_device(cfg):
+            if not action.hit(cfg, frame.values):
+                continue
+            if action.suppresses_alarm:
+                replaced.add(action.field)
+            if action.do != "downlink":
+                continue
+            source = f"action {action.field}={frame.values.get(action.field)!r}"
+            try:
+                dev_eui, target = self._resolve_locked(action.target)
+                self._send_downlinks_locked(dev_eui, target, [action.frame], source=source)
+            except Exception as e:
+                log.error("%s (%s): %s -> downlink to %r failed: %s: %s", cfg.dev_eui, cfg.name,
+                          source, action.target, type(e).__name__, e)
+                print(f"    {source} -> downlink to {action.target!r} FAILED: {e}", flush=True)
+                try:
+                    self._log_event(up.time, cfg.dev_eui, cfg.name, "downlink", False,
+                                    f"{source} -> {action.target}: {e}")
+                except Exception:
+                    log.exception("could not log the failed action downlink")
+        if not replaced:
+            return transitions
+        return [t for t in transitions if not replaces_pulse(self.registry, t.kind, replaced)]
 
     def watchdog_tick(self) -> list[str]:
         """Check every known device for staleness; returns alarmed dev_euis."""
@@ -331,19 +364,27 @@ class Engine:
     def resolve_device(self, identifier: str) -> tuple[str, DeviceConfig]:
         """devEUI + config for a devEUI or a device name, from live state first
         (so a name maps to the real devEUI), then from config devEUI keys."""
-        ident = identifier.strip().lower()
         with self._lock:
-            if ident in self.devices:
-                dev_eui, (cfg, _state) = ident, self.devices[ident]
-                return dev_eui, cfg
-            for eui, (cfg, _state) in self.devices.items():
-                if cfg.name.lower() == ident:
-                    return eui, cfg
-            if self._EUI_RE.match(ident) and ident in self.config.devices:
-                cfg = self.config.for_event(ident, "", "")
+            return self._resolve_locked(identifier)
+
+    def _resolve_locked(self, identifier: str) -> tuple[str, DeviceConfig]:
+        """resolve_device without locking — call with the lock held."""
+        ident = identifier.strip().lower()
+        if ident in self.devices:
+            dev_eui, (cfg, _state) = ident, self.devices[ident]
+            return dev_eui, cfg
+        for eui, (cfg, _state) in self.devices.items():
+            if cfg.name.lower() == ident:
+                return eui, cfg
+        if self._EUI_RE.match(ident) and ident in self.config.devices:
+            cfg = self.config.for_event(ident, "", "")
+            return cfg.dev_eui, cfg
+        for eui, entry in self.config.devices.items():     # configured but not seen yet
+            if isinstance(entry, dict) and str(entry.get("name", "")).lower() == ident:
+                cfg = self.config.for_event(eui, "", "")
                 return cfg.dev_eui, cfg
         raise KeyError(f"unknown device {identifier!r}: never seen on MQTT and not a "
-                       f"devEUI key in the config")
+                       f"devEUI key or configured name in the config")
 
     def send_downlinks(self, identifier: str, frames: list, source: str = "") -> list[Downlink]:
         """Send downlink frames to one device (by devEUI or name) and log each

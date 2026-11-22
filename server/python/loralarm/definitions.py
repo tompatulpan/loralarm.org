@@ -178,7 +178,7 @@ def rule_from_dict(d: dict[str, Any]) -> AlarmRule:
         device_kinds=frozenset(device_kinds) if device_kinds is not None else None,
         group=d.get("group"),
         notify_fire=str(d.get("notify_fire", "")), notify_clear=str(d.get("notify_clear", "")),
-        windowed=windowed, release=release, pulse=pulse)
+        windowed=windowed, release=release, pulse=pulse, source_field=field_name)
 
 
 def profile_from_dict(name: str, d: dict[str, Any]) -> DeviceProfile:

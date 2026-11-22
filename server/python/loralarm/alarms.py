@@ -129,6 +129,9 @@ class AlarmRule:
     # name of the device family whose definition declared the rule ("" = built-in
     # core rule); register_definition refuses two families sharing an alarm kind
     family: str = ""
+    # the decoded field a declarative rule reads; lets an action that handles the
+    # same event (actions.py) replace the rule's pulse alarm
+    source_field: str = ""
 
 
 def known_device_kinds(registry: Registry) -> set[str]:

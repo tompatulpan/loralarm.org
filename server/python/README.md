@@ -247,6 +247,36 @@ change nothing. Real captured uplinks: `chirpstack/fixtures/single-log(ws101 *).
 `examples/milesight_ws101.example.json` (`watchdog_hours` 0: the button only reports on
 a press and on a long interval).
 
+**Button actions (`actions`).** An unmapped press stays a panic alarm. To make a
+press do something else, give the device (or a family, under `"defaults"`) an
+`actions` list — a device's list replaces the family's. Each entry is a trigger
+on a decoded field (`field`, `when`, `value`/`param`, as in alarm rules) plus
+`do`:
+
+| `do` | effect |
+|---|---|
+| `alarm` | keep the normal alarm (explicit; also the default for unmatched presses) |
+| `ignore` | swallow the press: no alarm, nothing sent |
+| `downlink` | send one frame to `target` (devEUI or name; a name configured in `devices` works before the target has ever uplinked): `port` + `ascii` text or `hex` bytes (1–51), optional `confirmed`; replaces the alarm unless `"alarm": true` |
+
+```json
+"actions": [
+  {"field": "button", "when": "eq", "value": "double press",
+   "do": "downlink", "target": "relay1", "port": 10, "ascii": "001"},
+  {"field": "button", "when": "eq", "value": "long press",
+   "do": "downlink", "target": "relay1", "port": 10, "ascii": "000"}
+]
+```
+
+Here short press = panic alarm, double = relay on, long = relay off. Sent
+downlinks are logged as `downlink` events on the target (detail names the press);
+a failed one (unknown target, no `--dl-topic`, no application id) is logged as an
+inactive `downlink` event and never costs the uplink its other alarms. A
+bad entry is logged once and skipped. New action types go in `loralarm/actions.py`
+(`ACTION_TYPES` + validation) and `Engine._run_actions`. Actions run regardless of
+the device's armed state. Toggle (one press alternating on/off) is not built in: the
+service cannot know the relay's real state, so map two presses instead.
+
 Stateful detectors (like tilt) still belong in `AlarmState`; register them
 label-only with `AlarmRule(kind, label, check=None, ...)`.
 

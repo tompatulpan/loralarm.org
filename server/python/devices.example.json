@@ -26,6 +26,10 @@
     "   pushes). Groups only affect role \"user\": an admin ALWAYS sees every device, grouped or not — a \"groups\"",
     "   key on an admin is ignored, so omit it. A device WITHOUT a group is visible to every user (so a new device",
     "   can never alarm to nobody). If non-admins must only see their own devices, give EVERY device a group.",
+    "\"actions\": what a device event does instead of (or besides) its alarm. Button 1: short press = panic alarm (no",
+    "   action matches), double press = downlink \"001\" to relay1 on port 10, long press = \"000\". \"target\" is a",
+    "   devEUI or a configured name; port and payload (\"ascii\" or \"hex\") are whatever the target's firmware expects.",
+    "   Also allowed as a family default. See README \"Button actions\".",
     "Several recipients per device are not available yet (planned).",
     "PWA Web Push (VAPID) is NOT configured here: one keypair per server, a secret like Pushover — set",
     "   LORALARM_VAPID_PRIVATE_KEY (+ LORALARM_VAPID_SUB) in the env file; users subscribe in the PWA.",
@@ -48,6 +52,13 @@
                  "fire": "{value} ppm > {limit} ppm", "clear": "under {limit} ppm",
                  "device_kinds": ["air"],
                  "notify_fire": "💨 CO2-LARM: {name} — {detail}"}]
+    },
+    "Relay-1": {
+      "description": "Example switch that only listens: no sensor data, so no fields or rules; Button 1 drives it with downlink actions",
+      "aliases": ["relay"],
+      "data_ports": [11],
+      "settings": [],
+      "defaults": {"kind": "relay", "watchdog_hours": 0}
     }
   },
   "web_users": [
@@ -203,6 +214,26 @@
       "group": "villa",
       "ntfy_topic": "co2-hall",
       "params": {"co2_max": 1000}
+    },
+    "24e124535d243458": {
+      "name": "Button 1",
+      "family": "Smart Button [Milesight]",
+      "group": "villa",
+      "application_id": "${LORALARM_CS_APP_LARM}",
+      "ntfy_topic": "button1",
+      "actions": [
+        {"field": "button", "when": "eq", "value": "double press",
+         "do": "downlink", "target": "relay1", "port": 10, "ascii": "001", "note": "relay on"},
+        {"field": "button", "when": "eq", "value": "long press",
+         "do": "downlink", "target": "relay1", "port": 10, "ascii": "000", "note": "relay off"}
+      ]
+    },
+    "24e124535d240001": {
+      "name": "relay1",
+      "family": "Relay-1",
+      "group": "villa",
+      "application_id": "${LORALARM_CS_APP_LARM}",
+      "ntfy_topic": "relay1"
     }
   }
 }

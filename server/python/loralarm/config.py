@@ -101,6 +101,10 @@ class DeviceConfig:
     # free-form parameters for alarm rules / profile settings that have no field of
     # their own (e.g. {"humidity_max": 80}); merged key-by-key across the layers
     params: dict[str, Any] = field(default_factory=dict)
+    # event -> action mapping (see actions.py): e.g. a button press that sends a
+    # downlink to a relay instead of raising the panic alarm. A device's list
+    # replaces the family's; events no action matches keep their normal alarm.
+    actions: list[dict[str, Any]] = field(default_factory=list)
     ntfy_topic: str = "loralarm"
     pushover_user: str = ""
     pushover_token: str = ""
@@ -130,7 +134,7 @@ _FIELD_TYPES: dict[str, tuple[type, ...]] = {
     "ntfy_topic": (str,),
     "pushover_user": (str,), "pushover_token": (str,), "group": (str,),
     "notify_title": (str,), "notify_fire": (dict,), "notify_clear": (dict,),
-    "params": (dict,),
+    "params": (dict,), "actions": (list,),
 }
 
 
@@ -140,6 +144,8 @@ def _valid_type(key: str, value: Any) -> bool:
         return False  # True/False must not pass as a number
     if key == "alarm_window_kinds":
         return isinstance(value, list) and all(isinstance(k, str) for k in value)
+    if key == "actions":
+        return isinstance(value, list) and all(isinstance(a, dict) for a in value)
     return isinstance(value, expected)
 
 

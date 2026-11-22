@@ -11,6 +11,7 @@
     "Battery/status frames without a press are quiet.",
     "No batt_* limits: the button reports battery as a percentage. Instead \"button_battery\" alerts below 20 % (add \"params\": {\"batt_low_pct\": 30} to a device to change it); the button only reports battery on its long interval.",
     "watchdog_hours: 0 = off. The button only sends on a press and on a long reporting interval (default 18 h), so keep it long or off.",
+    "Optional \"actions\" (see README 'Button actions'): e.g. \"actions\": [{\"field\": \"button\", \"when\": \"eq\", \"value\": \"double press\", \"do\": \"downlink\", \"target\": \"relay1\", \"port\": 10, \"ascii\": \"001\"}] turns a double press into a downlink instead of an alarm; unmapped presses stay panic alarms.",
     "No alarm_window: add \"alarm_window\" to a device to silence it outside given hours."
   ],
   "defaults": {
