@@ -244,7 +244,7 @@ function renderBanners(el) {
     ...[...STATE.alarms]
       .sort((x, y) => (WARN_KINDS.has(x.kind) ? 1 : 0) - (WARN_KINDS.has(y.kind) ? 1 : 0))
       .map((a) => ({ a, cls: WARN_KINDS.has(a.kind) ? 'warn' : '', when: '' })),
-    ...recent.map((a) => ({ a, cls: 'recent', when: ` · ${esc(relTime(a.ts))}` })),
+    ...recent.map((a) => ({ a, cls: WARN_KINDS.has(a.kind) ? 'recent warn' : 'recent', when: ` · ${esc(relTime(a.ts))}` })),
   ];
   host.innerHTML = rows.map(({ a, cls, when }) => `
     <div class="swipe">

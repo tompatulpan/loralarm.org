@@ -65,6 +65,11 @@ body.theme-home .banner.recent {
   border-color: rgba(248, 113, 113, 0.3);
 }
 body.theme-home .banner.recent .dot { background: #f87171; box-shadow: 0 0 10px #f87171; }
+body.theme-home .banner.recent.warn {
+  background: rgba(251, 191, 36, 0.06);
+  border-color: rgba(251, 191, 36, 0.35);
+}
+body.theme-home .banner.recent.warn .dot { background: #fbbf24; box-shadow: 0 0 10px #fbbf24; }
 
 /* ---------- Fleet: gör #fleet till en panel som på hemsidan ---------- */
 
