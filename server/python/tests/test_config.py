@@ -65,6 +65,20 @@ class LayeringTest(unittest.TestCase):
             cfg.for_event(DEV_EUI, "", "")
         self.assertTrue(any("watchdog_hours" in line for line in cm.output))
 
+    def test_negative_battery_hysteresis_warns_and_resets(self):
+        cfg = make_config(devices={DEV_EUI: {"batt_alarm_hysteresis_v": -0.1}})
+        with self.assertLogs("loralarm.config", level="WARNING") as cm:
+            dc = cfg.for_event(DEV_EUI, "", "")
+        self.assertEqual(dc.batt_alarm_hysteresis_v, 0.0)
+        self.assertTrue(any("batt_alarm_hysteresis_v" in line for line in cm.output))
+
+    def test_battery_warn_not_above_empty_warns_once(self):
+        cfg = make_config(devices={DEV_EUI: {"batt_warn_v": 2.7, "batt_empty_v": 2.8}})
+        with self.assertLogs("loralarm.config", level="WARNING") as cm:
+            cfg.for_event(DEV_EUI, "", "")
+            cfg.for_event(DEV_EUI, "", "")
+        self.assertEqual(sum("batt_warn_v" in line for line in cm.output), 1)
+
     def test_wrong_type_falls_back_to_lower_layer(self):
         cfg = make_config(devices={DEV_EUI: {"temp_alarm_min_c": "cold", "watchdog_hours": True}},
                           families={"RAK4631": {"temp_alarm_min_c": 2.0}})
@@ -78,6 +92,15 @@ class LayeringTest(unittest.TestCase):
         self.assertEqual(dc.temp_alarm_min_c, 0.0)
         self.assertIsNone(dc.temp_alarm_max_c)
         self.assertEqual(dc.temp_alarm_hysteresis_c, 0.0)
+
+    def test_batt_alarm_hysteresis_default_and_override(self):
+        dc = make_config(devices={DEV_EUI: {}}).for_event(DEV_EUI, "", "")
+        self.assertEqual(dc.batt_alarm_hysteresis_v, 0.0)  # today's clear-at-threshold
+        dc = make_config(devices={DEV_EUI: {"batt_alarm_hysteresis_v": 0.1}}).for_event(DEV_EUI, "", "")
+        self.assertEqual(dc.batt_alarm_hysteresis_v, 0.1)
+        # fleet-wide placement: defaults covers devices that set nothing themselves
+        cfg = make_config(devices={DEV_EUI: {}}, defaults={"batt_alarm_hysteresis_v": 0.1})
+        self.assertEqual(cfg.for_event(DEV_EUI, "", "").batt_alarm_hysteresis_v, 0.1)
 
     def test_circuit_mode_by_family_and_partial_family_override(self):
         cfg = make_config(devices={DEV_EUI: {}},

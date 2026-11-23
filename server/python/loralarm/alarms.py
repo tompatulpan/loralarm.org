@@ -220,6 +220,35 @@ def _batt_empty_check(cfg: DeviceConfig, frame: Frame, obj: dict) -> str | None:
     return None
 
 
+# threshold + hysteresis is a float sum (3.2 + 0.1 = 3.3000000000000003): without
+# a tolerance a reading of exactly the clear limit would keep the alarm held
+_V_EPS = 1e-9
+
+
+def _batt_low_release(cfg: DeviceConfig, frame: Frame, obj: dict) -> bool:
+    """Hysteresis: once low, the alarm holds until the voltage is back above
+    the warning limit by batt_alarm_hysteresis_v. Escalating further (status
+    "empty") is not recovery: the escalation path drops this alarm instead. A
+    frame without a voltage says nothing about the battery, so it holds the
+    alarm (a dead device is the watchdog's business)."""
+    v = frame.values.get("battery_voltage")
+    if v is None:
+        return False
+    return (frame.values.get("battery_status") != "ok"
+            or v - (cfg.batt_warn_v + cfg.batt_alarm_hysteresis_v) > _V_EPS)
+
+
+def _batt_empty_release(cfg: DeviceConfig, frame: Frame, obj: dict) -> bool:
+    """Hysteresis: once empty, the alarm holds until the voltage is back at
+    or above the empty limit plus batt_alarm_hysteresis_v. De-escalating into
+    the low band keeps it held (with the battery_low alarm reporting that
+    level) until the recovery is real. A frame without a voltage holds it."""
+    v = frame.values.get("battery_voltage")
+    if v is None:
+        return False
+    return v - (cfg.batt_empty_v + cfg.batt_alarm_hysteresis_v) >= -_V_EPS
+
+
 def _clear_temp_low(cfg: DeviceConfig, frame: Frame) -> str:
     temp = frame.values.get("temperature")
     limit = cfg.temp_alarm_min_c + cfg.temp_alarm_hysteresis_c
@@ -236,12 +265,15 @@ def _clear_temp_high(cfg: DeviceConfig, frame: Frame) -> str:
 
 def _clear_batt_low(cfg: DeviceConfig, frame: Frame) -> str:
     v = frame.values.get("battery_voltage")
-    return f"{v:.2f} V > varningsgräns {cfg.batt_warn_v} V" if v is not None else "över varningsgräns"
+    limit = cfg.batt_warn_v + cfg.batt_alarm_hysteresis_v
+    return (f"{v:.2f} V > varningsgräns {round(limit, 2)} V" if v is not None
+            else "över varningsgräns")
 
 
 def _clear_batt_empty(cfg: DeviceConfig, frame: Frame) -> str:
     v = frame.values.get("battery_voltage")
-    return f"{v:.2f} V ≥ tomt {cfg.batt_empty_v} V" if v is not None else "över tomt"
+    limit = cfg.batt_empty_v + cfg.batt_alarm_hysteresis_v
+    return (f"{v:.2f} V ≥ tomt {round(limit, 2)} V" if v is not None else "över tomt")
 
 
 BUILTIN_RULES: list[AlarmRule] = [
@@ -250,9 +282,9 @@ BUILTIN_RULES: list[AlarmRule] = [
     AlarmRule(AlarmKind.TEMP_HIGH, "Högtemperaturalarm", _temp_high_check, _clear_temp_high,
               windowed=False, release=_temp_high_release),
     AlarmRule(AlarmKind.BATTERY_LOW, "Batterinivå låg", _batt_low_check, _clear_batt_low,
-              group="battery", windowed=False),
+              group="battery", windowed=False, release=_batt_low_release),
     AlarmRule(AlarmKind.BATTERY_EMPTY, "Batteri tomt", _batt_empty_check, _clear_batt_empty,
-              group="battery", windowed=False),
+              group="battery", windowed=False, release=_batt_empty_release),
     # motion/circuit: the level check below is the `level` mode; in `event` mode
     # AlarmState replaces it with the pulse detectors (still gated by device_kinds)
     AlarmRule(

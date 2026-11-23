@@ -26,14 +26,14 @@ Reference for the **severity** of every alarm kind (the PWA currently mirrors it
 | `temp_low` | temperature ≤ lower limit (frost risk) | `temp_alarm_min_c` (+`temp_alarm_hysteresis_c`) |
 | `temp_high` | temperature ≥ upper limit (`None` = off) | `temp_alarm_max_c` |
 | `stale` | no uplink within the watchdog — *supervision lost* (a green "no alarms" would be misleading) | `watchdog_hours` (default 24) |
-| `battery_empty` | battery at the empty threshold — the device dies shortly | `batt_empty_v` |
+| `battery_empty` | battery at the empty threshold — the device dies shortly | `batt_empty_v` (+`batt_alarm_hysteresis_v`) |
 | `battery_shutdown` | the device has shut down its periodic uplink (critical cell) | flag from the RUI3 firmware (`low_battery_shutdown`) |
 
 ## WARNING (amber)
 
 | Kind | Triggered by | Parameter |
 |---|---|---|
-| `battery_low` | battery below the warning threshold — still working, plan maintenance | `batt_warn_v` |
+| `battery_low` | battery below the warning threshold — still working, plan maintenance | `batt_warn_v` (+`batt_alarm_hysteresis_v`) |
 | `button_battery` | percentage battery (Milesight) below the threshold | `batt_low_pct` (default 20) |
 
 Note: `battery_empty` and `battery_shutdown` are **alarms** (red), not

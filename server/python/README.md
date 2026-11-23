@@ -446,6 +446,36 @@ clears below 28 °C. Both are health alarms (always notify, see Alarm window) an
 all three keys work in `defaults`, `families` and per device. The check runs on
 the server, so no firmware change is needed.
 
+## Battery alarms (`battery_low`, `battery_empty`)
+
+The battery levels are derived from `battery_voltage` (see Derived values) and
+compared with three thresholds, all settable in `defaults`, `families` and per
+device:
+
+| key | meaning | default |
+|---|---|---|
+| `batt_full_v` | 100 % reference for `battery_pct` | 3.1 |
+| `batt_warn_v` | `battery_low` fires at or below this ("low") | 2.9 |
+| `batt_empty_v` | `battery_empty` fires below this ("empty") | 2.8 |
+| `batt_alarm_hysteresis_v` | the alarm clears only once the voltage is this far back above its threshold (low: > `batt_warn_v` + this; empty: ≥ `batt_empty_v` + this) | 0.0 = clears as soon as the threshold is passed |
+
+Example: `batt_warn_v: 2.9`, `batt_alarm_hysteresis_v: 0.1` fires `battery_low`
+at 2.9 V and clears only above 3.0 V — without it, a cell resting at 2.90–2.91 V
+fires and clears alternating uplinks. Production sets it **once in `defaults`**
+(`0.1` = 100 mV fleet-wide); a `families` or device entry can still override
+where a chemistry needs a different margin. Escalation still wins over
+hysteresis: low → empty is reported once (no misleading "OK" in between), and on
+recovery `battery_empty` stays active until the voltage is back at `batt_empty_v` +
+hysteresis, with `battery_low` reporting the intermediate level.
+
+A frame without `battery_voltage` neither fires nor clears a battery alarm: an
+active alarm is held until a real reading is back above its clear limit (a dead
+device is the `stale` watchdog's job). The clear limit is compared with a 1 nV
+tolerance, so a reading exactly on it (e.g. 3.3 V for `batt_empty_v` 3.2 +
+0.1) releases despite float rounding. The config loader warns once per device if
+`batt_warn_v` is not above `batt_empty_v`, and resets a negative
+`batt_alarm_hysteresis_v` to 0.
+
 ## Circuit alarm (`circuit_mode`)
 
 - `level` (RAK3172/RUI3): the switch state is in every heartbeat → fire on open, clear on close.
@@ -592,7 +622,9 @@ mosquitto_pub -h <lora-box> -t 'loralarm/down/sensor16' -m '{"frequency": 50}'
 
 1. **Architecture v2 phase 2 — detectors** (the current priority):
    `Detector` API, generic `AlarmTracker`, snapshot v2 + v1 converter,
-   threshold hysteresis/debounce — closes the battery-hysteresis gap. Exit
+   threshold hysteresis/debounce. (Battery alarms already have hysteresis:
+   `batt_alarm_hysteresis_v` — what remains for v2 is the *generic*
+   rule-level hysteresis/debounce.) Exit
    criteria: parity on the fixtures, per-detector tests, `alarms.py` reduced.
 2. Then phases 3–5: config layering (`groups`, named channels + routes),
    dispatcher + delivery log + persistent outbox, engine split.

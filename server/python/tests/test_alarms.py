@@ -120,6 +120,61 @@ class AlarmStateTest(unittest.TestCase):
         self.assertNotIn((AlarmKind.BATTERY_EMPTY, False), kinds)
         self.assertEqual(st.active, {AlarmKind.BATTERY_LOW})
 
+    def _volts(self, cfg, *v):
+        """(kind, active) transitions per frame at the given battery voltage."""
+        st = AlarmState()
+        return [[(t.kind, t.active) for t in st.update(
+            cfg, make_uplink(obj=sensor_obj(battery_voltage=v)))[1]] for v in v]
+
+    def test_battery_low_hysteresis_holds_until_back_above(self):
+        # warn 3.5, hysteresis 0.3 -> the low alarm clears only above 3.8 V
+        cfg = make_cfg(batt_alarm_hysteresis_v=0.3)
+        steps = self._volts(cfg, 3.6, 3.4, 3.6, 3.7, 3.8, 3.9)
+        self.assertEqual(steps, [[], [(AlarmKind.BATTERY_LOW, True)], [], [], [],
+                                 [(AlarmKind.BATTERY_LOW, False)]])
+
+    def test_battery_empty_hysteresis_holds_until_back_above(self):
+        # empty 3.2, hysteresis 0.1 -> the empty alarm clears only at >= 3.3 V
+        cfg = make_cfg(batt_alarm_hysteresis_v=0.1)
+        st = AlarmState()
+        _, t1 = st.update(cfg, make_uplink(obj=sensor_obj(battery_voltage=3.1)))   # empty
+        self.assertEqual([(t.kind, t.active) for t in t1], [(AlarmKind.BATTERY_EMPTY, True)])
+        _, t2 = st.update(cfg, make_uplink(obj=sensor_obj(battery_voltage=3.25)))  # low band
+        kinds = [(t.kind, t.active) for t in t2]
+        self.assertIn((AlarmKind.BATTERY_LOW, True), kinds)        # de-escalation fires the lower level
+        self.assertNotIn((AlarmKind.BATTERY_EMPTY, False), kinds)  # but does not clear the held one
+        self.assertEqual(st.active, {AlarmKind.BATTERY_LOW, AlarmKind.BATTERY_EMPTY})
+        _, t3 = st.update(cfg, make_uplink(obj=sensor_obj(battery_voltage=3.35)))  # recovered
+        self.assertEqual(st.active, {AlarmKind.BATTERY_LOW})     # clear suppressed: same group
+
+    def test_battery_no_hysteresis_clears_as_soon_as_the_threshold_is_passed(self):
+        steps = self._volts(make_cfg(), 3.4, 3.6)   # default hysteresis 0.0
+        self.assertEqual(steps, [[(AlarmKind.BATTERY_LOW, True)], [(AlarmKind.BATTERY_LOW, False)]])
+
+    def test_battery_alarm_holds_on_frame_without_voltage(self):
+        # a frame that carries no voltage is no recovery: no clear, no re-fire flapping
+        cfg = make_cfg(batt_alarm_hysteresis_v=0.3)
+        steps = self._volts(cfg, 3.4, None, 3.4, None)
+        self.assertEqual(steps, [[(AlarmKind.BATTERY_LOW, True)], [], [], []])
+
+    def test_battery_empty_holds_on_frame_without_voltage(self):
+        steps = self._volts(make_cfg(batt_alarm_hysteresis_v=0.1), 3.1, None, 3.1)
+        self.assertEqual(steps, [[(AlarmKind.BATTERY_EMPTY, True)], [], []])
+
+    def test_battery_empty_clears_at_exactly_the_clear_limit(self):
+        # 3.2 + 0.1 == 3.3000000000000003: a reading of 3.3 V must still release
+        cfg = make_cfg(batt_alarm_hysteresis_v=0.1)
+        st = AlarmState()
+        st.update(cfg, make_uplink(obj=sensor_obj(battery_voltage=3.1)))
+        st.update(cfg, make_uplink(obj=sensor_obj(battery_voltage=3.3)))
+        self.assertEqual(st.active, {AlarmKind.BATTERY_LOW})
+
+    def test_battery_low_clears_just_above_the_clear_limit_only(self):
+        cfg = make_cfg(batt_alarm_hysteresis_v=0.3)
+        steps = self._volts(cfg, 3.4, 3.8, 3.81)
+        self.assertEqual(steps, [[(AlarmKind.BATTERY_LOW, True)], [],
+                                 [(AlarmKind.BATTERY_LOW, False)]])
+
     def test_full_recovery_clears_normally(self):
         cfg = make_cfg()
         st = AlarmState()

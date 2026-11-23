@@ -64,6 +64,10 @@ class DeviceConfig:
     batt_full_v: float = 3.1
     batt_warn_v: float = 2.9
     batt_empty_v: float = 2.8
+    # a battery alarm clears only once the voltage is this far back above its
+    # threshold (low: > warn + this; empty: >= empty + this); 0 = clear as
+    # soon as the threshold is passed (fires and clears at the same voltage)
+    batt_alarm_hysteresis_v: float = 0.0
     tilt_sense_g: float = 0.3
     # level: the device reports the contact state in every frame (RUI3) -> fire/clear.
     # event: the device sends one frame when the contact opens and nothing on close
@@ -125,7 +129,8 @@ _FIELD_TYPES: dict[str, tuple[type, ...]] = {
     "temp_alarm_min_c": (int, float), "temp_alarm_max_c": (int, float),
     "temp_alarm_hysteresis_c": (int, float),
     "batt_full_v": (int, float), "batt_warn_v": (int, float),
-    "batt_empty_v": (int, float), "tilt_sense_g": (int, float),
+    "batt_empty_v": (int, float), "batt_alarm_hysteresis_v": (int, float),
+    "tilt_sense_g": (int, float),
     "circuit_mode": (str,), "circuit_hold_s": (int, float),
     "motion_mode": (str,), "motion_window_s": (int, float), "motion_min_detections": (int,),
     "watchdog_hours": (int, float), "application_id": (str,),
@@ -166,6 +171,7 @@ class Config:
         self.defaults = data.get("defaults", {})
         # family names seen but not defined; each is warned about once below
         self._warned_unknown_family: set[str] = set()
+        self._warned_battery: set[str] = set()
         # merge per family so a partial override keeps the built-in keys
         user_families = data.get("families", {})
         family_defaults = {p.name: p.defaults for p in self.registry.profiles() if p.name}
@@ -233,6 +239,24 @@ class Config:
             if key not in _FIELD_TYPES:
                 log.warning("config %s: unknown key %r ignored (typo?)", where, key)
 
+    def _check_battery(self, dev_eui: str, kwargs: dict[str, Any]) -> None:
+        """Battery limits that cannot work: warn once per device; a negative
+        hysteresis (alarm would clear before its limit) is reset to 0."""
+        hyst = kwargs.get("batt_alarm_hysteresis_v", DeviceConfig.batt_alarm_hysteresis_v)
+        warn = kwargs.get("batt_warn_v", DeviceConfig.batt_warn_v)
+        empty = kwargs.get("batt_empty_v", DeviceConfig.batt_empty_v)
+        problems = []
+        if hyst < 0:
+            kwargs["batt_alarm_hysteresis_v"] = 0.0
+            problems.append(f"batt_alarm_hysteresis_v is negative ({hyst}); using 0")
+        if warn <= empty:
+            problems.append(f"batt_warn_v ({warn}) must be above batt_empty_v ({empty}); "
+                            "battery_low can never fire")
+        if problems and dev_eui not in self._warned_battery:
+            self._warned_battery.add(dev_eui)
+            for msg in problems:
+                log.warning("config for %s: %s", dev_eui, msg)
+
     @classmethod
     def load(cls, path: str | Path, registry: Registry | None = None) -> "Config":
         return cls(json.loads(Path(path).read_text()), registry)
@@ -274,6 +298,7 @@ class Config:
                 merged[k] = v
         fields = set(DeviceConfig.__dataclass_fields__) - {"dev_eui", "name", "family"}
         kwargs = {k: v for k, v in merged.items() if k in fields}
+        self._check_battery(dev_eui, kwargs)
         # the configured name is the most specific source and wins over the
         # ChirpStack deviceName; fall back to deviceName, then the devEUI
         name = merged.get("name") or device_name or dev_eui

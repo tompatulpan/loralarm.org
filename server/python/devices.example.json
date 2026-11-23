@@ -34,7 +34,11 @@
     "PWA Web Push (VAPID) is NOT configured here: one keypair per server, a secret like Pushover — set",
     "   LORALARM_VAPID_PRIVATE_KEY (+ LORALARM_VAPID_SUB) in the env file; users subscribe in the PWA.",
     "Temperature alarms: temp_alarm_min_c (alarm at or below), temp_alarm_max_c (alarm at or above; unset = off),",
-    "   temp_alarm_hysteresis_c (applies to both limits: the alarm clears only this many degrees back inside the limit)."
+    "   temp_alarm_hysteresis_c (applies to both limits: the alarm clears only this many degrees back inside the limit).",
+    "Battery alarms: batt_full_v / batt_warn_v / batt_empty_v set the percent scale and the low/empty thresholds;",
+    "   batt_alarm_hysteresis_v (volts) lifts the clear limit that far above the fire limit, so a cell resting",
+    "   right at a threshold does not fire and clear on alternating uplinks. Set once in defaults (here 0.1 V)",
+    "   it covers every device; a family or device entry can still override. See README \"Battery alarms\"."
   ],
   "profiles": {
     "CO2-1": {
@@ -73,6 +77,7 @@
     "motion_mode": "event",
     "motion_window_s": 30,
     "motion_min_detections": 1,
+    "batt_alarm_hysteresis_v": 0.1,
     "ntfy_topic": "loralarm",
     "pushover_user": "${LORALARM_PUSHOVER_USER}",
     "pushover_token": "${LORALARM_PUSHOVER_TOKEN}",

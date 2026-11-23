@@ -23,9 +23,11 @@ phases 0–6).
 | Node-RED parallel run | 🔧 service replays real events and sends notifications; no recorded alarm-for-alarm comparison, no cutover decision yet |
 | Seeded devices | ✅ all 10 in `devices.json` typed: sensor3/8/9/11/16 (RAK), Door1/2 (LDS02), water1/2 (TBWL100), Button 1 (WS101) |
 
-Known gaps that v2 addresses: no hysteresis on battery, delivery results not
+Known gaps that v2 addresses: delivery results not
 recorded, notification queue in memory only, one ntfy topic + one Pushover
-recipient per device (temp now *has* hysteresis: `temp_alarm_hysteresis_c`).
+recipient per device. Hysteresis now exists for temp (`temp_alarm_hysteresis_c`)
+and battery (`batt_alarm_hysteresis_v`); what remains for v2 is the *generic*
+rule-level hysteresis/debounce.
 **v2 phase 1 is done** (registry instance, frame/values with declared fields,
 golden parity test, fixtures tracked); phases 2–5 are next. Shipped on the v1
 structure since 2026-11-11: alarm windows (`schedule.py`, health kinds always
