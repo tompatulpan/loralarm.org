@@ -351,6 +351,34 @@ class PushApiTest(unittest.TestCase):
             r = client.get("/api/push/key")
             self.assertEqual(r.status_code, 503)
 
+    def test_devices_report_push_only_with_a_configured_keypair(self):
+        class NoKey:
+            vapid_private_key = None
+
+        client = self._client_with_webpush(NoKey())     # --web, but no VAPID key
+        login(client, USER["token"])
+        self.assertFalse(client.get("/api/devices").json()["webpush"])
+
+        plain, _, _ = make_client()                     # no --web at all
+        login(plain, USER["token"])
+        self.assertFalse(plain.get("/api/devices").json()["webpush"])
+
+    @unittest.skipUnless(importlib.util.find_spec("cryptography"),
+                         "VAPID derivation needs cryptography (pywebpush dep)")
+    def test_devices_report_push_with_a_working_keypair(self):
+        import os
+        from unittest import mock
+        from loralarm import vapid
+
+        class Worker:
+            vapid_private_key = vapid.generate()[0]
+
+        client = self._client_with_webpush(Worker())
+        login(client, USER["token"])
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("LORALARM_VAPID_PUBLIC_KEY", None)
+            self.assertTrue(client.get("/api/devices").json()["webpush"])
+
     def test_push_test_503_without_webpush(self):
         client, _, _ = make_client()
         login(client, USER["token"])

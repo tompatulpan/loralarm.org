@@ -308,7 +308,11 @@ def create_app(engine: Engine, event_log: EventLog, webpush: Any = None,
 
     @app.get("/api/devices")
     def devices(user: dict = Depends(_guard)):
-        return {"devices": _fleet(user), "webpush": webpush is not None}
+        # `webpush` = subscribing can succeed at all: the worker needs --web and
+        # a VAPID key (without one every push is dropped, and /api/push/key
+        # answers 503). The PWA hides the enable button and says why instead.
+        return {"devices": _fleet(user),
+                "webpush": webpush is not None and _vapid_public_key() is not None}
 
     @app.get("/api/state")
     def state(user: dict = Depends(_guard)):

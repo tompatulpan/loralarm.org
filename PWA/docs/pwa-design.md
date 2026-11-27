@@ -148,8 +148,9 @@ alarm_ack        (user_id, dev_eui, kind, acked_ts)                   -- per-use
     query and the version bump on every change (index.html itself is served
     `cf-cache-status: DYNAMIC`, so a bumped `?v=` reaches every phone on the
     next open, edge cache included).
-- **Web Push:** `pywebpush`, VAPID keypair (generate once, store in service config,
-  gitignore the private key). On alarm transition: for each device, look up subscribed
+- **Web Push:** `pywebpush`, VAPID keypair (generate once with `python3 -m
+  loralarm.vapid`, store in service config, gitignore the private key). On alarm
+  transition: for each device, look up subscribed
   users → endpoints → send. Prune endpoints on 404/410; back off and retry on 429/5xx;
   track `fail_count`/`last_success` and drop endpoints that fail persistently.
 - **Payload spec** (JSON, same Swedish text as `notify.message_text`):
@@ -246,8 +247,9 @@ clock has not started. Shipped beyond this brief: group-based device visibility
    `last_reading`, separate webpush worker skeleton); fleet source decided (§3).
 1. ⏳ Go live on the **loralarm LXC (Proxmox)** — LAN first; Cloudflare Tunnel,
    HTTPS (optionally Access) afterwards. **This is the next step.** Also needs
-   `requirements-web.txt` installed, a VAPID keypair (public key via
-   config/env), `tzdata` in slim images (§3 in the migration spec), and the
+   `requirements-web.txt` installed, a VAPID keypair (`python3 -m
+   loralarm.vapid`, printed as env-file lines; `--check` verifies it), `tzdata`
+   in slim images (§3 in the migration spec), and the
    service started with `--web --static ../../PWA/web`. Runbook for the
    container: [`server/deploy/README.md`](../../server/deploy/README.md).
    Public-go-live specifics: `cloudflared` (container or Proxmox host) →

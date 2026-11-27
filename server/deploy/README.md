@@ -82,6 +82,78 @@ Layout on the container:
    notifications and install-to-home-screen require HTTPS
    (`PWA/docs/pwa-design.md`, §9).
 
+## Web Push (notifications in the PWA)
+
+Push is code-complete and stays off until the instance has a VAPID keypair in
+its env file. Two prerequisites live outside the repo: **HTTPS** (the
+Cloudflare tunnel — browsers allow service workers and push only on secure
+origins, LAN addresses included) and the app **installed on the phone**
+(iOS 16.4+: Share → "Lägg till på hemskärmen"; without the install iOS receives
+no web push at all).
+
+1. **Generate the keypair once**, on the host, with the service venv:
+
+   ```bash
+   ssh <root@lxc> 'cd /opt/loralarm/python && \
+       sudo -u loralarm /opt/loralarm/.venv/bin/python3 -m loralarm.vapid'
+   ```
+
+   Paste the three `LORALARM_VAPID_*` lines into `/etc/loralarm/loralarm.env`,
+   replacing the commented placeholders. **On a live instance keep the key it
+   already has**: a new pair invalidates the registration of every installed
+   phone (the app re-subscribes only when someone re-enables push).
+   `LORALARM_VAPID_PUBLIC_KEY` may be omitted — `/api/push/key` derives it from
+   the private key, and the PWA subscribes with exactly that.
+
+2. **Verify what the service will read** (exit 0 = usable, problems on stdout):
+
+   ```bash
+   ssh <root@lxc> 'cd /opt/loralarm/python && sudo -u loralarm \
+       /opt/loralarm/.venv/bin/python3 -m loralarm.vapid --check \
+       --env-file /etc/loralarm/loralarm.env'
+   ```
+
+   It reports a key that does not belong to its own public key, a missing
+   private key, and a `LORALARM_VAPID_SUB` a push service would reject.
+
+3. **Restart** — env files are read at startup, unlike `devices.json`:
+
+   ```bash
+   ssh <root@lxc> systemctl restart loralarm
+   ssh <root@lxc> journalctl -u loralarm -n 20 --no-pager
+   ```
+
+   The journal must not say `Web Push has no VAPID private key`.
+
+4. **Subscribe on the phone**: open the HTTPS hostname, log in, *Notiser* →
+   "Aktivera push på denna enhet" (allow the permission prompt), then
+   "Skicka test-push". The notification should arrive with the app in the
+   background or closed.
+
+5. **Confirm delivery server-side**:
+
+   ```bash
+   sqlite3 /var/lib/loralarm/loralarm.db \
+     'select ts, status, http_code from webpush_log order by id desc limit 5;'
+   ```
+
+   `sent` = a push service accepted it; `pruned` (404/410) = that browser
+   endpoint was gone and has been deleted (re-enable push on that phone);
+   `failed` with 401/403 = the subscription was made with a different (rotated)
+   VAPID key. `push_ack` holds the service-worker receipt, written once the
+   notification is displayed.
+
+From then on every alarm transition reaches the subscribers of the device: the
+fire notification is `high` urgency with `tag = dev_eui:kind`, so the clear
+replaces it silently. Two log lines mean a device reaches nobody: `has no
+followers; alarm not pushed` (mute toggle under *Push per enhet*) and a test
+push reporting no endpoint (nothing subscribed yet on this browser).
+
+The settings page is the quickest diagnosis: *Push är inte påslagen på servern*
+means the service runs without a usable key (steps 2–3), *Push ej aktiverad*
+means this browser has no subscription yet (step 4), and both green plus a
+failing test push point at the delivery log (step 5).
+
 ## Updating code later
 
 ```bash

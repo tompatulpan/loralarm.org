@@ -97,14 +97,22 @@ sudo bash -c 'cat > /etc/loralarm.env <<EOF
 LORALARM_PUSHOVER_USER=<pushover user key>
 LORALARM_PUSHOVER_TOKEN=<pushover app token>
 LORALARM_TOKEN_<NAME>=<web invite token>
-LORALARM_VAPID_PRIVATE_KEY=<vapid private key>
-LORALARM_VAPID_SUB=<push subject, e.g. mailto:>
 EOF'
 sudo chown root:loralarm /etc/loralarm.env
 sudo chmod 640 /etc/loralarm.env
 ```
 
-Only include the variables your `devices.json` actually references, plus the VAPID pair if Web Push is enabled. Never put secrets in the unit file or the repo. The VAPID keys are for the Web Push channel; generate once and keep stable (subscriptions break when the key changes).
+Only include the variables your `devices.json` actually references. Never put secrets in the unit file or the repo.
+
+**Web Push (VAPID) keys are generated, not invented.** As the service user, from the code directory:
+
+```bash
+cd /opt/loralarm/loralarm.org/server/python
+sudo -u loralarm .venv/bin/python3 -m loralarm.vapid | sudo tee -a /etc/loralarm.env
+sudo -u loralarm .venv/bin/python3 -m loralarm.vapid --check --env-file /etc/loralarm.env
+```
+
+The generator prints `LORALARM_VAPID_PRIVATE_KEY`, `LORALARM_VAPID_PUBLIC_KEY` and `LORALARM_VAPID_SUB` as env-file lines; `--check` exits 0 only for a pair that can actually sign pushes, and flags a public key that does not belong to its private key. Generate once and keep the pair stable: a new key invalidates the push registration of every installed phone. Step 10 covers the phone side.
 
 ## 7. Manual smoke test (before systemd)
 
@@ -192,7 +200,24 @@ ingress:
 
 then `sudo systemctl restart cloudflared` there. Public reachability is HTTPS via Cloudflare only; the origin hop over the LAN is plain HTTP, which the web app's own token/session auth covers.
 
-## 10. Acceptance checks
+## 10. Web Push on the phone
+
+The channel is wired end to end in the code; what is left is host config (step 6) and a subscription per phone. It needs **HTTPS** (step 9) and, on iOS 16.4+, the app **installed** via Share → "Lägg till på hemskärmen" — Safari in a tab receives no web push.
+
+1. On the phone, open `https://alarms.loralarm.org`, log in, *Notiser* → **Aktivera push på denna enhet**, allow the permission prompt.
+2. Press **Skicka test-push**: the notification must arrive with the app in the background or closed.
+3. Confirm the server side:
+
+```bash
+sqlite3 /var/lib/loralarm/loralarm.db \
+  'select ts, status, http_code from webpush_log order by id desc limit 5;'
+```
+
+`sent` = a push service accepted it; `pruned` (404/410) = that endpoint was gone and is now deleted (re-enable push on that phone); `failed` with 401/403 = the subscription was made with a different VAPID key. `push_ack` holds the service-worker receipt, written once the notification is displayed.
+
+If no notification arrives, check in this order: `journalctl -u loralarm | grep -i "web push"` (no VAPID key = every push is dropped), the PWA's *Push per enhet* toggles and group visibility (`has no followers; alarm not pushed` in the journal means the device reaches nobody), and whether the app was opened over the HTTPS hostname that holds the session.
+
+## 11. Acceptance checks
 
 1. `systemctl is-active loralarm` prints `active`.
 2. Journal shows `service running` and `subscribed to ...` once, then no repeating warnings.
@@ -206,6 +231,7 @@ sqlite3 /var/lib/loralarm/loralarm.db 'select kind, count(*) from events group b
 ```
 
 7. Reboot test (optional but recommended): the service comes up on its own and reconnects.
+8. A test push from the PWA reaches the phone (step 10), `webpush_log` shows `sent`, and the app shows the same alarm state as the phone notification.
 
 ## Updating code later
 

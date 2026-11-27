@@ -42,7 +42,7 @@ function rowSeverity(d) {
 let ME = null;            // {name, role}
 let DEVICES = [];         // GET /api/devices
 let STATE = { ok: true, alarms: [], recent: [] };   // GET /api/state
-let WEBPUSH_ON = false;
+let WEBPUSH_ON = null;    // server has a VAPID key (null = not known yet)
 let LAST_OK = 0;          // ms timestamp of the last successful refresh
 let FAILS = 0;            // consecutive failed refreshes
 let SNOOZE_OPEN = null;   // devEUI whose snooze picker is open (survives re-renders)
@@ -512,7 +512,12 @@ async function renderSettings() {
 
   const sub = await pushSubscription();
   const state = $('#push-state'), meta = $('#push-meta');
-  if (!('PushManager' in window)) {
+  if (WEBPUSH_ON === false) {
+    // the server has no VAPID key: subscribing would fail with a 503, so offer
+    // no button and say why (server ops, not something the user can fix)
+    state.textContent = 'Push är inte påslagen på servern';
+    meta.textContent = 'Servern saknar VAPID-nyckel. Kontakta den som driftar LoRaLarm.';
+  } else if (!('PushManager' in window)) {
     state.textContent = 'Push stöds inte i denna webbläsare';
     meta.textContent = '';
   } else if (sub) {
@@ -524,7 +529,8 @@ async function renderSettings() {
     meta.textContent = 'Aktivera för att få larm som notiser';
     $('#push-test').classList.add('hidden');
   }
-  $('#push-enable').classList.toggle('hidden', !!sub || !('PushManager' in window));
+  $('#push-enable').classList.toggle('hidden',
+    WEBPUSH_ON === false || !!sub || !('PushManager' in window));
 
   const list = $('#mute-list');
   list.innerHTML = DEVICES.map((d) => `

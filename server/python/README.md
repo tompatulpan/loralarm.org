@@ -420,6 +420,29 @@ admin in `devices.json`; the file is hot-reloaded, no restart:
 - Admins see everything and are the only ones who may disarm "tills vidare"; ntfy and
   Pushover are per-device topics set in the same file and are not affected by groups.
 
+### Web Push (notifications in the PWA)
+
+The channel is built (`webpush.py`, the `/api/push/*` routes, `PWA/web/sw.js`) and
+starts working as soon as the instance has a VAPID keypair in its environment.
+Generate and verify it with the service venv (`cryptography` arrives with
+`requirements-web.txt`):
+
+```bash
+python3 -m loralarm.vapid                     # env-file lines: private, public, sub
+python3 -m loralarm.vapid --check --env-file /etc/loralarm.env
+```
+
+`LORALARM_VAPID_PRIVATE_KEY` is the one that matters: `/api/push/key` derives the
+public key from it, so the PWA subscribes with exactly the pair the worker signs
+with, and the two can never drift apart. `--check` exits 0 only when the pair can
+sign a push, and reports a public key that does not belong to its own private key.
+Without a key the worker logs one warning and drops pushes — the alarm path is
+unaffected and the PWA simply stays visual-only.
+
+Keep the pair stable: a new key invalidates the registration of every installed
+phone. Phones only subscribe over HTTPS (and on iOS only inside the installed app),
+so the go-live steps live with the deployment: `../deploy/README.md`, "Web Push".
+
 ## Delivery and reliability notes
 
 - Notifications are queued and sent by one worker with retries (1 s / 5 s backoff);
