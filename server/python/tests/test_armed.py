@@ -110,6 +110,22 @@ class ArmedTest(unittest.TestCase):
         log._conn.close()
         self.assertTrue(engine.is_armed(DEV_EUI))   # fail safe: armed
 
+    def test_db_error_keeps_the_last_known_disarmed_state(self):
+        """A failed lookup must not re-arm a device the user switched off (it
+        would fan out an alarm the PWA shows as 'Larm: AV')."""
+        engine, log, notifier = make_engine()
+        engine.on_uplink(make_uplink(obj=sensor_obj()))
+        engine.set_armed(DEV_EUI, False, user="tester")
+        self.assertFalse(engine.is_armed(DEV_EUI))          # one good read, cached
+        stale = engine._armed_cache[DEV_EUI][0] - (ARMED_TTL_S + 1)
+        engine._armed_cache[DEV_EUI] = (stale, False)       # expired: the DB is asked again
+        log._conn.close()
+        with self.assertLogs("loralarm.service", level="ERROR") as cm:
+            self.assertFalse(engine.is_armed(DEV_EUI))
+        self.assertTrue(any("last known" in line for line in cm.output))
+        # the entry stays stale on purpose, so a working DB wins again at once
+        self.assertEqual(engine._armed_cache[DEV_EUI][0], stale)
+
     def test_rearm_without_notifier_does_not_raise(self):
         engine = Engine(make_config(defaults={"motion_mode": "level"}), EventLog(None), None)
         engine.on_uplink(make_uplink(obj=sensor_obj(motion_alert=1)))

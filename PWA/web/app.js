@@ -434,9 +434,12 @@ function renderArm(d) {
   const sw = $('#arm-switch');
   sw.classList.toggle('on', !!d.armed);
   $('#arm-lbl').textContent = d.armed ? '🛡 Larm: PÅ' : '🛡 Larm: AV';
+  // no armed_until = "tills vidare" (admin): nothing re-arms it by itself, so
+  // do not promise a snooze end that does not exist
+  const until = fmtUntil(d.armed_until);
   $('#arm-sub').textContent = d.armed
     ? 'Slå av med snooze (slår på sig själv) — eller tills vidare för admin.'
-    : `Återaktiveras ${fmtUntil(d.armed_until) || 'automatiskt vid snooze-slut'}.`;
+    : (until ? `Återaktiveras ${until}.` : 'Larm av tills vidare — slå på igen här.');
   // the picker stays open across the 15 s refresh; it closes once the device is
   // disarmed or the user navigates away
   const open = d.armed && SNOOZE_OPEN === d.dev_eui;

@@ -627,8 +627,14 @@ class Engine:
 
     def is_armed(self, dev_eui: str) -> bool:
         """Armed state from SQLite, cached ARMED_TTL_S. Called with _lock held:
-        the query is one PK lookup, deliberately short. A DB error fails safe
-        (armed), so a broken DB can never silently disarm a device."""
+        the query is one PK lookup, deliberately short.
+
+        A DB error answers with the last state read for the device (even one
+        older than the TTL) instead of assuming armed: a device the user
+        switched off must not start notifying because one lookup failed. Only
+        a device never read successfully falls back to armed, so a broken DB
+        can still silence a *disarmed* device, but never one we know nothing
+        about — and the failed lookup is retried on the next transition."""
         hit = self._armed_cache.get(dev_eui)
         if hit and time.monotonic() - hit[0] < ARMED_TTL_S:
             return hit[1]
@@ -639,6 +645,11 @@ class Engine:
                 if row:
                     armed = row["armed"]
             except sqlite3.Error:
+                if hit is not None:
+                    # keep the entry stale on purpose: the next call retries
+                    log.exception("armed lookup failed for %s; keeping the last known "
+                                  "state (%s)", dev_eui, "armed" if hit[1] else "disarmed")
+                    return hit[1]
                 log.exception("armed lookup failed for %s; assuming armed (fail safe)", dev_eui)
         self._armed_cache[dev_eui] = (time.monotonic(), armed)
         return armed

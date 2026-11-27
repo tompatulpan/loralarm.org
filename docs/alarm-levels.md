@@ -60,6 +60,28 @@ In the banner list they follow the active alarms, newest first.
 |---|---|---|
 | `signal_weak` *(WARNING; visual state only, no notification)* | RSSI/SNR below threshold; marginal reception, relocate the device/gateway | proposal: `rssi_warn_dbm` / `snr_warn_db` in `params` (today hardcoded −60/−80/−100 dBm resp. SNR 5/0 in the PWA's signal bars) |
 
+Current status (reviewed 2026-11-23): **not implemented — no server-side
+warning exists; the PWA signal bars are the only signal-strength indication,
+and they are display-only.**
+
+- Server carries the values but never acts on them: RSSI/SNR from the first
+  `rxInfo` entry (`event.py:57`) ride on `Frame` (`frame.py:44`), are kept as
+  per-device `last_rssi`/`last_snr` (`alarms.py:363`, persisted in the
+  snapshot) and exposed to the PWA in the state API (`webapp.py:301`). There
+  is no `SIGNAL_WEAK` in `AlarmKind` (`alarms.py:44`), no detector, no event,
+  no notification, no config parameters.
+- PWA computes the bars per uplink in the client (`PWA/web/app.js:335-346`:
+  4/3/2/1 bars at RSSI ≥ −60/−80/−100 dBm; colour from SNR ≥ 5 ok, ≥ 0 warn,
+  else bad — falling back to RSSI ≥ −80/−100 when SNR is unknown). Because
+  `signal_weak` is not in `WARN_KINDS` (`app.js:29`), it does not affect
+  level sorting, banners, Z0 strips or pushes.
+- Implementation gaps to settle before building it: thresholds move from
+  `app.js` to config (per-device/family, with the multi-instance per-house
+  `devices.json` carrying them naturally); hysteresis or an N-consecutive
+  debounce to avoid flapping at the threshold; whether an SNR-less uplink
+  falls back to RSSI thresholds as the PWA does today; and whether it should
+  forewarn the `stale` watchdog (marginal reception predicts lost uplinks).
+
 ## Sorting
 
 1. **ALARM** rows (red)
