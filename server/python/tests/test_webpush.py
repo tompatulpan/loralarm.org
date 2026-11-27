@@ -210,5 +210,52 @@ class WebPushWorkerTest(unittest.TestCase):
             "select status from webpush_log").fetchone()[0], "dry-run")
 
 
+class ClaimsIsolationTest(unittest.TestCase):
+    """pywebpush writes `aud`/`exp` into the claims dict it is given. The worker
+    holds one dict for the whole process, so a shared dict pins the first push
+    service's audience and every later push to another service is rejected as a
+    bad JWT (Apple: 403 BadJwtToken, while Mozilla — contacted first — keeps
+    working). This guards the copy per send.
+    """
+
+    def test_each_send_gets_its_own_copy_of_the_claims(self):
+        import sys
+        import types
+        from unittest import mock
+        from urllib.parse import urlsplit
+
+        from loralarm.webpush import _pywebpush_send
+
+        seen = []
+        fake = types.ModuleType("pywebpush")
+
+        class WebPushException(Exception):
+            response = None
+
+        def webpush(subscription_info, data, vapid_private_key, vapid_claims,
+                    headers=None, ttl=0, timeout=0):
+            # the mutation pywebpush 2.x performs, restricted to `aud`
+            if not vapid_claims.get("aud"):
+                parts = urlsplit(subscription_info["endpoint"])
+                vapid_claims["aud"] = f"{parts.scheme}://{parts.netloc}"
+            seen.append(vapid_claims["aud"])
+            return types.SimpleNamespace(status_code=201)
+
+        fake.WebPushException = WebPushException
+        fake.webpush = webpush
+        claims = {"sub": "mailto:me@example.org"}
+        with mock.patch.dict(sys.modules, {"pywebpush": fake}):
+            _pywebpush_send("key", claims,
+                            {"endpoint": "https://updates.push.services.mozilla.com/a"},
+                            "{}", "high", 60, 5)
+            _pywebpush_send("key", claims,
+                            {"endpoint": "https://web.push.apple.com/b"},
+                            "{}", "high", 60, 5)
+
+        self.assertEqual(seen, ["https://updates.push.services.mozilla.com",
+                                "https://web.push.apple.com"])
+        self.assertNotIn("aud", claims)      # the worker's own dict stays clean
+
+
 if __name__ == "__main__":
     unittest.main()

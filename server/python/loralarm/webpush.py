@@ -43,11 +43,21 @@ class WebPushError(Exception):
 def _pywebpush_send(vapid_private_key: str, vapid_claims: dict,
                     subscription_info: dict, data: str, urgency: str,
                     ttl: int, timeout: float) -> int:
-    """Default send_fn: pywebpush (optional dependency). Returns the HTTP status."""
+    """Default send_fn: pywebpush (optional dependency). Returns the HTTP status.
+
+    pywebpush writes `aud` and `exp` into the claims dict it receives, and only
+    when they are missing (pywebpush/__init__.py: `vapid_claims["aud"] = aud`).
+    The worker keeps one dict for the process, so handing over the live dict
+    pins the first push service's audience and every later push to another
+    service is rejected as a bad JWT — Apple answers 403 BadJwtToken while
+    Mozilla, contacted first, keeps working. Each send therefore gets its own
+    copy: the audience is per endpoint, not per process.
+    """
     from pywebpush import WebPushException, webpush
     try:
         resp = webpush(subscription_info=subscription_info, data=data,
-                       vapid_private_key=vapid_private_key, vapid_claims=vapid_claims,
+                       vapid_private_key=vapid_private_key,
+                       vapid_claims=dict(vapid_claims),
                        headers={"Urgency": urgency}, ttl=ttl, timeout=timeout)
         return getattr(resp, "status_code", 201) or 201
     except WebPushException as e:
