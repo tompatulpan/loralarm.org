@@ -285,6 +285,49 @@ class WorkerResilienceTest(unittest.TestCase):
         self.assertTrue(w._worker.is_alive())
 
 
+class StaleEndpointTest(unittest.TestCase):
+    """iOS keeps answering 201 for a subscription whose app installation is
+    gone, so 404/410 pruning never fires and the missing ack is the only
+    signal. Report only, never delete."""
+
+    def setUp(self):
+        self.log = EventLog(None)
+        self.log.seed_users([{"name": "anna", "token": "t"}])   # id 1
+        self.eid = add_endpoint(self.log, 1, "https://web.push.apple.com/xyz")
+
+    def worker(self):
+        return WebPushWorker(self.log, send_fn=lambda *a: 201)
+
+    def test_delivered_but_unacked_is_reported_once(self):
+        self.log.webpush_log(None, self.eid, "sent", 201)
+        w = self.worker()
+        with self.assertLogs("loralarm.webpush", level="WARNING") as cm:
+            self.assertEqual(w.report_stale(days=30), 1)
+        self.assertIn("no receipt", cm.records[0].getMessage())
+        self.assertNotIn("web.push.apple.com", cm.records[0].getMessage())  # secret
+        self.assertEqual(self.log._conn.execute(
+            "select status from webpush_log order by id desc limit 1").fetchone()[0], "stale")
+        # once per endpoint per process: the watchdog calls this every few minutes
+        self.assertEqual(w.report_stale(days=30), 0)
+
+    def test_an_endpoint_that_acks_is_not_stale(self):
+        from loralarm.events import utc_now
+        ev = self.log.log(utc_now(), DEV_EUI, "sensor3", "motion", True, "x")
+        self.log.webpush_log(ev, self.eid, "sent", 201)
+        self.assertTrue(self.log.log_push_ack(1, ev, self.eid))
+        self.assertEqual(self.worker().report_stale(days=30), 0)
+
+    def test_deliveries_outside_the_window_do_not_count(self):
+        from datetime import timedelta
+        from loralarm.events import utc_now
+        old = self.log._utc(utc_now() - timedelta(days=40))
+        self.log._conn.execute(
+            "INSERT INTO webpush_log (event_id, endpoint_id, status, http_code, ts) "
+            "VALUES (NULL, ?, 'sent', 201, ?)", (self.eid, old))
+        self.log._conn.commit()
+        self.assertEqual(self.worker().report_stale(days=30), 0)
+
+
 class ClaimsIsolationTest(unittest.TestCase):
     """pywebpush writes `aud`/`exp` into the claims dict it is given. The worker
     holds one dict for the whole process, so a shared dict pins the first push

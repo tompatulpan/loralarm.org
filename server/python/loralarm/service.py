@@ -908,6 +908,10 @@ def main() -> int:
     try:
         while not stop.wait(args.watchdog_interval):
             engine.watchdog_tick()
+            if webpush is not None:
+                # an iOS subscription outlives its app installation and keeps
+                # answering 201: only the missing ack reveals it (report only)
+                webpush.report_stale()
             if client.is_connected():
                 disconnected_since = None
             else:

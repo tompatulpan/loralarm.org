@@ -472,6 +472,29 @@ class EventLog:
             self._conn.commit()
             return cur.rowcount > 0
 
+    def unacked_endpoints(self, days: float = 30.0) -> list[dict[str, Any]]:
+        """Endpoints that were delivered to within `days` but acknowledged
+        nothing in that window — the app installation is probably gone: iOS
+        keeps answering 201 for a subscription whose installation was removed,
+        so 404/410 pruning never fires and the missing ack is the only signal.
+        Report only; the row is deleted by the user re-subscribing or by a
+        404/410. Returns [{id, user_id, name, deliveries}] (never the endpoint,
+        which is a secret)."""
+        since = self._utc(utc_now() - timedelta(days=days))
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT e.id, e.user_id, u.name, "
+                "  (SELECT COUNT(*) FROM webpush_log w WHERE w.endpoint_id = e.id "
+                "    AND w.status = 'sent' AND w.ts >= ?) AS deliveries "
+                "FROM push_endpoints e JOIN users u ON u.id = e.user_id "
+                "WHERE EXISTS (SELECT 1 FROM webpush_log w WHERE w.endpoint_id = e.id "
+                "                AND w.status = 'sent' AND w.ts >= ?) "
+                "  AND NOT EXISTS (SELECT 1 FROM push_ack a WHERE a.endpoint_id = e.id "
+                "                    AND a.ts >= ?) "
+                "ORDER BY e.id", (since, since, since)).fetchall()
+        return [{"id": r[0], "user_id": r[1], "name": r[2], "deliveries": r[3]}
+                for r in rows]
+
     def log_push_ack(self, user_id: int, event_id: int, endpoint_id: int) -> bool:
         """Service-worker delivery receipt. Only recorded when the endpoint
         belongs to `user_id` (ids are sequential, so a client could otherwise

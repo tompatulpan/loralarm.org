@@ -97,6 +97,7 @@ class WebPushWorker:
         self._worker: threading.Thread | None = None
         self._closed = False
         self._no_pywebpush_warned = False
+        self._stale_reported: set[int] = set()   # endpoints already reported this run
         if not dry_run and send_fn is None and not vapid_private_key:
             log.warning("Web Push has no VAPID private key "
                         "(LORALARM_VAPID_PRIVATE_KEY); every push will fail")
@@ -122,6 +123,30 @@ class WebPushWorker:
             self._worker = None
             self.start()
         return True
+
+    def report_stale(self, days: float = 30.0) -> int:
+        """Log endpoints that are delivered to but never acknowledge: an iOS
+        subscription outlives its app installation and the push service keeps
+        answering 201, so nothing else notices. Report only — the row stays
+        until the device re-subscribes or the service answers 404/410. Once per
+        endpoint per process, so the watchdog may call this every few minutes."""
+        try:
+            rows = self.event_log.unacked_endpoints(days)
+        except Exception:
+            log.exception("could not check for unacknowledged push endpoints")
+            return 0
+        fresh = [r for r in rows if r["id"] not in self._stale_reported]
+        for r in fresh:
+            self._stale_reported.add(r["id"])
+            log.warning("push endpoint #%d (%s): %d push(es) delivered, no receipt "
+                        "in %.0f days — the device was probably re-installed, ask "
+                        "for push to be enabled again", r["id"], r["name"],
+                        r["deliveries"], days)
+            try:
+                self.event_log.webpush_log(None, r["id"], "stale")
+            except Exception:
+                log.exception("could not record the stale endpoint #%d", r["id"])
+        return len(fresh)
 
     def close(self) -> None:
         self._closed = True
