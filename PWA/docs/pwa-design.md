@@ -77,6 +77,9 @@ flowchart TD
   work, vacation on a noisy sensor). Shown as a 🛡 chip on cards, full toggle on device
   detail. Exposed via `GET/PUT /api/devices/{eui}/armed`. Distinguish from the
   follow-toggle, which is per-user and only gates that user's push notifications.
+  The settings view keeps both switches on the same row per device (`push` = this
+  account, `larm` = everyone); arming is immediate, while switching larm off opens
+  the snooze picker inline — that picker *is* the confirmation step, no dialog.
   Rules (this is the riskiest feature; it can silence frost/break-in alarms for everyone):
   - **Mechanism:** the engine keeps evaluating and logging transitions while disarmed;
     only notification fan-out is suppressed in `Engine._emit`. State and fire-once

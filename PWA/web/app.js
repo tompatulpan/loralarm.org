@@ -47,6 +47,7 @@ let PUSH_ERROR = '';      // why the last enable attempt failed (shown in settin
 let LAST_OK = 0;          // ms timestamp of the last successful refresh
 let FAILS = 0;            // consecutive failed refreshes
 let SNOOZE_OPEN = null;   // devEUI whose snooze picker is open (survives re-renders)
+let SNOOZE_SW = null;     // same, for the settings row's larm switch
 let SWIPE_OPEN = null;    // 'devEUI/kind' of the alarm banner swiped open (ditto)
 let TICKING = false;
 let DEFERRED_INSTALL = null;   // beforeinstallprompt event (Chrome/Android et al.)
@@ -197,6 +198,7 @@ function route() {
   const devMatch = h.match(/^#\/dev\/([0-9a-f]{16})$/);
   const onSettings = h === '#/settings';
   if (!devMatch || devMatch[1] !== SNOOZE_OPEN) SNOOZE_OPEN = null;
+  if (!onSettings) SNOOZE_SW = null;   // the picker only lives in the settings list
   $('#view-fleet').classList.toggle('hidden', !!devMatch || onSettings);
   $('#view-device').classList.toggle('hidden', !devMatch);
   $('#view-settings').classList.toggle('hidden', !onSettings);
@@ -541,17 +543,82 @@ async function renderSettings() {
   $('#push-enable').classList.toggle('hidden',
     WEBPUSH_ON === false || !!sub || !('PushManager' in window));
 
+  // one row per device, two switches side by side: push (this account) and
+  // larm (everyone). The larm switch mirrors the device-detail switch: arming
+  // is immediate, disarming asks for a snooze first — see toggleArmRow.
   const list = $('#mute-list');
-  list.innerHTML = DEVICES.map((d) => `
-    <div class="card">
+  const admin = !!ME && ME.role === 'admin';
+  list.innerHTML = DEVICES.map((d) => {
+    const until = fmtUntil(d.armed_until);
+    const status = d.armed
+      ? 'Larm på — gäller alla'
+      : (until ? `Larm av ${until}` : 'Larm av tills vidare');
+    const open = d.armed && SNOOZE_SW === d.dev_eui;
+    return `
+    <div class="card mqrow" data-eui="${esc(d.dev_eui)}">
       <div class="ic">${KIND_ICON[d.kind] || KIND_ICON.sensor}</div>
-      <div><div class="nm">${esc(d.name)}</div>
-        <div class="meta">${d.armed ? '🛡 larm på' : '🛡 larm av ' + esc(fmtUntil(d.armed_until))}</div></div>
-      <span class="tg ${d.following ? 'on' : ''}" data-eui="${esc(d.dev_eui)}"></span>
-    </div>`).join('');
+      <div class="c1">
+        <div class="nm">${esc(d.name)}</div>
+        <div class="meta">${esc(status)}</div>
+      </div>
+      <div class="sw">
+        <div class="item">
+          <span class="tg ${d.following ? 'on' : ''}" title="Push vid larm till dig"></span>
+          <small>push</small>
+        </div>
+        <div class="item">
+          <span class="armswitch ${d.armed ? 'on' : ''}" title="Larm för alla användare"></span>
+          <small>larm</small>
+        </div>
+      </div>
+      <div class="snzbox${open ? '' : ' hidden'}">
+        <div class="sect">Stäng av larmet i…</div>
+        <div class="btnrow">
+          <button class="btn ghost small snz" data-h="1">1 h</button>
+          <button class="btn ghost small snz" data-h="8">8 h</button>
+          <button class="btn ghost small snz" data-h="24">24 h</button>
+          ${admin ? '<button class="btn ghost small snz-off">tills vidare</button>' : ''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  const rowEui = (el) => el.closest('.mqrow').dataset.eui;
   list.querySelectorAll('.tg').forEach((tg) => {
-    tg.addEventListener('click', () => toggleFollow(device(tg.dataset.eui)));
+    tg.addEventListener('click', () => toggleFollow(device(rowEui(tg))));
   });
+  list.querySelectorAll('.armswitch').forEach((sw) => {
+    sw.addEventListener('click', () => toggleArmRow(device(rowEui(sw))));
+  });
+  list.querySelectorAll('.snz').forEach((b) => {
+    b.addEventListener('click', () =>
+      setArmedRow(device(rowEui(b)), { armed: false, snooze_hours: Number(b.dataset.h) },
+        `Larm av i ${b.dataset.h} h`));
+  });
+  list.querySelectorAll('.snz-off').forEach((b) => {
+    b.addEventListener('click', () =>
+      setArmedRow(device(rowEui(b)), { armed: false }, 'Larm av tills vidare'));
+  });
+}
+
+// the settings larm switch: off needs a duration first (server allows
+// "tills vidare" for admins only), so opening the picker instead of disarming
+function toggleArmRow(d) {
+  if (d.armed) {
+    SNOOZE_SW = SNOOZE_SW === d.dev_eui ? null : d.dev_eui;
+    renderSettings();
+    return;
+  }
+  setArmedRow(d, { armed: true }, 'Larm på');
+}
+
+async function setArmedRow(d, body, msg) {
+  try {
+    await api(`/api/devices/${d.dev_eui}/armed`, { method: 'PUT', body });
+    SNOOZE_SW = null;
+    toast(msg);
+    await refresh();
+    renderSettings();
+  } catch (e) { toast(e.message); }
 }
 
 function b64urlToBuffer(b64) {

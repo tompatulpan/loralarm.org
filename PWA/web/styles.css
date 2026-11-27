@@ -149,6 +149,16 @@ input.pin:focus{outline:none;border-color:#1f6feb}
 .tg::after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#8b949e;transition:.2s}
 .tg.on{background:#1f6feb}
 .tg.on::after{left:18px;background:#fff}
+/* settings row: two labelled switches on one line (push = this account,
+   larm = everyone) plus the snooze picker that unfolds under the row */
+.card.mqrow{flex-wrap:wrap}
+.card.mqrow .c1{flex:1;min-width:0}
+.card.mqrow .c1 .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card.mqrow .sw{display:flex;gap:14px;flex:none;margin-left:auto}
+.card.mqrow .sw .item{display:flex;flex-direction:column;align-items:center;gap:4px}
+.card.mqrow .sw small{font-size:.54rem;color:#8b949e;letter-spacing:.06em;text-transform:uppercase}
+.card.mqrow .snzbox{flex-basis:100%;margin-top:8px;padding-top:8px;border-top:1px solid #21262d}
+.card.mqrow .snzbox .sect{padding-left:0}
 
 /* detail */
 .kv{background:#161b22;border:1px solid #21262d;border-radius:12px;padding:4px 14px}
