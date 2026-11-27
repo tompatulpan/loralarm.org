@@ -197,6 +197,18 @@ class WebPushWorkerTest(unittest.TestCase):
         self.drain(w)
         self.assertEqual(calls, [])
 
+    def test_followers_without_any_endpoint_are_logged_not_silent(self):
+        """Followers exist but none has a subscribed browser: the skip must be
+        visible in the journal — a silent one reads as 'push is broken'."""
+        self.log.seed_users([{"name": "bosse", "token": "u2"}])   # 2 followers, 0 endpoints
+        sent = []
+        w = self.make_worker(lambda si, p, u, t, to: sent.append(si) or 201)
+        with self.assertLogs("loralarm.webpush", level="INFO") as cm:
+            w.fan_out(self.cfg, "motion", True, "t", "m", 1)
+            self.drain(w)
+        self.assertEqual(sent, [])
+        self.assertIn("none with a push endpoint", cm.records[0].getMessage())
+
     def test_dry_run_logs_without_sending(self):
         e1 = add_endpoint(self.log, 1, "https://push.example/aaa")
         calls = []
@@ -208,6 +220,69 @@ class WebPushWorkerTest(unittest.TestCase):
         self.assertEqual(calls, [])   # send_fn never called
         self.assertEqual(self.log._conn.execute(
             "select status from webpush_log").fetchone()[0], "dry-run")
+
+
+class WorkerResilienceTest(unittest.TestCase):
+    """A dead worker thread is invisible: pushes keep being enqueued and are
+    never sent, with no log line, until the service restarts. Both the per-job
+    handler and fan_out have to keep the thread alive."""
+
+    def setUp(self):
+        self.log = EventLog(None)
+        self.log.seed_users([{"name": "anna", "token": "t"}])   # id 1, follows all
+        self.cfg = make_cfg()
+        add_endpoint(self.log, 1, "https://push.example/aaa")
+
+    @staticmethod
+    def wait(w, timeout=2.0):
+        """Poll instead of queue.join(): a dead thread would hang the join."""
+        import time
+        deadline = time.time() + timeout
+        while w._queue.unfinished_tasks and time.time() < deadline:
+            time.sleep(0.01)
+
+    def make_worker(self, sent):
+        w = WebPushWorker(self.log, send_fn=lambda si, p, u, t, to:
+                          sent.append(si["endpoint"]) or 201)
+        self.addCleanup(w.close)
+        return w
+
+    def test_a_failing_test_job_does_not_kill_the_worker(self):
+        # a test job has no "cfg": the old handler read job["cfg"].dev_eui and
+        # raised KeyError from inside `except`, killing the thread for good
+        sent = []
+        w = self.make_worker(sent)
+        w.start()
+        real = w._deliver
+
+        def boom(job):
+            if job.get("test"):
+                raise RuntimeError("poisoned test job")
+            return real(job)
+
+        w._deliver = boom
+        with self.assertLogs("loralarm.webpush", level="ERROR") as cm:
+            w.test_push(1, "t", "b")
+            w.fan_out(self.cfg, "motion", True, "t", "m", 1)
+            self.wait(w)
+        self.assertIn("test push", cm.records[0].getMessage())
+        self.assertTrue(w._worker.is_alive())
+        self.assertEqual(sent, ["https://push.example/aaa"])
+
+    def test_a_dead_worker_thread_is_revived_by_fan_out(self):
+        import threading
+        sent = []
+        w = self.make_worker(sent)          # deliberately never started
+        dead = threading.Thread(target=lambda: None)
+        dead.start()
+        dead.join()
+        w._worker = dead                    # the shape of a worker that died
+        with self.assertLogs("loralarm.webpush", level="ERROR") as cm:
+            w.fan_out(self.cfg, "motion", True, "t", "m", 1)
+            self.wait(w)
+        self.assertIn("worker thread is gone", cm.records[0].getMessage())
+        self.assertEqual(sent, ["https://push.example/aaa"])
+        self.assertTrue(w._worker.is_alive())
 
 
 class ClaimsIsolationTest(unittest.TestCase):

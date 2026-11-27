@@ -26,6 +26,17 @@ log = logging.getLogger(__name__)
 PUSH_TTL_S = 3600  # a fire push arriving hours later is noise
 
 
+def _job_label(job: Any) -> str:
+    """Name a queue item for a log line without assuming its shape: alarm jobs
+    carry `cfg`/`kind`, test jobs carry neither."""
+    if not isinstance(job, dict):
+        return "unknown job"
+    if job.get("test"):
+        return "test push"
+    cfg = job.get("cfg")
+    return f"{getattr(cfg, 'dev_eui', '?')} {job.get('kind', '?')}"
+
+
 class WebPushError(Exception):
     """A push service answered with an error status (e.g. 404/410 = prune).
 
@@ -96,6 +107,22 @@ class WebPushWorker:
                                             daemon=True)
             self._worker.start()
 
+    def _ensure_worker(self) -> bool:
+        """True when a live worker drains the queue. A thread that died (a bug
+        in the per-job handler, e.g. the KeyError that a test job without "cfg"
+        used to cause) would otherwise leave every later push queued forever —
+        silent, no log line, no delivery, until the service restarts."""
+        if self._closed:
+            return False
+        if self._worker is None:
+            self.start()
+        elif not self._worker.is_alive():
+            log.error("webpush worker thread is gone; starting a new one "
+                      "(queued pushes are kept)")
+            self._worker = None
+            self.start()
+        return True
+
     def close(self) -> None:
         self._closed = True
         if self._worker is not None:
@@ -106,12 +133,12 @@ class WebPushWorker:
     def fan_out(self, cfg, kind: str, active: bool, title: str, message: str,
                 event_id: int | None) -> None:
         """Enqueue one alarm transition for the device's followers. Never blocks."""
-        if self._worker is not None and not self._closed:
-            self._queue.put({"cfg": cfg, "kind": kind, "active": active,
-                             "title": title, "message": message, "event_id": event_id})
+        job = {"cfg": cfg, "kind": kind, "active": active,
+               "title": title, "message": message, "event_id": event_id}
+        if self._ensure_worker():
+            self._queue.put(job)
         else:
-            self._deliver({"cfg": cfg, "kind": kind, "active": active,
-                           "title": title, "message": message, "event_id": event_id})
+            self._deliver(job)
 
     def test_push(self, user_id: int, title: str, body: str) -> int:
         """Test notification to one user's own endpoints (PWA settings page),
@@ -123,7 +150,7 @@ class WebPushWorker:
             endpoints = []
         job = {"test": True, "endpoints": endpoints, "title": title,
                "body": body, "event_id": None}
-        if self._worker is not None and not self._closed:
+        if self._ensure_worker():
             self._queue.put(job)
         else:
             self._deliver(job)
@@ -138,9 +165,10 @@ class WebPushWorker:
                 self._deliver(job)
             except Exception:
                 # last resort: the worker thread must never die silently, and a
-                # push problem must never touch the alarm path
-                log.exception("webpush worker failed for %s %s",
-                              job["cfg"].dev_eui, job["kind"])
+                # push problem must never touch the alarm path. The label must
+                # not assume the job's shape — a test job has no "cfg", and
+                # raising in here is what used to kill the thread for good.
+                log.exception("webpush worker failed for %s", _job_label(job))
             finally:
                 self._queue.task_done()
 
@@ -164,6 +192,13 @@ class WebPushWorker:
             endpoints = self.event_log.endpoints_for_users(user_ids)
         except Exception:
             log.exception("could not resolve push endpoints for %s", cfg.dev_eui)
+            return
+        if user_ids and not endpoints:
+            # every follower of this device has push switched off, or none of
+            # them has a browser subscribed: nothing to send, and without this
+            # line the skip is completely silent (looks like "push is broken")
+            log.info("device %s (%s): %d follower(s), none with a push endpoint",
+                     cfg.name, cfg.dev_eui, len(user_ids))
             return
         payload = json.dumps({"title": job["title"], "body": job["message"],
                               "dev_eui": cfg.dev_eui, "kind": job["kind"],
