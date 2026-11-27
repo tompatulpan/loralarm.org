@@ -154,6 +154,23 @@ means the service runs without a usable key (steps 2–3), *Push ej aktiverad*
 means this browser has no subscription yet (step 4), and both green plus a
 failing test push point at the delivery log (step 5).
 
+Two device-side situations produce the same silence and the same empty ack
+list, so the log alone cannot separate them:
+
+- **Focus / Do Not Disturb without the app allowed** suppresses the push on
+  iOS: the notification never appears *and* the service worker never runs, so
+  no `push_ack` arrives either. Check this first — it costs nothing. Settings →
+  Focus → the active mode → Apps → allow LoRaLarm (the web-app name), then send
+  a test push. An alarm that must wake someone still cannot rely on this: Web
+  Push cannot request the Time Sensitive/Critical interruption levels
+  (`PWA/docs/pwa-design.md`, §7), which is why Pushover stays for that.
+- **A dead installation** (app deleted or its storage cleared) looks identical
+  from the server: `webpush_log` keeps showing `sent 201` — Apple answers for a
+  subscription long after the installation is gone — and no receipt ever comes
+  back. Re-enable push on that device; it registers a new endpoint. The service
+  reports endpoints with deliveries but no receipt for 30 days as
+  `status='stale'` in `webpush_log` and in the journal.
+
 ## Updating code later
 
 ```bash

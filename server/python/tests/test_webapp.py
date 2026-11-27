@@ -271,6 +271,36 @@ class PushApiTest(unittest.TestCase):
             (eid,)).fetchone()[0], "display-failed")
         self.assertTrue(r.json()["ok"])          # the ack itself is still an ack
 
+    def test_test_push_display_is_recorded(self):
+        """"Test push sent" must not be mistaken for "the phone got it": a test
+        push carries no event, so the device reports its display separately."""
+        client, _, log = make_client()
+        login(client, USER["token"])
+        sub = {"endpoint": PUSH, "keys": {"p256dh": "p", "auth": "a"}}
+        eid = client.post("/api/push/subscribe", json=sub, headers=HEADERS).json()["endpoint_id"]
+
+        with self.assertLogs("loralarm.webapp", level="INFO") as cm:
+            r = client.post("/api/push/ack", json={"test": True, "endpoint": PUSH},
+                            headers=HEADERS)
+        self.assertTrue(r.json()["ok"])
+        self.assertIn("displayed", cm.records[0].getMessage())
+        self.assertEqual(log._conn.execute(
+            "select status from webpush_log where endpoint_id=? order by id desc limit 1",
+            (eid,)).fetchone()[0], "displayed")
+
+        r = client.post("/api/push/ack",
+                        json={"test": True, "endpoint": PUSH, "failed": "NotAllowedError"},
+                        headers=HEADERS)
+        self.assertTrue(r.json()["ok"])
+        self.assertEqual(log._conn.execute(
+            "select status from webpush_log where endpoint_id=? order by id desc limit 1",
+            (eid,)).fetchone()[0], "display-failed")
+
+        # an unknown endpoint reports nothing
+        r = client.post("/api/push/ack", json={"test": True, "endpoint": "https://fcm.googleapis.com/x"},
+                        headers=HEADERS)
+        self.assertFalse(r.json()["ok"])
+
     def test_subscribe_validates(self):
         client, _, _ = make_client()
         login(client, USER["token"])

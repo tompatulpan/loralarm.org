@@ -453,14 +453,29 @@ def create_app(engine: Engine, event_log: EventLog, webpush: Any = None,
 
     @app.post("/api/push/ack", dependencies=[Depends(_csrf)])
     def push_ack(body: dict = Depends(_body), user: dict = Depends(_guard)):
-        # called by the service worker on delivery (with the X-Requested-With
-        # header); idempotent, owner-checked, and only for events that exist.
-        # `failed` means the device could not display it (iOS rejects
-        # showNotification when notifications are off for the installed app) —
-        # that is the only trace such a push leaves, so record it.
-        event_id = _number(body.get("event_id"), "event_id", 1, 2**62)
+        # called by the service worker after it displayed (or refused) a push,
+        # with the X-Requested-With header; owner-checked throughout. `failed`
+        # means the device could not display it — on iOS the notification is
+        # suppressed before the worker runs when a Focus mode does not allow the
+        # app, so a display report is the only trace such a push leaves.
         eid = event_log.endpoint_id(str(body.get("endpoint") or ""))
         failed = str(body.get("failed") or "")[:60]
+        if body.get("test"):
+            # a test push has no event behind it: record that the device showed
+            # it (or did not), so "201 from the push service" is never mistaken
+            # for "the phone got it"
+            if eid is None:
+                return {"ok": False}
+            status = "display-failed" if failed else "displayed"
+            log.info("test push %s on endpoint #%d%s",
+                     "refused" if failed else "displayed", eid,
+                     f" ({failed})" if failed else "")
+            try:
+                event_log.webpush_log(None, eid, status)
+            except Exception:
+                log.exception("could not record the test push display for #%d", eid)
+            return {"ok": True}
+        event_id = _number(body.get("event_id"), "event_id", 1, 2**62)
         if failed and eid is not None:
             log.warning("push %s was not displayed on the device (%s)",
                         event_id, failed)

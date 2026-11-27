@@ -474,12 +474,14 @@ class EventLog:
 
     def unacked_endpoints(self, days: float = 30.0) -> list[dict[str, Any]]:
         """Endpoints that were delivered to within `days` but acknowledged
-        nothing in that window — the app installation is probably gone: iOS
-        keeps answering 201 for a subscription whose installation was removed,
-        so 404/410 pruning never fires and the missing ack is the only signal.
-        Report only; the row is deleted by the user re-subscribing or by a
-        404/410. Returns [{id, user_id, name, deliveries}] (never the endpoint,
-        which is a secret)."""
+        nothing in that window. The push service answers 201 regardless, so
+        404/410 pruning never fires and the missing ack is the only signal: on
+        iOS the notification was suppressed before the service worker ran (Focus
+        mode not allowing the app, notifications switched off) or the app
+        installation is gone and its subscription outlived it. Report only; the
+        row is deleted by the user re-subscribing or by a 404/410. Returns
+        [{id, user_id, name, deliveries}] (never the endpoint, which is a
+        secret)."""
         since = self._utc(utc_now() - timedelta(days=days))
         with self._lock:
             rows = self._conn.execute(

@@ -125,11 +125,14 @@ class WebPushWorker:
         return True
 
     def report_stale(self, days: float = 30.0) -> int:
-        """Log endpoints that are delivered to but never acknowledge: an iOS
-        subscription outlives its app installation and the push service keeps
-        answering 201, so nothing else notices. Report only — the row stays
-        until the device re-subscribes or the service answers 404/410. Once per
-        endpoint per process, so the watchdog may call this every few minutes."""
+        """Log endpoints that are delivered to but never acknowledge. The push
+        service answers 201 regardless, so nothing else notices: on iOS the
+        notification is either suppressed before the service worker runs (the
+        device's Focus mode does not allow the app, or notifications are off) or
+        the installation is gone and the subscription outlives it. Report only —
+        the row stays until the device re-subscribes or the service answers
+        404/410. Once per endpoint per process, so the watchdog may call this
+        every few minutes."""
         try:
             rows = self.event_log.unacked_endpoints(days)
         except Exception:
@@ -139,9 +142,9 @@ class WebPushWorker:
         for r in fresh:
             self._stale_reported.add(r["id"])
             log.warning("push endpoint #%d (%s): %d push(es) delivered, no receipt "
-                        "in %.0f days — the device was probably re-installed, ask "
-                        "for push to be enabled again", r["id"], r["name"],
-                        r["deliveries"], days)
+                        "in %.0f days — check the device's Focus mode and "
+                        "notification permission, and whether push needs enabling "
+                        "again", r["id"], r["name"], r["deliveries"], days)
             try:
                 self.event_log.webpush_log(None, r["id"], "stale")
             except Exception:

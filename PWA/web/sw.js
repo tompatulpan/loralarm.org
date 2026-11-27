@@ -31,11 +31,13 @@ self.addEventListener('push', (e) => {
 });
 
 async function ackDelivery(d, failed) {
-  if (!d.event_id) return;   // test pushes have no event to ack against
   try {
     const sub = await self.registration.pushManager.getSubscription();
     if (!sub) return;
-    const payload = { event_id: d.event_id, endpoint: sub.endpoint };
+    const payload = { endpoint: sub.endpoint };
+    // a test push has no event to ack against, but "displayed" is exactly the
+    // answer the settings page needs: a 201 from the push service is not proof
+    if (d.event_id) payload.event_id = d.event_id; else payload.test = true;
     if (failed) payload.failed = failed;
     await fetch('/api/push/ack', {
       method: 'POST',
