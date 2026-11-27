@@ -20,19 +20,27 @@ self.addEventListener('push', (e) => {
       renotify: true,
       silent: d.active === false,    // a clear replaces its fire notification quietly
       data: { dev_eui: d.dev_eui || '', event_id: d.event_id || null },
-    }).then(() => ackDelivery(d))
+    }).then(
+      () => ackDelivery(d),
+      // the device refused to show it (iOS: notifications off for the installed
+      // app, or no permission any more). Without this report the push leaves no
+      // trace at all on the server: accepted by Apple, never displayed.
+      (err) => ackDelivery(d, (err && err.name) || 'NotificationError')
+    )
   );
 });
 
-async function ackDelivery(d) {
+async function ackDelivery(d, failed) {
   if (!d.event_id) return;   // test pushes have no event to ack against
   try {
     const sub = await self.registration.pushManager.getSubscription();
     if (!sub) return;
+    const payload = { event_id: d.event_id, endpoint: sub.endpoint };
+    if (failed) payload.failed = failed;
     await fetch('/api/push/ack', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'loralarm' },
-      body: JSON.stringify({ event_id: d.event_id, endpoint: sub.endpoint }),
+      body: JSON.stringify(payload),
     });
   } catch (_) { /* ack is best-effort */ }
 }

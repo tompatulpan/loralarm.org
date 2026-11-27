@@ -454,9 +454,21 @@ def create_app(engine: Engine, event_log: EventLog, webpush: Any = None,
     @app.post("/api/push/ack", dependencies=[Depends(_csrf)])
     def push_ack(body: dict = Depends(_body), user: dict = Depends(_guard)):
         # called by the service worker on delivery (with the X-Requested-With
-        # header); idempotent, owner-checked, and only for events that exist
+        # header); idempotent, owner-checked, and only for events that exist.
+        # `failed` means the device could not display it (iOS rejects
+        # showNotification when notifications are off for the installed app) —
+        # that is the only trace such a push leaves, so record it.
         event_id = _number(body.get("event_id"), "event_id", 1, 2**62)
         eid = event_log.endpoint_id(str(body.get("endpoint") or ""))
+        failed = str(body.get("failed") or "")[:60]
+        if failed and eid is not None:
+            log.warning("push %s was not displayed on the device (%s)",
+                        event_id, failed)
+            try:
+                event_log.webpush_log(int(event_id), eid, "display-failed", None)
+            except Exception:
+                log.exception("could not record the display failure for %s",
+                              event_id)
         ok = (eid is not None and event_log.event_exists(int(event_id))
               and event_log.log_push_ack(user["id"], int(event_id), eid))
         return {"ok": ok}

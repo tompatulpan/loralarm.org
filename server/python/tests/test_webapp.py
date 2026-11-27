@@ -251,6 +251,26 @@ class PushApiTest(unittest.TestCase):
         self.assertTrue(r.json()["ok"])
         self.assertIsNone(log.endpoint_id(sub["endpoint"]))
 
+    def test_display_failure_is_recorded_as_such(self):
+        """A device that refuses to show the notification (iOS with
+        notifications off for the installed app) reports it: without this the
+        push leaves no trace — accepted by Apple, never displayed."""
+        client, _, log = make_client()
+        login(client, USER["token"])
+        sub = {"endpoint": PUSH, "keys": {"p256dh": "p", "auth": "a"}}
+        eid = client.post("/api/push/subscribe", json=sub, headers=HEADERS).json()["endpoint_id"]
+        ev = log.log(T0, DEV_EUI, "sensor3", "motion", True, "x")
+        with self.assertLogs("loralarm.webapp", level="WARNING") as cm:
+            r = client.post("/api/push/ack",
+                            json={"event_id": ev, "endpoint": PUSH,
+                                  "failed": "NotAllowedError"}, headers=HEADERS)
+        self.assertIn("not displayed", cm.records[0].getMessage())
+        self.assertIn("NotAllowedError", cm.records[0].getMessage())
+        self.assertEqual(log._conn.execute(
+            "select status from webpush_log where endpoint_id=? order by id desc limit 1",
+            (eid,)).fetchone()[0], "display-failed")
+        self.assertTrue(r.json()["ok"])          # the ack itself is still an ack
+
     def test_subscribe_validates(self):
         client, _, _ = make_client()
         login(client, USER["token"])
