@@ -27,11 +27,17 @@ PUSH_TTL_S = 3600  # a fire push arriving hours later is noise
 
 
 class WebPushError(Exception):
-    """A push service answered with an error status (e.g. 404/410 = prune)."""
+    """A push service answered with an error status (e.g. 404/410 = prune).
 
-    def __init__(self, status: int):
+    `body` is the service's own explanation (Apple answers 403 with
+    `{"reason": "BadJwtToken"}` etc.); it goes to the journal, never to the DB,
+    because it is the difference between "403, guess again" and a diagnosis.
+    """
+
+    def __init__(self, status: int, body: str = ""):
         super().__init__(f"push service status {status}")
         self.status = status
+        self.body = (body or "").strip()
 
 
 def _pywebpush_send(vapid_private_key: str, vapid_claims: dict,
@@ -46,7 +52,8 @@ def _pywebpush_send(vapid_private_key: str, vapid_claims: dict,
         return getattr(resp, "status_code", 201) or 201
     except WebPushException as e:
         status = e.response.status_code if e.response is not None else 0
-        raise WebPushError(status) from e
+        body = getattr(e.response, "text", "") if e.response is not None else ""
+        raise WebPushError(status, body[:300]) from e
 
 
 class WebPushWorker:
@@ -166,7 +173,7 @@ class WebPushWorker:
             try:
                 code = self._send_fn(sub_info, payload, urgency, PUSH_TTL_S, self.timeout)
             except WebPushError as e:
-                self._record(event_id, ep, "failed", e.status)
+                self._record(event_id, ep, "failed", e.status, e.body)
             except Exception as e:
                 if self._is_missing_dependency(e):
                     if not self._no_pywebpush_warned:
@@ -180,7 +187,7 @@ class WebPushWorker:
                 self._record(event_id, ep, "sent", code)
 
     def _record(self, event_id: int | None, ep: dict[str, Any], status: str,
-                code: int | None) -> None:
+                code: int | None, detail: str = "") -> None:
         """Per-endpoint bookkeeping; a DB error here must not stop delivery to
         the remaining endpoints."""
         try:
@@ -191,7 +198,8 @@ class WebPushWorker:
                     status = "pruned"
                     log.info("pruned push endpoint #%d (status %s)", ep["id"], code)
                 elif code is not None:
-                    log.warning("push to endpoint #%d failed (status %d)", ep["id"], code)
+                    log.warning("push to endpoint #%d failed (status %s)%s",
+                                ep["id"], code, f": {detail}" if detail else "")
             self.event_log.webpush_log(event_id, ep["id"], status, code)
         except Exception:
             log.exception("webpush bookkeeping failed for endpoint #%d", ep["id"])

@@ -122,6 +122,24 @@ class WebPushWorkerTest(unittest.TestCase):
             "select status, http_code from webpush_log").fetchone()
         self.assertEqual(row, ("failed", 500))
 
+    def test_failure_logs_the_push_services_reason(self):
+        """Apple answers 403 with {"reason": ...}; that text is the diagnosis,
+        so it must reach the journal (and stay out of the DB)."""
+        e1 = add_endpoint(self.log, 1, "https://web.push.apple.com/xyz")
+
+        def send_fn(sub_info, payload, urgency, ttl, timeout):
+            raise WebPushError(403, '{"reason":"BadJwtToken"}')
+
+        w = self.make_worker(send_fn)
+        with self.assertLogs("loralarm.webpush", level="WARNING") as cm:
+            w.fan_out(self.cfg, "motion", True, "t", "m", 9)
+            self.drain(w)
+        self.assertIn("BadJwtToken", cm.records[0].getMessage())
+        self.assertEqual(self.log._conn.execute(
+            "select status, http_code from webpush_log").fetchone(), ("failed", 403))
+        self.assertEqual(self.log._conn.execute(
+            "select fail_count from push_endpoints where id = ?", (e1,)).fetchone()[0], 1)
+
     def test_bookkeeping_error_does_not_stop_remaining_endpoints(self):
         add_endpoint(self.log, 1, "https://push.example/aaa")
         add_endpoint(self.log, 1, "https://push.example/bbb")
