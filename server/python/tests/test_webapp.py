@@ -165,7 +165,7 @@ class ArmedApiTest(unittest.TestCase):
         login(client, USER["token"])
         r = client.get(f"/api/devices/{DEV_EUI}/armed").json()
         self.assertTrue(r["armed"])
-        self.assertFalse(r["can_disarm_forever"])   # bosse is not admin
+        self.assertTrue(r["can_disarm_forever"])    # every user may disconnect it for good
 
     def test_disarm_with_snooze_suppresses_and_audits(self):
         client, engine, log = make_client()
@@ -195,16 +195,22 @@ class ArmedApiTest(unittest.TestCase):
         client.put(f"/api/devices/{DEV_EUI}/armed", json={"armed": True}, headers=HEADERS)
         self.assertEqual([a["kind"] for a in client.get("/api/state").json()["alarms"]], ["motion"])
 
-    def test_disarm_forever_requires_admin(self):
-        client, _, _ = make_client()
-        login(client, USER["token"])
+    def test_disarm_forever_and_any_snooze_need_no_role(self):
+        client, engine, _ = make_client()
+        login(client, USER["token"])            # bosse is a plain user
         r = client.put(f"/api/devices/{DEV_EUI}/armed", json={"armed": False}, headers=HEADERS)
-        self.assertEqual(r.status_code, 403)
-        # non-admin snooze must be a preset
-        r = client.put(f"/api/devices/{DEV_EUI}/armed",
-                       json={"armed": False, "snooze_hours": 3}, headers=HEADERS)
-        self.assertEqual(r.status_code, 403)
-        # admin may go "tills vidare"
+        self.assertEqual(r.status_code, 200)
+        self.assertIsNone(r.json()["until"])
+        self.assertFalse(engine.is_armed(DEV_EUI))
+        client.put(f"/api/devices/{DEV_EUI}/armed", json={"armed": True}, headers=HEADERS)
+        # same snooze options as an admin: presets and anything else in range
+        for hours in (1, 3, 24):
+            r = client.put(f"/api/devices/{DEV_EUI}/armed",
+                           json={"armed": False, "snooze_hours": hours}, headers=HEADERS)
+            self.assertEqual(r.status_code, 200, hours)
+            self.assertIsNotNone(r.json()["until"], hours)
+            client.put(f"/api/devices/{DEV_EUI}/armed", json={"armed": True}, headers=HEADERS)
+        # the admin keeps exactly the same options
         login(client, ADMIN["token"])
         r = client.put(f"/api/devices/{DEV_EUI}/armed", json={"armed": False}, headers=HEADERS)
         self.assertEqual(r.status_code, 200)

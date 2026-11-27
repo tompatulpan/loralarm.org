@@ -327,7 +327,7 @@ function pillFor(d) {
     return `<span class="pill ${warnOnly(rowKinds(d)) ? 'warn' : 'alarm'}">${d.active.map((k) => esc(KIND_LABEL[k] || k)).join(', ').toUpperCase()}</span>`;
   }
   if (!d.armed) {                      // AV · HH:MM (v2: pillen, inte något chip)
-    // "tills vidare" (admin) har ingen armed_until: bara "AV". OBS: isNaN(null)
+    // "tills vidare" har ingen armed_until: bara "AV". OBS: isNaN(null)
     // är falskt (Number(null)===0), så null-testet måste komma explicit först
     const u = d.armed_until ? new Date(d.armed_until) : null;
     const until = (u && !isNaN(u))
@@ -440,17 +440,16 @@ function renderArm(d) {
   const sw = $('#arm-switch');
   sw.classList.toggle('on', !!d.armed);
   $('#arm-lbl').textContent = d.armed ? '🛡 Larm: PÅ' : '🛡 Larm: AV';
-  // no armed_until = "tills vidare" (admin): nothing re-arms it by itself, so
+  // no armed_until = "tills vidare": nothing re-arms it by itself, so
   // do not promise a snooze end that does not exist
   const until = fmtUntil(d.armed_until);
   $('#arm-sub').textContent = d.armed
-    ? 'Slå av med snooze (slår på sig själv) — eller tills vidare för admin.'
+    ? 'Slå av med snooze (slår på sig själv) — eller tills vidare.'
     : (until ? `Återaktiveras ${until}.` : 'Larm av tills vidare — slå på igen här.');
   // the picker stays open across the 15 s refresh; it closes once the device is
   // disarmed or the user navigates away
   const open = d.armed && SNOOZE_OPEN === d.dev_eui;
   $('#snooze-row').classList.toggle('hidden', !open);
-  $('#snooze-forever').classList.toggle('hidden', ME?.role !== 'admin');
   sw.onclick = async () => {
     try {
       if (d.armed) {
@@ -547,7 +546,6 @@ async function renderSettings() {
   // larm (everyone). The larm switch mirrors the device-detail switch: arming
   // is immediate, disarming asks for a snooze first — see toggleArmRow.
   const list = $('#mute-list');
-  const admin = !!ME && ME.role === 'admin';
   list.innerHTML = DEVICES.map((d) => {
     const until = fmtUntil(d.armed_until);
     const status = d.armed
@@ -577,7 +575,7 @@ async function renderSettings() {
           <button class="btn ghost small snz" data-h="1">1 h</button>
           <button class="btn ghost small snz" data-h="8">8 h</button>
           <button class="btn ghost small snz" data-h="24">24 h</button>
-          ${admin ? '<button class="btn ghost small snz-off">tills vidare</button>' : ''}
+          <button class="btn ghost small snz-off">tills vidare</button>
         </div>
       </div>
     </div>`;
@@ -600,8 +598,8 @@ async function renderSettings() {
   });
 }
 
-// the settings larm switch: off needs a duration first (server allows
-// "tills vidare" for admins only), so opening the picker instead of disarming
+// the settings larm switch: off needs a duration first (a snooze or
+// "tills vidare"), so opening the picker instead of disarming on the spot
 function toggleArmRow(d) {
   if (d.armed) {
     SNOOZE_SW = SNOOZE_SW === d.dev_eui ? null : d.dev_eui;

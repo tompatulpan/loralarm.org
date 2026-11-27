@@ -83,7 +83,7 @@ CREATE TABLE IF NOT EXISTS users (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     name       TEXT NOT NULL UNIQUE,
     token_hash TEXT NOT NULL UNIQUE,     -- sha256 hex of the invite token
-    role       TEXT NOT NULL DEFAULT 'user',   -- user | admin (admin may disarm "tills vidare")
+    role       TEXT NOT NULL DEFAULT 'user',   -- user | admin (admin sees every group; arm rights are equal)
     created_at TEXT NOT NULL,
     disabled   INTEGER NOT NULL DEFAULT 0,
     groups     TEXT NOT NULL DEFAULT '[]'      -- JSON list: device groups this user may see

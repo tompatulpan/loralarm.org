@@ -23,8 +23,8 @@ Commands on stdin:
     f    fire the motion alarm now        k    clear it now
     n    normal uplink (no alarm)         q    quit
 
-Login with the invite token(s) printed at startup (admin: can disarm
-"tills vidare"; user: only snooze presets).
+Login with the invite token(s) printed at startup (both roles get the same
+snooze options, including "tills vidare").
 """
 from __future__ import annotations
 

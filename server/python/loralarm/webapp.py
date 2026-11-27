@@ -51,7 +51,6 @@ COOKIE = "loralarm_session"
 _EUI_RE = re.compile(r"^[0-9a-f]{16}$")
 LOGIN_LOCKOUT_AFTER = 10       # bad tokens per minute (all clients) before 429
 RATE_LIMIT_PER_MIN = 60
-SNOOZE_PRESETS_H = (1.0, 8.0, 24.0)
 # Pulse alarms (motion/circuit in event mode) fire once and never "clear", so they
 # are never in the active set; they are shown as "recent" for this long instead.
 RECENT_ALARM_H = 1.0
@@ -393,7 +392,7 @@ def create_app(engine: Engine, event_log: EventLog, webpush: Any = None,
         event_log.set_muted(user["id"], sorted(known - set(devs)))
         return {"ok": True, "devices": devs}
 
-    # ---- arm/disarm (global per device; audited; snooze presets) ----
+    # ---- arm/disarm (global per device; audited; optional snooze) ----
 
     @app.get("/api/devices/{eui}/armed")
     def get_armed(eui: str, user: dict = Depends(_guard)):
@@ -402,7 +401,7 @@ def create_app(engine: Engine, event_log: EventLog, webpush: Any = None,
             raise HTTPException(status_code=404, detail="unknown device")
         row = event_log.get_armed(eui) or {"armed": True, "until": None}
         return {"dev_eui": eui, "armed": bool(row["armed"]), "until": row["until"],
-                "can_disarm_forever": user["role"] == "admin"}
+                "can_disarm_forever": True}    # every user may disarm "tills vidare"
 
     @app.put("/api/devices/{eui}/armed", dependencies=[Depends(_csrf)])
     def put_armed(eui: str, body: dict = Depends(_body), user: dict = Depends(_guard)):
@@ -416,20 +415,13 @@ def create_app(engine: Engine, event_log: EventLog, webpush: Any = None,
             raise HTTPException(status_code=422, detail="armed must be a bool")
         snooze = body.get("snooze_hours")
         until = None
-        if not armed:
-            if snooze is None:
-                if user["role"] != "admin":
-                    raise HTTPException(status_code=403,
-                                        detail="only admins may disarm 'tills vidare'; "
-                                               "pick a snooze (1/8/24 h)")
-            else:
-                snooze = _number(snooze, "snooze_hours", 0.0, 24 * 365)
-                if snooze <= 0:
-                    raise HTTPException(status_code=422, detail="snooze out of range")
-                if user["role"] != "admin" and snooze not in SNOOZE_PRESETS_H:
-                    raise HTTPException(status_code=403,
-                                        detail=f"snooze must be one of {SNOOZE_PRESETS_H}")
-                until = utc_now() + timedelta(hours=snooze)
+        if not armed and snooze is not None:
+            # no snooze at all = "tills vidare" (no expiry, re-arm by hand); every
+            # user may choose that, and any duration in range — roles do not differ
+            snooze = _number(snooze, "snooze_hours", 0.0, 24 * 365)
+            if snooze <= 0:
+                raise HTTPException(status_code=422, detail="snooze out of range")
+            until = utc_now() + timedelta(hours=snooze)
         engine.set_armed(eui, armed, until, user=user["name"])
         row = event_log.get_armed(eui) or {}
         return {"dev_eui": eui, "armed": bool(row.get("armed", True)), "until": row.get("until")}

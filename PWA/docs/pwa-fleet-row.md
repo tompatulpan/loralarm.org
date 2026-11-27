@@ -95,7 +95,7 @@ Prioritet (första träff gäller):
 | 5 | annars `OK` | grön | — |
 
 `white-space: nowrap`, `max-width` med ellips som sista utväg. Vid avslagen
-enhet utan `armed_until` (admin "tills vidare"): bara `AV`.
+enhet utan `armed_until` ("tills vidare"): bara `AV`.
 
 ### Z4 — Mätvärden (rad 2)
 

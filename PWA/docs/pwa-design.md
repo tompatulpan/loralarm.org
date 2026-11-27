@@ -85,12 +85,13 @@ flowchart TD
     only notification fan-out is suppressed in `Engine._emit`. State and fire-once
     bookkeeping stay correct, no stale baseline on re-arm. Disarmed transitions are
     logged with `kind` as usual plus a `suppressed` marker in `detail`.
-  - **Snooze, not permanent off:** disarm carries an expiry (preset 1 h / 8 h / 24 h /
-    "tills vidare" only for admins). Auto re-arm at expiry.
+  - **Snooze, not permanent off:** disarm carries an expiry (preset 1 h / 8 h / 24 h, or
+    "tills vidare" for anyone — roles do not change the options). Auto re-arm at expiry.
   - **On re-arm** with a condition still active: send a fresh notification.
   - **Watchdog** (`stale`) is still tracked while disarmed (shown in the UI, not notified).
   - **Everyone is told:** a push to all followers on disarm and on re-arm.
-  - **Roles:** `can_disarm`/`admin` flag per user in config; others see the state only.
+  - **Roles:** `role` per user in config; it only widens device visibility (`admin` sees
+    every group). Every role may arm/disarm with the same options.
   - **Persistence:** SQLite (`device_armed`), **not** `devices.json` — config hot-reload
     must never reset or override it. Audit (who/when/expiry) in the events table:
     `kind="armed"`, user in `detail`, or add a `user` column.
@@ -266,7 +267,7 @@ clock has not started. Shipped beyond this brief: group-based device visibility
 4. ✅ Subscription UI: fleet list with toggles; per-user device_mutes (opt-out, so
    default = follow all).
 5. ✅ Arm/disarm with snooze, roles, audit, notifications to followers (snooze
-   presets 1/8/24 h, "tills vidare" admin-only; re-arm works with the web side down).
+   presets 1/8/24 h or "tills vidare" for every role; re-arm works with the web side down).
 6. ✅ Status views: banner + fleet table (status-page spec §9 applies to both surfaces).
 7. ⏳ Delivery log + ack metric + 1 month parallel comparison with Pushover; then
    decision. The `webpush_log`/`push_ack` machinery is built; the month starts when
@@ -302,7 +303,8 @@ critical kinds (§7); mockup inconsistencies fixed (see mockup).
 - One process vs. separate web container (§2) — default: in-process with limits, keep
   the seam clean.
 - Fleet source until the ChirpStack registry cache lands (§3).
-- Roles: which users may disarm / "tills vidare".
+- Roles: `admin` only widens device visibility (sees every group). Arm/disarm and its
+  snooze options are the same for every role.
 - Cloudflare Access in front of the tunnel: yes/no.
 - Whether the `events` table gets a `user` column or the audit lives in `detail`.
 

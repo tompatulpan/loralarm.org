@@ -417,7 +417,7 @@ admin in `devices.json`; the file is hot-reloaded, no restart:
   active alarms, event history, arm/disarm, follow settings **and push notifications**
   all honour it. Other groups' devices answer 404.
 - Changing `groups` or a device's `group` applies to logged-in users immediately.
-- Admins see everything and are the only ones who may disarm "tills vidare"; ntfy and
+- Admins see everything; arm/disarm (snooze or "tills vidare") is open to every role. ntfy and
   Pushover are per-device topics set in the same file and are not affected by groups.
 
 ### Web Push (notifications in the PWA)
