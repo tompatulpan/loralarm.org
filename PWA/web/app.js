@@ -43,6 +43,7 @@ let ME = null;            // {name, role}
 let DEVICES = [];         // GET /api/devices
 let STATE = { ok: true, alarms: [], recent: [] };   // GET /api/state
 let WEBPUSH_ON = null;    // server has a VAPID key (null = not known yet)
+let PUSH_ERROR = '';      // why the last enable attempt failed (shown in settings)
 let LAST_OK = 0;          // ms timestamp of the last successful refresh
 let FAILS = 0;            // consecutive failed refreshes
 let SNOOZE_OPEN = null;   // devEUI whose snooze picker is open (survives re-renders)
@@ -129,6 +130,9 @@ function hhmm(ms) {
 const IS_IOS = /iPhone|iPad|iPod/.test(navigator.userAgent)
   || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
 const IS_ANDROID = /Android/.test(navigator.userAgent);
+// Brave ships without a push service unless its Google services are enabled
+// (brave://settings/privacy); navigator.brave exists only there
+const IS_BRAVE = !!(navigator.brave && navigator.brave.isBrave);
 
 // running as an installed app (home-screen icon), not in a browser tab
 function runningStandalone() {
@@ -512,7 +516,12 @@ async function renderSettings() {
 
   const sub = await pushSubscription();
   const state = $('#push-state'), meta = $('#push-meta');
-  if (WEBPUSH_ON === false) {
+  if (PUSH_ERROR) {
+    // the last attempt failed inside the browser (no push service, denial):
+    // keep the explanation on screen and leave the button for another try
+    state.textContent = 'Push kunde inte aktiveras';
+    meta.textContent = PUSH_ERROR;
+  } else if (WEBPUSH_ON === false) {
     // the server has no VAPID key: subscribing would fail with a 503, so offer
     // no button and say why (server ops, not something the user can fix)
     state.textContent = 'Push är inte påslagen på servern';
@@ -561,6 +570,7 @@ function sameKey(buf, bytes) {
 
 async function enablePush() {
   try {
+    PUSH_ERROR = '';
     if (!('Notification' in window) || !('serviceWorker' in navigator)) {
       toast('Push stöds inte i denna webbläsare');
       return;
@@ -586,7 +596,33 @@ async function enablePush() {
     });
     toast('Push aktiverad');
     renderSettings();
-  } catch (e) { toast(e.message); }
+  } catch (e) {
+    // stays in the settings panel (renderSettings), not just in a 3.5 s toast
+    PUSH_ERROR = pushErrorText(e);
+    toast('Push kunde inte aktiveras');
+    renderSettings();
+  }
+}
+
+// subscribe() fails before the server is involved when the browser has no push
+// service at all — Brave, unless "Use Google services for push messaging" is on.
+// The browser's own text ("Registration failed - push service error") tells a
+// user nothing, so name the cause and the setting that fixes it.
+function pushErrorText(e) {
+  const msg = String((e && e.message) || e || '');
+  if (e && e.status === 503) return 'Push är inte påslagen på servern — kontakta drift.';
+  if (/push service/i.test(msg) || (e && e.name === 'AbortError')) {
+    return IS_BRAVE
+      ? 'Brave saknar push-tjänst: slå på Inställningar → Integritet → "Använd Google-tjänster för push-meddelanden", starta om Brave och försök igen.'
+      : 'Webbläsaren har ingen push-tjänst (i Brave: slå på Google-tjänster för push-meddelanden).';
+  }
+  if (e && e.name === 'NotAllowedError') {
+    return 'Notiser nekade för den här sidan — tillåt dem i webbläsarens webbplatsinställningar (låsikonen i adressfältet).';
+  }
+  if (e && e.name === 'InvalidStateError') {
+    return 'Prenumerationen är trasig — logga ut och in igen, eller rensa appens data, och försök på nytt.';
+  }
+  return msg;
 }
 
 async function sendTestPush() {
